@@ -47,6 +47,11 @@ data class AppSettings(
     val autoCapitalize: Boolean = true,
     val insertMethod: InsertMethod = InsertMethod.AUTO,
     val dictationTrigger: DictationTrigger = DictationTrigger.HOLD_TO_TALK,
+    /**
+     * Tombol volume dipakai untuk memicu dikte. Butuh layanan aksesibilitas aktif
+     * karena hanya jalur itu yang bisa membaca peristiwa tombol volume.
+     */
+    val volumeKeyTriggerEnabled: Boolean = false,
     val silenceTimeoutMs: Int = 1600,
     val keepScreenOnWhileDictating: Boolean = false,
 
@@ -92,6 +97,7 @@ class SettingsRepository(private val context: Context) {
         val autoCapitalize = booleanPreferencesKey("auto_capitalize")
         val insertMethod = stringPreferencesKey("insert_method")
         val dictationTrigger = stringPreferencesKey("dictation_trigger")
+        val volumeKeyTrigger = booleanPreferencesKey("volume_key_trigger")
         val silenceTimeoutMs = intPreferencesKey("silence_timeout_ms")
         val keepScreenOn = booleanPreferencesKey("keep_screen_on")
 
@@ -129,6 +135,7 @@ class SettingsRepository(private val context: Context) {
             prefs[K.autoCapitalize] = updated.autoCapitalize
             prefs[K.insertMethod] = updated.insertMethod.name
             prefs[K.dictationTrigger] = updated.dictationTrigger.name
+            prefs[K.volumeKeyTrigger] = updated.volumeKeyTriggerEnabled
             prefs[K.silenceTimeoutMs] = updated.silenceTimeoutMs
             prefs[K.keepScreenOn] = updated.keepScreenOnWhileDictating
 
@@ -167,6 +174,7 @@ class SettingsRepository(private val context: Context) {
             autoCapitalize = this[K.autoCapitalize] ?: defaults.autoCapitalize,
             insertMethod = enumOr(this[K.insertMethod], defaults.insertMethod),
             dictationTrigger = enumOr(this[K.dictationTrigger], defaults.dictationTrigger),
+            volumeKeyTriggerEnabled = this[K.volumeKeyTrigger] ?: defaults.volumeKeyTriggerEnabled,
             silenceTimeoutMs = this[K.silenceTimeoutMs] ?: defaults.silenceTimeoutMs,
             keepScreenOnWhileDictating = this[K.keepScreenOn] ?: defaults.keepScreenOnWhileDictating,
             llmProvider = enumOr(this[K.llmProvider], defaults.llmProvider),

@@ -3,6 +3,7 @@
     <string name="app_name">Retrobit Voice</string>
     <string name="ime_name">Retrobit Voice (Dictation)</string>
     <string name="a11y_service_label">Retrobit Voice — auto paste</string>
+    <string name="a11y_service_description">Retrobit uses this service to paste dictation results into the focused field and to read the volume buttons as a dictation trigger. It does not read screen content and does not send data anywhere.</string>
     <string name="tile_assistant">Retrobit</string>
 
     <string name="tab_home">Home</string>
@@ -61,6 +62,8 @@
     <string name="toast_mic_denied">Microphone denied — dictation will not work.</string>
     <string name="toast_contacts_granted">Contacts are available for calls and messages.</string>
     <string name="toast_contacts_denied">Without contacts, say the number out loud instead.</string>
+    <string name="toast_volume_needs_mic">Microphone permission is missing — the volume buttons can't start dictation yet.</string>
+    <string name="toast_volume_start_failed">Couldn't start dictation from the volume button. Open the Retrobit app once, then try again.</string>
 
     <string name="dictation_idle">Ready to listen</string>
     <string name="dictation_listening">Listening…</string>
@@ -129,6 +132,11 @@
     <string name="trigger_hands_free">Auto-stop on silence</string>
     <string name="trigger_hybrid">Both</string>
     <string name="settings_silence_timeout">Silence before stopping</string>
+    <string name="settings_volume_trigger">Volume buttons trigger dictation</string>
+    <string name="settings_volume_trigger_note">Requires the accessibility service to be on.</string>
+    <string name="settings_volume_trigger_ready_hold">Ready. Hold a volume button to record, release to finish — the volume stays unchanged.</string>
+    <string name="settings_volume_trigger_ready_toggle">Ready. Press once to start/stop — the volume still changes as usual.</string>
+    <string name="settings_volume_trigger_needs_a11y">Turn on the Retrobit accessibility service first so the volume buttons can be read.</string>
     <string name="settings_assistant_title">Assistant</string>
     <string name="settings_assistant_subtitle">Even without online AI, dozens of commands work through local rules.</string>
     <string name="llm_off">Off</string>

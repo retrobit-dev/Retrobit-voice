@@ -27,6 +27,9 @@ Dirancang **offline-first**: dikte dan puluhan perintah tetap jalan tanpa intern
   3. pesan diagnostik jelas kalau keduanya gagal.
 - **Pembersihan teks dua tingkat** — aturan lokal (buang "eee/emm/anu", perbaiki tanda baca, huruf besar) atau LLM untuk hasil yang lebih natural.
 - **Auto-stop saat berhenti bicara** — detektor aktivitas suara (VAD) dengan noise floor adaptif.
+- **Pemicu tombol volume** — tahan tombol volume untuk merekam (lepas = selesai, volume tidak ikut berubah)
+  atau, di mode auto-stop, tekan sekali untuk mulai/berhenti. Butuh layanan aksesibilitas karena hanya
+  jalur itu yang bisa membaca peristiwa tombol volume.
 - Pemicu tile **Pengaturan Cepat** Android.
 
 ### Asisten (Google Assistant style)
@@ -128,7 +131,7 @@ Tag `v*` juga membangun APK rilis dan melampirkannya ke GitHub Release.
 
 1. **Pilih keyboard Retrobit** — Pengaturan → Sistem → Bahasa & masukan → Keyboard → aktifkan & pilih "Retrobit Voice (Dikte)".
    (Tombol keyboard di bar Retrobit membuka pemilih keyboard, bisa balik kapan saja.)
-2. **Aktifkan layanan aksesibilitas** "Retrobit Voice — tempel otomatis" (menu Aksesibilitas). Ini yang membuat teks menempel sendiri.
+2. **Aktifkan layanan aksesibilitas** "Retrobit Voice — tempel otomatis" (menu Aksesibilitas). Ini yang membuat teks menempel sendiri, sekaligus membuka opsi pemicu lewat tombol volume di Pengaturan.
 3. **Izinkan bubble melayang** — "Tampil di atas aplikasi lain".
 4. **Opsional: jadikan asisten bawaan** — Pengaturan → Aplikasi → Asisten digital → Retrobit Voice.
 5. **Matikan optimasi baterai** untuk Retrobit supaya rekaman & kata kunci tidak terputus.

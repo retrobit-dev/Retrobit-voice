@@ -66,7 +66,7 @@ class OverlayBubbleService : Service() {
     override fun onCreate() {
         super.onCreate()
         if (!Settings.canDrawOverlays(this)) {
-            Toast.makeText(this, getString(R.string.overlay_permission_needed), Toast.LENGTH_LONG).show()
+            ToastHub.show(this, getString(R.string.overlay_permission_needed), long = true)
             stopSelf()
             return
         }
@@ -178,7 +178,7 @@ class OverlayBubbleService : Service() {
         when (graph.dictation.state.value.phase) {
             DictationController.Phase.LISTENING -> DictationService.stop(this)
             DictationController.Phase.TRANSCRIBING, DictationController.Phase.CLEANING, DictationController.Phase.INSERTING ->
-                Toast.makeText(this, getString(R.string.overlay_processing), Toast.LENGTH_SHORT).show()
+                ToastHub.show(this, getString(R.string.overlay_processing))
             else -> {
                 graph.dictation.reset()
                 DictationService.start(this, DictationController.Source.OVERLAY)

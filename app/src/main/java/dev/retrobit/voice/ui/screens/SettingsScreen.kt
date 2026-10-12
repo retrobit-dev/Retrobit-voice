@@ -29,6 +29,7 @@ import dev.retrobit.voice.data.InsertMethod
 import dev.retrobit.voice.data.LlmProvider
 import dev.retrobit.voice.data.SettingsRepository
 import dev.retrobit.voice.data.SttEngineChoice
+import dev.retrobit.voice.dictation.a11y.TextInsertAccessibilityService
 import dev.retrobit.voice.dictation.insert.ClipboardHelper
 import dev.retrobit.voice.ui.AppViewModel
 import dev.retrobit.voice.ui.DeviceState
@@ -188,6 +189,21 @@ fun SettingsScreen(vm: AppViewModel, modifier: Modifier = Modifier) {
                 ),
                 selected = current.dictationTrigger,
                 onSelect = { value -> vm.update { it.copy(dictationTrigger = value) } },
+            )
+            // Pemicu lewat tombol volume: hanya bisa dibaca dari layanan aksesibilitas,
+            // jadi status layanan itu ditampilkan apa adanya di sini.
+            val accessibilityActive = DeviceState.isAccessibilityEnabled(context) || TextInsertAccessibilityService.isConnected()
+            SwitchRow(
+                title = str(R.string.settings_volume_trigger),
+                subtitle = when {
+                    !current.volumeKeyTriggerEnabled -> str(R.string.settings_volume_trigger_note)
+                    !accessibilityActive -> str(R.string.settings_volume_trigger_needs_a11y)
+                    current.dictationTrigger == DictationTrigger.HOLD_TO_TALK ->
+                        str(R.string.settings_volume_trigger_ready_hold)
+                    else -> str(R.string.settings_volume_trigger_ready_toggle)
+                },
+                checked = current.volumeKeyTriggerEnabled,
+                onChange = { value -> vm.update { it.copy(volumeKeyTriggerEnabled = value) } },
             )
             Text(
                 text = str(R.string.settings_silence_timeout) + ": " + current.silenceTimeoutMs + " MS",

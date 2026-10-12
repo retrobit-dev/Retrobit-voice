@@ -2,7 +2,7 @@ package dev.retrobit.voice.dictation.insert
 
 import android.content.Context
 import android.view.inputmethod.InputConnection
-import android.widget.Toast
+import dev.retrobit.voice.core.ToastHub
 import dev.retrobit.voice.core.VoiceLog
 import dev.retrobit.voice.data.InsertMethod
 import dev.retrobit.voice.data.SettingsRepository
@@ -89,6 +89,6 @@ class TextInserter(
     }
 
     private fun toast(message: String) {
-        Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+        ToastHub.show(context, message)
     }
 }

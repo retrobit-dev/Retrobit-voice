@@ -2,10 +2,12 @@ package dev.retrobit.voice.dictation.a11y
 
 import android.accessibilityservice.AccessibilityService
 import android.os.Bundle
+import android.view.KeyEvent
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 import dev.retrobit.voice.core.VoiceLog
 import dev.retrobit.voice.dictation.insert.ClipboardHelper
+import dev.retrobit.voice.dictation.VolumeKeyTrigger
 import java.lang.ref.WeakReference
 
 /**
@@ -25,11 +27,24 @@ class TextInsertAccessibilityService : AccessibilityService() {
     override fun onServiceConnected() {
         super.onServiceConnected()
         instance = WeakReference(this)
+        // Sumber peristiwa tombol volume: dikte bisa dipicu tanpa membuka aplikasi.
+        VolumeKeyTrigger.attach()
         VoiceLog.i("Layanan aksesibilitas Retrobit aktif")
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         // Tidak ada yang perlu dipantau — hanya bertindak saat diminta.
+    }
+
+    /**
+     * Peristiwa tombol volume (flag `flagRequestFilterKeyEvents` di
+     * accessibility_service_config.xml). Mengembalikan true = tombol ditelan,
+     * jadi volume tidak ikut berubah selama tombol dipakai untuk dikte.
+     */
+    override fun onKeyEvent(event: KeyEvent?): Boolean {
+        val key = event ?: return false
+        if (VolumeKeyTrigger.onKeyEvent(this, key)) return true
+        return super.onKeyEvent(key)
     }
 
     override fun onInterrupt() = Unit
