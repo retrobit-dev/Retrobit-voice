@@ -21,10 +21,10 @@ import android.view.View
 import android.view.WindowManager
 import android.widget.FrameLayout
 import android.widget.ImageView
-import android.widget.Toast
 import androidx.core.app.NotificationCompat
 import dev.retrobit.voice.R
 import dev.retrobit.voice.core.AppGraph
+import dev.retrobit.voice.core.ToastHub
 import dev.retrobit.voice.core.VoiceLog
 import dev.retrobit.voice.dictation.DictationController
 import dev.retrobit.voice.dictation.DictationService

@@ -162,8 +162,11 @@ private fun MainScaffold(
     val context = LocalContext.current
 
     LaunchedEffect(toast) {
-        if (!toast.isNullOrBlank()) {
-            ToastHub.show(context, toast)
+        // Disimpan ke variabel lokal supaya bisa dipastikan tidak kosong
+        // (properti hasil delegate tidak bisa di-smart-cast).
+        val message = toast
+        if (!message.isNullOrBlank()) {
+            ToastHub.show(context, message)
             vm.consumeToast()
         }
     }
