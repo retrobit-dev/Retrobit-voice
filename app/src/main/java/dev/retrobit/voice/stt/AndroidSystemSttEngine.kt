@@ -64,8 +64,8 @@ class AndroidSystemSttEngine(private val context: Context) : SttEngine {
             val engineName = if (useOnDevice) "android-on-device" else "android-system"
 
             val recognized = try {
-                withTimeoutOrNull(timeoutMs) {
-                    suspendCancellableCoroutine { cont ->
+                withTimeoutOrNull<String>(timeoutMs) {
+                    suspendCancellableCoroutine<String> { cont ->
                         var finished = false
                         fun finish(block: () -> Unit) {
                             if (finished) return

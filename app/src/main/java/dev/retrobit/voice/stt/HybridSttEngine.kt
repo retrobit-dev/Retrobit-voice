@@ -133,8 +133,6 @@ class HybridSttEngine(private val context: Context) {
         )
     }
 
-    suspend fun checkOnDeviceLanguage(language: String): String? = onDevice.checkLanguageSupport(language)
-
     companion object {
         val CLOUD_PROVIDERS: List<CloudSttProvider> = CloudSttProvider.entries.toList()
     }

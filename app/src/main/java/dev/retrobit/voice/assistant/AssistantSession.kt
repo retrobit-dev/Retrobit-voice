@@ -6,7 +6,7 @@ import dev.retrobit.voice.core.AppGraph
 import dev.retrobit.voice.core.AssistantTurn
 import dev.retrobit.voice.core.VoiceLog
 import dev.retrobit.voice.data.AppSettings
-import dev.retrobit.voice.ui.MainActivity
+import dev.retrobit.voice.MainActivity
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob

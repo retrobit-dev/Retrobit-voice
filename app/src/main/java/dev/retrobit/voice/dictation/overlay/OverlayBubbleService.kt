@@ -194,7 +194,7 @@ class OverlayBubbleService : Service() {
                 val color = when (state.phase) {
                     DictationController.Phase.LISTENING -> Color.parseColor("#FF4D6D")
                     DictationController.Phase.TRANSCRIBING, DictationController.Phase.CLEANING,
-                    DictationController.Phase.INSERTING -> Color.parseColor("#FFB703"),
+                    DictationController.Phase.INSERTING -> Color.parseColor("#FFB703")
                     DictationController.Phase.DONE -> Color.parseColor("#2ECC71")
                     DictationController.Phase.ERROR -> Color.parseColor("#8D99AE")
                     DictationController.Phase.IDLE -> Color.parseColor("#1B1B1F")

@@ -32,22 +32,35 @@ class VoiceAssistantService : VoiceInteractionService() {
         super.onShutdown()
     }
 
-    override fun onCreateSession(): VoiceInteractionSession = RetrobitVoiceSession(this)
+    /**
+     * Sistem menanyakan aksi suara mana yang kita dukung. Kontraknya: kembalikan
+     * SUBSET dari himpunan yang diberikan (bukan daftar baru).
+     *
+     * Semua aksi dijalankan sendiri oleh Retrobit lewat Intent resmi, jadi kami
+     * melaporkan dukungan untuk aksi yang memang kami tangani dan tidak
+     * mengklaim dukungan untuk yang lain.
+     */
+    override fun onGetSupportedVoiceActions(voiceActions: MutableSet<String>): MutableSet<String> =
+        voiceActions.filterTo(mutableSetOf()) { it in SUPPORTED_VOICE_ACTIONS }
 
-    /** Aksi suara yang didukung (ditampilkan di dokumentasi sistem). */
-    override fun onGetSupportedVoiceActions(voiceActions: MutableSet<String>): Int {
-        voiceActions.addAll(
-            listOf(
-                "android.voice.action.OPEN_APP",
-                "android.voice.action.SEARCH",
-                "android.voice.action.CALL",
-                "android.voice.action.SEND_MESSAGE",
-                "android.voice.action.SET_ALARM",
-                "android.voice.action.SET_TIMER",
-            ),
+    private companion object {
+        val SUPPORTED_VOICE_ACTIONS = setOf(
+            "android.voice.action.OPEN_APP",
+            "android.voice.action.SEARCH",
+            "android.voice.action.CALL",
+            "android.voice.action.SEND_MESSAGE",
+            "android.voice.action.SET_ALARM",
+            "android.voice.action.SET_TIMER",
         )
-        return VoiceInteractionService.SUPPORTED
     }
+}
+
+/**
+ * Sesi voice interaction disediakan lewat service terpisah sesuai arsitektur
+ * Android (VoiceInteractionService tidak membuat sesi sendiri).
+ */
+class RetrobitVoiceInteractionSessionService : android.service.voice.VoiceInteractionSessionService() {
+    override fun onNewSession(args: Bundle?): VoiceInteractionSession = RetrobitVoiceSession(this)
 }
 
 /**

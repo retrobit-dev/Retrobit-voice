@@ -77,8 +77,8 @@ class AndroidOnDeviceSttEngine(private val context: Context) : SttEngine {
         }
 
         return try {
-            val result = withTimeoutOrNull(RECOGNITION_TIMEOUT_MS) {
-                suspendCancellableCoroutine { cont ->
+            val result = withTimeoutOrNull<String>(RECOGNITION_TIMEOUT_MS) {
+                suspendCancellableCoroutine<String> { cont ->
                     var finished = false
                     fun finish(block: () -> Unit) {
                         if (finished) return
@@ -164,51 +164,6 @@ class AndroidOnDeviceSttEngine(private val context: Context) : SttEngine {
         SpeechRecognizer.ERROR_NETWORK, SpeechRecognizer.ERROR_NETWORK_TIMEOUT ->
             SttFailedException("Butuh koneksi untuk model bahasa ini")
         else -> SttFailedException("On-device error kode $error")
-    }
-
-    /** Cek dukungan bahasa tanpa membuka sesi (dipakai layar Diagnostik). */
-    suspend fun checkLanguageSupport(language: String): String? {
-        if (!isAvailable() || Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return "Tidak tersedia di perangkat ini"
-        return withContext(Dispatchers.Main) {
-            val recognizer = SpeechRecognizer.createOnDeviceSpeechRecognizer(context) ?: return@withContext "Recognizer tidak bisa dibuat"
-            try {
-                withTimeoutOrNull(4000) {
-                    suspendCancellableCoroutine { cont ->
-                        val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-                            putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-                            putExtra(RecognizerIntent.EXTRA_LANGUAGE, language)
-                        }
-                        try {
-                            recognizer.checkRecognitionSupport(
-                                intent,
-                                { runnable -> runnable.run() },
-                                object : SpeechRecognizer.RecognitionSupportCallback {
-                                    override fun onSupportResult(recognitionSupport: android.speech.RecognitionSupport) {
-                                        val missing = recognitionSupport.installedOnDeviceLanguages
-                                        val supported = recognitionSupport.onDeviceLanguage == language ||
-                                            recognitionSupport.supportedOnDeviceLanguages.contains(language)
-                                        if (cont.isActive) {
-                                            cont.resume(
-                                                if (supported) null
-                                                else "Bahasa $language belum terpasang (tersedia: ${missing.joinToString().take(80)})",
-                                            )
-                                        }
-                                    }
-
-                                    override fun onError(error: Int) {
-                                        if (cont.isActive) cont.resume("Gagal memeriksa bahasa (kode $error)")
-                                    }
-                                },
-                            )
-                        } catch (t: Throwable) {
-                            if (cont.isActive) cont.resume("checkRecognitionSupport tidak didukung: ${t.javaClass.simpleName}")
-                        }
-                    }
-                }
-            } finally {
-                runCatching { recognizer.destroy() }
-            }
-        }
     }
 
     private companion object {

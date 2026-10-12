@@ -84,7 +84,7 @@ class AssistantExecutor(
         }
     }
 
-    private fun webSearch(query: String, site: String?): Outcome {
+    private fun webSearch(query: String, site: String? = null): Outcome {
         if (query.isBlank()) return Outcome(false, "Kata kunci pencarian kosong")
         val encoded = URLEncoder.encode(query, "UTF-8")
         val url = when (site?.lowercase()) {

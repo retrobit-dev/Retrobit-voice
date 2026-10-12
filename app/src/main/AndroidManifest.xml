@@ -131,6 +131,16 @@
                 android:resource="@xml/voice_interaction_service" />
         </service>
 
+        <!-- Sesi asisten (dipanggil sistem saat tombol Home ditekan lama) -->
+        <service
+            android:name=".assistant.RetrobitVoiceInteractionSessionService"
+            android:exported="true"
+            android:permission="android.permission.BIND_VOICE_INTERACTION">
+            <intent-filter>
+                <action android:name="android.service.voice.VoiceInteractionSessionService" />
+            </intent-filter>
+        </service>
+
         <!--
           RecognitionService: disyaratkan oleh voice-interaction-service.
           Sengaja TIDAK diberi intent-filter android.speech.RecognitionService supaya
