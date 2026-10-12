@@ -55,11 +55,17 @@ jobs:
           fi
           chmod +x gradlew
 
+      # Semua keluaran Gradle disimpan ke build.log supaya bisa diringkas
+      # otomatis di komentar PR kalau build gagal (lihat langkah terakhir).
       - name: Unit test
-        run: ./gradlew testDebugUnitTest --stacktrace
+        run: |
+          set -o pipefail
+          ./gradlew testDebugUnitTest --stacktrace 2>&1 | tee build.log
 
       - name: Build APK debug
-        run: ./gradlew assembleDebug --stacktrace
+        run: |
+          set -o pipefail
+          ./gradlew assembleDebug --stacktrace 2>&1 | tee -a build.log
 
       - name: Bangun keystore debug yang stabil (opsional)
         if: startsWith(github.ref, 'refs/tags/v')
@@ -92,6 +98,23 @@ jobs:
           name: retrobit-voice-release
           path: app/build/outputs/apk/release/*.apk
           if-no-files-found: warn
+
+      - name: Ringkasan error ke komentar PR (bila gagal)
+        if: failure() && github.event_name == 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          {
+            echo "### ❌ Build gagal"
+            echo
+            echo '```text'
+            grep -n "^e: \| error: \|FAILED\|Execution failed\|Caused by" build.log 2>/dev/null | head -n 60 || true
+            echo
+            echo "--- 80 baris terakhir ---"
+            tail -n 80 build.log 2>/dev/null || echo "(build.log tidak ada)"
+            echo '```'
+          } > /tmp/failure-comment.md
+          gh pr comment ${{ github.event.pull_request.number }} --body-file /tmp/failure-comment.md || true
 
       - name: Lampirkan APK ke Release (tag v*)
         if: startsWith(github.ref, 'refs/tags/v')
