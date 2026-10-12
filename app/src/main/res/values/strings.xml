@@ -4,6 +4,7 @@
     <string name="app_name">Retrobit Voice</string>
     <string name="ime_name">Retrobit Voice (Dikte)</string>
     <string name="a11y_service_label">Retrobit Voice — tempel otomatis</string>
+    <string name="a11y_service_description">Retrobit memakai layanan ini untuk menempelkan hasil dikte ke kolom yang sedang aktif dan untuk membaca tombol volume sebagai pemicu dikte. Layanan ini tidak membaca isi layar dan tidak mengirim data ke mana pun.</string>
     <string name="tile_assistant">Retrobit</string>
 
     <!-- ===== Navigasi ===== -->
@@ -65,6 +66,8 @@
     <string name="toast_mic_denied">Izin mikrofon ditolak — dikte tidak akan berfungsi.</string>
     <string name="toast_contacts_granted">Kontak bisa dipakai untuk panggilan dan pesan.</string>
     <string name="toast_contacts_denied">Tanpa izin kontak, sebutkan nomor secara langsung.</string>
+    <string name="toast_volume_needs_mic">Izin mikrofon belum diberikan — tombol volume belum bisa memulai dikte.</string>
+    <string name="toast_volume_start_failed">Tidak bisa memulai dikte dari tombol volume. Buka aplikasi Retrobit sekali, lalu coba lagi.</string>
 
     <!-- ===== Dikte ===== -->
     <string name="dictation_idle">Siap mendengarkan</string>
@@ -137,6 +140,11 @@
     <string name="trigger_hands_free">Otomatis saat berhenti bicara</string>
     <string name="trigger_hybrid">Bisa keduanya</string>
     <string name="settings_silence_timeout">Jeda hening sebelum berhenti</string>
+    <string name="settings_volume_trigger">Tombol volume memicu dikte</string>
+    <string name="settings_volume_trigger_note">Perlu layanan aksesibilitas aktif.</string>
+    <string name="settings_volume_trigger_ready_hold">Siap. Tahan tombol volume untuk merekam, lepas untuk selesai — volume tidak ikut berubah.</string>
+    <string name="settings_volume_trigger_ready_toggle">Siap. Tekan sekali untuk mulai/berhenti — volume tetap berubah seperti biasa.</string>
+    <string name="settings_volume_trigger_needs_a11y">Aktifkan layanan aksesibilitas Retrobit dulu agar tombol volume bisa dibaca.</string>
     <string name="settings_assistant_title">Asisten</string>
     <string name="settings_assistant_subtitle">Tanpa AI daring, asisten tetap menjalankan puluhan perintah lewat aturan lokal.</string>
     <string name="llm_off">Nonaktif</string>

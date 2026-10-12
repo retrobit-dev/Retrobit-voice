@@ -43,7 +43,18 @@ class DictationService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         val graph = AppGraph.require
-        when (intent?.action) {
+
+        // Intent tanpa action yang dikenal (mis. service dijalankan ulang sistem
+        // dengan intent kosong) bukan perintah apa pun. Dulu kondisi ini jatuh ke
+        // jalur "mulai dikte" sehingga mikrofon menyala tanpa diminta pengguna.
+        val action = intent?.action
+        if (action == null || action !in KNOWN_ACTIONS) {
+            VoiceLog.w("DictationService diabaikan — action tidak dikenal: $action")
+            stopSelfSafely()
+            return START_NOT_STICKY
+        }
+
+        when (action) {
             ACTION_STOP -> {
                 graph.dictation.stopAndFinish()
                 return START_NOT_STICKY
@@ -183,13 +194,17 @@ class DictationService : Service() {
     companion object {
         const val CHANNEL_ID = "retrobit_dictation"
         const val NOTIFICATION_ID = 4201
+        const val ACTION_START = "dev.retrobit.voice.action.START_DICTATION"
         const val ACTION_STOP = "dev.retrobit.voice.action.STOP_DICTATION"
         const val ACTION_CANCEL = "dev.retrobit.voice.action.CANCEL_DICTATION"
         const val ACTION_SHOW = "dev.retrobit.voice.action.SHOW_DICTATION"
         const val EXTRA_SOURCE = "source"
 
+        private val KNOWN_ACTIONS = setOf(ACTION_START, ACTION_STOP, ACTION_CANCEL, ACTION_SHOW)
+
         fun start(context: Context, source: DictationController.Source) {
             val intent = Intent(context, DictationService::class.java).apply {
+                action = ACTION_START
                 putExtra(EXTRA_SOURCE, source.name)
             }
             ContextCompat.startForegroundService(context, intent)

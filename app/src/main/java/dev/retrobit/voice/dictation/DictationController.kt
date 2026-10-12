@@ -39,7 +39,7 @@ class DictationController(
 
     enum class Phase { IDLE, LISTENING, TRANSCRIBING, CLEANING, INSERTING, DONE, ERROR }
 
-    enum class Source { MANUAL, IME, OVERLAY, TILE, ASSISTANT }
+    enum class Source { MANUAL, IME, OVERLAY, TILE, ASSISTANT, VOLUME }
 
     data class UiState(
         val phase: Phase = Phase.IDLE,

@@ -4,7 +4,6 @@ import android.Manifest
 import android.content.Intent
 import android.os.Build
 import android.os.Bundle
-import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
@@ -36,6 +35,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import dev.retrobit.voice.core.ToastHub
 import dev.retrobit.voice.ui.AppViewModel
 import dev.retrobit.voice.ui.components.epaperTexture
 import dev.retrobit.voice.ui.screens.AssistantScreen
@@ -61,19 +61,11 @@ class MainActivity : ComponentActivity() {
     private var autoListenRequested = mutableStateOf(false)
 
     private val microphonePermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-        Toast.makeText(
-            this,
-            getString(if (granted) R.string.toast_mic_granted else R.string.toast_mic_denied),
-            Toast.LENGTH_SHORT,
-        ).show()
+        ToastHub.show(this, getString(if (granted) R.string.toast_mic_granted else R.string.toast_mic_denied))
     }
 
     private val contactsPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-        Toast.makeText(
-            this,
-            getString(if (granted) R.string.toast_contacts_granted else R.string.toast_contacts_denied),
-            Toast.LENGTH_SHORT,
-        ).show()
+        ToastHub.show(this, getString(if (granted) R.string.toast_contacts_granted else R.string.toast_contacts_denied))
     }
 
     private val notificationPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { }
@@ -112,10 +104,26 @@ class MainActivity : ComponentActivity() {
         handleIntent(intent)
     }
 
+    /**
+     * Menangani intent yang membuka layar ini.
+     *
+     * Intent yang benar-benar kosong (tanpa extras) langsung diabaikan, dan
+     * setiap extra dibuang setelah dipakai. Tanpa itu, intent yang sama akan
+     * memicu ulang — mis. mendengarkan otomatis menyala lagi setiap layar
+     * dibuat kembali (putar layar, kembali dari pengaturan sistem).
+     */
     private fun handleIntent(intent: Intent?) {
-        if (intent == null) return
-        if (intent.getBooleanExtra(EXTRA_OPEN_ASSISTANT, false)) startOnAssistantTab.value = true
-        if (intent.getBooleanExtra(EXTRA_AUTO_LISTEN, false)) autoListenRequested.value = true
+        val extras = intent?.extras
+        if (extras == null || extras.keySet().isEmpty()) return
+
+        val openAssistant = extras.getBoolean(EXTRA_OPEN_ASSISTANT, false)
+        val autoListen = extras.getBoolean(EXTRA_AUTO_LISTEN, false)
+
+        if (openAssistant) startOnAssistantTab.value = true
+        if (autoListen) autoListenRequested.value = true
+
+        if (openAssistant) extras.remove(EXTRA_OPEN_ASSISTANT)
+        if (autoListen) extras.remove(EXTRA_AUTO_LISTEN)
     }
 
     private fun requestNotificationPermissionIfNeeded() {
@@ -154,8 +162,11 @@ private fun MainScaffold(
     val context = LocalContext.current
 
     LaunchedEffect(toast) {
-        if (!toast.isNullOrBlank()) {
-            Toast.makeText(context, toast, Toast.LENGTH_SHORT).show()
+        // Disimpan ke variabel lokal supaya bisa dipastikan tidak kosong
+        // (properti hasil delegate tidak bisa di-smart-cast).
+        val message = toast
+        if (!message.isNullOrBlank()) {
+            ToastHub.show(context, message)
             vm.consumeToast()
         }
     }
