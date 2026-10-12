@@ -22,7 +22,12 @@ Tabel ini juga berguna saat mengisi Play Console (Data safety) atau menjelaskan 
 | `FOREGROUND_SERVICE_SPECIAL_USE` | Bubble melayang (tidak ada kategori FGS yang lebih tepat) |
 | `SYSTEM_ALERT_WINDOW` | Bubble mikrofon melayang (opsional) |
 | `VIBRATE` | Umpan balik saat mulai/berhenti merekam |
-| `QUERY_ALL_PACKAGES` | **Hanya** untuk mencari aplikasi yang dimaksud pengguna ("buka WhatsApp") pada Android 11+; tidak ada pemindaian di latar belakang |
+
+> **Catatan package visibility:** aplikasi ini **tidak** meminta `QUERY_ALL_PACKAGES`.
+> Untuk perintah seperti "buka WhatsApp", deklarasi terarah di blok `<queries>`
+> (intent `MAIN`/`LAUNCHER`) sudah cukup — dan kebijakan Play memang mewajibkan
+> pendekatan terarah itu. Kalau suatu saat ada aplikasi yang tidak terdeteksi,
+> tambahkan `<package android:name="…"/>` spesifik, bukan izin broad visibility.
 
 ## Integrasi khusus (dipilih pengguna di Pengaturan sistem)
 
