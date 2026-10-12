@@ -46,6 +46,12 @@ Dirancang **offline-first**: dikte dan puluhan perintah tetap jalan tanpa intern
 
 ## Tampilan: retro cyberdeck, grayscale e-paper
 
+![Ilustrasi tema e-paper](docs/design/mockup-epaper.png)
+
+> Ilustrasi arah visual (bukan tangkapan layar aplikasi): panel bergaris, tipografi
+> monospace, meter LED 1-bit, dan tombol ter-inversi. Untuk melihat hasil aslinya,
+> pasang APK dari halaman **Releases**.
+
 Seluruh antarmuka mengikuti estetika **layar e-paper 1-bit**: hanya ada tinta dan kertas,
 tanpa satu pun warna.
 
