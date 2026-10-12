@@ -1,5 +1,7 @@
 # Retrobit Voice
 
+[![Build APK](https://github.com/retrobit-dev/Retrobit-voice/actions/workflows/build.yml/badge.svg)](https://github.com/retrobit-dev/Retrobit-voice/actions/workflows/build.yml)
+
 **Dikte secepat bicara + asisten suara Bahasa Indonesia — dua-duanya dalam satu aplikasi Android native.**
 
 Retrobit Voice menggabungkan dua hal yang biasanya terpisah:
@@ -57,6 +59,17 @@ Anda ──►│ Keyboard / │ ───────────────�
 ```
 
 ---
+
+## Unduh APK (tanpa memasang Android Studio)
+
+1. Buka tab **Actions** di repositori ini.
+2. Pilih workflow **Build APK** yang paling baru (tanda centang hijau).
+3. Di bagian **Artifacts**, unduh **`retrobit-voice-debug`** → di dalamnya ada `app-debug.apk`.
+4. Pasang di ponsel (aktifkan "Instal dari sumber tidak dikenal" bila diminta).
+
+> APK debug ditandatangani dengan kunci debug otomatis, jadi aman untuk uji coba pribadi.
+> Untuk APK rilis, buat tag `v*` — CI akan menandatanganinya dengan keystore dari GitHub Secrets
+> (`KEYSTORE_PATH`, `KEYSTORE_PASSWORD`, `KEY_ALIAS`, `KEY_PASSWORD`) dan melampirkannya ke Release.
 
 ## Cara build
 
