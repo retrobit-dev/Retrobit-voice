@@ -1,0 +1,291 @@
+package dev.retrobit.voice.assistant
+
+import android.Manifest
+import android.app.SearchManager
+import android.content.ActivityNotFoundException
+import android.content.Context
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.hardware.camera2.CameraCharacteristics
+import android.hardware.camera2.CameraManager
+import android.media.AudioManager
+import android.net.Uri
+import android.provider.AlarmClock
+import android.provider.Settings
+import androidx.core.content.ContextCompat
+import dev.retrobit.voice.core.AssistantAction
+import dev.retrobit.voice.core.VoiceLog
+import dev.retrobit.voice.data.AppSettings
+import dev.retrobit.voice.data.HistoryStore
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import java.net.URLEncoder
+
+/**
+ * Menjalankan aksi asisten di Android.
+ *
+ * Prinsip: pakai Intent resmi (ACTION_DIAL, ACTION_SET_ALARM, ACTION_VIEW …)
+ * supaya tidak butuh izin berbahaya dan tidak "menyamar" sebagai aplikasi lain.
+ * Panggilan telepon dibuka di dialer (pengguna tetap menekan tombol panggil) kecuali
+ * izin CALL_PHONE diberikan; pesan disiapkan di aplikasi pesan pengguna.
+ */
+class AssistantExecutor(
+    private val context: Context,
+    private val history: HistoryStore,
+) {
+
+    data class Outcome(
+        val success: Boolean,
+        val message: String,
+        val needsPermission: String? = null,
+    )
+
+    private val apps = AppResolver(context)
+    private val contacts = ContactsResolver(context)
+    private val cameraManager by lazy { context.getSystemService(Context.CAMERA_SERVICE) as? CameraManager }
+    private val audioManager by lazy { context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager }
+
+    fun installedAppNames(): List<String> = apps.installedApps()
+
+    suspend fun execute(action: AssistantAction, settings: AppSettings): Outcome = withContext(Dispatchers.Main) {
+        try {
+            when (action) {
+                is AssistantAction.OpenApp -> openApp(action.appQuery)
+                is AssistantAction.WebSearch -> webSearch(action.query, action.site)
+                is AssistantAction.Dial -> dial(action.target, action.contactName)
+                is AssistantAction.CallContact -> callContact(action.name)
+                is AssistantAction.SetAlarm -> setAlarm(action)
+                is AssistantAction.SetTimer -> setTimer(action)
+                is AssistantAction.OpenSettingsPanel -> openSettings(action.panel)
+                is AssistantAction.SendMessage -> sendMessage(action)
+                is AssistantAction.SaveNote -> saveNote(action.body)
+                is AssistantAction.SetTorch -> setTorch(action.on)
+                is AssistantAction.SetVolume -> setVolume(action)
+                is AssistantAction.Unknown -> Outcome(false, "Perintah tidak dikenali")
+            }
+        } catch (t: Throwable) {
+            VoiceLog.e("Eksekusi aksi gagal", t)
+            Outcome(false, "Gagal menjalankan: ${t.message ?: t.javaClass.simpleName}")
+        }
+    }
+
+    // ---------------- Aksi ----------------
+
+    private fun openApp(query: String): Outcome {
+        val target = apps.resolve(query)
+            ?: return webSearch(query).let {
+                Outcome(true, "Aplikasi \"$query\" tidak ditemukan, jadi saya carikan di web.")
+            }
+        return try {
+            context.startActivity(target.intent)
+            Outcome(true, "Membuka ${target.label}.")
+        } catch (t: ActivityNotFoundException) {
+            Outcome(false, "Tidak bisa membuka ${target.label}.")
+        }
+    }
+
+    private fun webSearch(query: String, site: String?): Outcome {
+        if (query.isBlank()) return Outcome(false, "Kata kunci pencarian kosong")
+        val encoded = URLEncoder.encode(query, "UTF-8")
+        val url = when (site?.lowercase()) {
+            "youtube" -> "https://www.youtube.com/results?search_query=$encoded"
+            "maps", "google maps" -> "https://www.google.com/maps/search/$encoded"
+            "play store" -> "https://play.google.com/store/search?q=$encoded"
+            "tokopedia" -> "https://www.tokopedia.com/search?st=product&q=$encoded"
+            "shopee" -> "https://shopee.co.id/search?keyword=$encoded"
+            "wikipedia" -> "https://id.wikipedia.org/w/index.php?search=$encoded"
+            "instagram" -> "https://www.instagram.com/explore/tags/$encoded"
+            else -> "https://www.google.com/search?q=$encoded"
+        }
+        return launchUrl(url, "Mencari \"$query\".")
+    }
+
+    private fun launchUrl(url: String, successMessage: String): Outcome = try {
+        context.startActivity(
+            Intent(Intent.ACTION_VIEW, Uri.parse(url))
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+        )
+        Outcome(true, successMessage)
+    } catch (t: Throwable) {
+        // Cadangan: lempar ke aplikasi pencarian sistem
+        try {
+            context.startActivity(
+                Intent(Intent.ACTION_WEB_SEARCH)
+                    .putExtra(SearchManager.QUERY, url)
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+            )
+            Outcome(true, successMessage)
+        } catch (t2: Throwable) {
+            Outcome(false, "Tidak ada aplikasi yang bisa membuka tautan")
+        }
+    }
+
+    private fun dial(number: String, name: String?): Outcome {
+        val clean = number.filter { it.isDigit() || it == '+' || it == '*' || it == '#' }
+        if (clean.length < 3) return Outcome(false, "Nomor tidak valid")
+        val canCall = ContextCompat.checkSelfPermission(context, Manifest.permission.CALL_PHONE) ==
+            PackageManager.PERMISSION_GRANTED
+        val intent = Intent(if (canCall) Intent.ACTION_CALL else Intent.ACTION_DIAL, Uri.parse("tel:$clean"))
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        return try {
+            context.startActivity(intent)
+            Outcome(true, "Memanggil ${name ?: clean}.")
+        } catch (t: Throwable) {
+            Outcome(false, "Aplikasi telepon tidak tersedia")
+        }
+    }
+
+    private fun callContact(name: String): Outcome {
+        if (!contacts.hasPermission()) {
+            return Outcome(false, "Butuh izin kontak untuk menelepon $name", Manifest.permission.READ_CONTACTS)
+        }
+        val contact = contacts.best(name)
+            ?: return Outcome(false, "Kontak \"$name\" tidak ditemukan di buku telepon")
+        return dial(contact.number, contact.displayName)
+    }
+
+    private fun setAlarm(action: AssistantAction.SetAlarm): Outcome {
+        val intent = Intent(AlarmClock.ACTION_SET_ALARM).apply {
+            putExtra(AlarmClock.EXTRA_HOUR, action.hour)
+            putExtra(AlarmClock.EXTRA_MINUTES, action.minute)
+            putExtra(AlarmClock.EXTRA_SKIP_UI, true)
+            if (action.label.isNotBlank()) putExtra(AlarmClock.EXTRA_MESSAGE, action.label)
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        return try {
+            context.startActivity(intent)
+            Outcome(true, "Alarm ${"%02d:%02d".format(action.hour, action.minute)} diset.")
+        } catch (t: Throwable) {
+            Outcome(false, "Aplikasi jam bawaan tidak menerima permintaan alarm")
+        }
+    }
+
+    private fun setTimer(action: AssistantAction.SetTimer): Outcome {
+        val intent = Intent(AlarmClock.ACTION_SET_TIMER).apply {
+            putExtra(AlarmClock.EXTRA_LENGTH, action.seconds)
+            putExtra(AlarmClock.EXTRA_SKIP_UI, true)
+            if (action.label.isNotBlank()) putExtra(AlarmClock.EXTRA_MESSAGE, action.label)
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        return try {
+            context.startActivity(intent)
+            Outcome(true, "Timer ${ActionText.humanDuration(action.seconds)} diset.")
+        } catch (t: Throwable) {
+            Outcome(false, "Aplikasi jam bawaan tidak menerima permintaan timer")
+        }
+    }
+
+    private fun openSettings(panel: String): Outcome {
+        val action = when (panel) {
+            "wifi", "wi-fi" -> Settings.ACTION_WIFI_SETTINGS
+            "bluetooth" -> Settings.ACTION_BLUETOOTH_SETTINGS
+            "location", "gps", "lokasi" -> Settings.ACTION_LOCATION_SOURCE_SETTINGS
+            "data", "seluler" -> Settings.ACTION_DATA_ROAMING_SETTINGS
+            "battery", "baterai" -> Settings.ACTION_BATTERY_SAVER_SETTINGS
+            "display", "tampilan" -> Settings.ACTION_DISPLAY_SETTINGS
+            "sound", "suara", "nada" -> Settings.ACTION_SOUND_SETTINGS
+            "apps", "aplikasi" -> Settings.ACTION_APPLICATION_SETTINGS
+            "storage", "penyimpanan" -> Settings.ACTION_INTERNAL_STORAGE_SETTINGS
+            "date", "jam", "tanggal" -> Settings.ACTION_DATE_SETTINGS
+            "accessibility", "aksesibilitas" -> Settings.ACTION_ACCESSIBILITY_SETTINGS
+            "keyboard" -> Settings.ACTION_INPUT_METHOD_SETTINGS
+            else -> Settings.ACTION_SETTINGS
+        }
+        return try {
+            context.startActivity(Intent(action).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+            Outcome(true, "Membuka pengaturan $panel.")
+        } catch (t: Throwable) {
+            Outcome(false, "Panel pengaturan tidak tersedia di perangkat ini")
+        }
+    }
+
+    private fun sendMessage(action: AssistantAction.SendMessage): Outcome {
+        var number: String? = null
+        var display = action.contactName
+        if (contacts.hasPermission()) {
+            contacts.best(action.contactName)?.let {
+                number = it.number
+                display = it.displayName
+            }
+        }
+        val body = action.body.ifBlank { "" }
+        val encodedBody = URLEncoder.encode(body, "UTF-8")
+
+        // 1) WhatsApp (paling umum di Indonesia)
+        if (number != null) {
+            val digits = number!!.filter { it.isDigit() }
+            val wa = Intent(Intent.ACTION_VIEW, Uri.parse("https://wa.me/$digits?text=$encodedBody"))
+                .setPackage("com.whatsapp")
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            if (wa.resolveActivity(context.packageManager) != null) {
+                context.startActivity(wa)
+                return Outcome(true, "Pesan WhatsApp untuk $display sudah disiapkan. Tekan kirim untuk mengirim.")
+            }
+            // 2) SMS bawaan
+            val sms = Intent(Intent.ACTION_SENDTO, Uri.parse("smsto:$number")).apply {
+                putExtra("sms_body", body)
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            return try {
+                context.startActivity(sms)
+                Outcome(true, "Pesan SMS untuk $display sudah disiapkan.")
+            } catch (t: Throwable) {
+                Outcome(false, "Tidak ada aplikasi pesan yang bisa dipakai")
+            }
+        }
+
+        // Nomor tidak diketahui → buka aplikasi pesan dengan teks terisi
+        val generic = Intent(Intent.ACTION_SEND).apply {
+            type = "text/plain"
+            putExtra(Intent.EXTRA_TEXT, body)
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        return try {
+            context.startActivity(Intent.createChooser(generic, "Kirim pesan").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+            Outcome(false, "Nomor $display tidak ditemukan. Pesan disiapkan untuk dipilih manual.")
+        } catch (t: Throwable) {
+            Outcome(false, "Tidak bisa membuka aplikasi pesan")
+        }
+    }
+
+    private suspend fun saveNote(body: String): Outcome {
+        if (body.isBlank()) return Outcome(false, "Isi catatan kosong")
+        history.appendNote(body)
+        return Outcome(true, "Catatan disimpan: \"$body\"")
+    }
+
+    private fun setTorch(on: Boolean): Outcome {
+        val manager = cameraManager ?: return Outcome(false, "Kamera tidak tersedia")
+        return try {
+            val cameraId = manager.cameraIdList.firstOrNull { id ->
+                val chars = manager.getCameraCharacteristics(id)
+                chars.get(CameraCharacteristics.FLASH_INFO_AVAILABLE) == true
+            } ?: return Outcome(false, "Perangkat ini tidak punya lampu kilat")
+            manager.setTorchMode(cameraId, on)
+            Outcome(true, if (on) "Senter dinyalakan." else "Senter dimatikan.")
+        } catch (t: Throwable) {
+            Outcome(false, "Tidak bisa mengubah senter: ${t.message}")
+        }
+    }
+
+    private fun setVolume(action: AssistantAction.SetVolume): Outcome {
+        val audio = audioManager ?: return Outcome(false, "AudioManager tidak tersedia")
+        val max = audio.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
+        return try {
+            if (action.relative) {
+                audio.adjustStreamVolume(
+                    AudioManager.STREAM_MUSIC,
+                    if (action.percent >= 0) AudioManager.ADJUST_RAISE else AudioManager.ADJUST_LOWER,
+                    AudioManager.FLAG_SHOW_UI,
+                )
+            } else {
+                val target = (action.percent.coerceIn(0, 100) * max / 100f).toInt()
+                audio.setStreamVolume(AudioManager.STREAM_MUSIC, target, AudioManager.FLAG_SHOW_UI)
+            }
+            val now = audio.getStreamVolume(AudioManager.STREAM_MUSIC) * 100 / max
+            Outcome(true, "Volume sekarang $now persen.")
+        } catch (t: Throwable) {
+            Outcome(false, "Tidak bisa mengubah volume")
+        }
+    }
+}

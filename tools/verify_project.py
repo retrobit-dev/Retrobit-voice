@@ -1,0 +1,165 @@
+#!/usr/bin/env python3
+"""
+Pemeriksa konsistensi proyek Retrobit Voice.
+
+Sandbox pengembangan tidak punya Android SDK, jadi skrip ini dipakai untuk
+menangkap kesalahan yang paling sering terjadi SEBELUM build di Android Studio:
+
+  1. R.string / R.drawable / R.layout / R.id / R.xml yang tidak ada
+  2. Kelas yang disebut di AndroidManifest.xml tetapi berkasnya tidak ada
+  3. Referensi @string/@drawable/@xml/@color/@mipmap/@style di dalam XML
+  4. Keseimbangan kurung kurawal & tanda kutip pada berkas Kotlin
+  5. Kunci string yang ada di values/ tetapi belum diterjemahkan di values-en/
+
+Jalankan: python3 tools/verify_project.py
+"""
+from __future__ import annotations
+
+import re
+import sys
+import xml.etree.ElementTree as ET
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
+JAVA = ROOT / "app/src/main/java"
+RES = ROOT / "app/src/main/res"
+MANIFEST = ROOT / "app/src/main/AndroidManifest.xml"
+
+errors: list[str] = []
+warnings: list[str] = []
+
+
+def read(path: Path) -> str:
+    return path.read_text(encoding="utf-8")
+
+
+# ---------- 1. Kumpulkan nama resource yang benar-benar ada ----------
+def resource_names(kind_dir: str) -> set[str]:
+    names: set[str] = set()
+    for path in (RES / kind_dir).glob("*.xml"):
+        names.add(path.stem)
+    return names
+
+
+drawables = resource_names("drawable")
+layouts = resource_names("layout")
+xmls = resource_names("xml")
+mipmaps = resource_names("mipmap-anydpi-v26")
+
+strings_id: dict[str, str] = {}
+strings_en: dict[str, str] = {}
+for path, target in ((RES / "values/strings.xml", strings_id), (RES / "values-en/strings.xml", strings_en)):
+    if not path.exists():
+        errors.append(f"resources: {path.relative_to(ROOT)} tidak ditemukan")
+        continue
+    for node in ET.parse(path).getroot().findall("string"):
+        target[node.attrib["name"]] = node.text or ""
+
+colors = set()
+themes = set()
+for values_file in (RES / "values").glob("*.xml"):
+    root = ET.parse(values_file).getroot()
+    colors |= {n.attrib["name"] for n in root.findall("color")}
+    themes |= {n.attrib["name"] for n in root.findall("style")}
+
+# id dari layout XML (android:id)
+layout_ids: set[str] = set()
+for path in (RES / "layout").glob("*.xml"):
+    layout_ids |= set(re.findall(r'android:id="@\+?id/([A-Za-z0-9_]+)"', read(path)))
+
+# ---------- 2. Periksa referensi di kode Kotlin ----------
+kotlin_files = sorted(JAVA.rglob("*.kt"))
+prefix_map = {
+    "R.string.": strings_id,
+    "R.drawable.": drawables,
+    "R.layout.": layouts,
+    "R.id.": layout_ids,
+    "R.xml.": xmls,
+    "R.mipmap.": mipmaps,
+    "R.color.": colors,
+    "R.style.": themes,
+}
+
+for path in kotlin_files:
+    text = read(path)
+    for prefix, known in prefix_map.items():
+        for match in re.finditer(re.escape(prefix) + r"([A-Za-z0-9_]+)", text):
+            name = match.group(1)
+            if name not in known:
+                errors.append(f"{path.relative_to(ROOT)}: {prefix}{name} tidak ditemukan")
+
+# ---------- 3. Periksa keseimbangan kurung pada berkas Kotlin ----------
+for path in kotlin_files:
+    text = read(path)
+    stripped = re.sub(r'"""[\s\S]*?"""', '""', text)          # buang raw string
+    stripped = re.sub(r"'(\\.|[^'\\])'", "''", stripped)          # buang literal char ('"' dll)
+    stripped = re.sub(r'"(\\.|[^"\\])*"', '""', stripped)      # buang string biasa
+    stripped = re.sub(r"//[^\n]*", "", stripped)               # buang komentar baris
+    stripped = re.sub(r"/\*[\s\S]*?\*/", "", stripped)         # buang komentar blok
+    for open_ch, close_ch in (("{", "}"), ("(", ")"), ("[", "]")):
+        if stripped.count(open_ch) != stripped.count(close_ch):
+            errors.append(
+                f"{path.relative_to(ROOT)}: jumlah '{open_ch}' ({stripped.count(open_ch)}) "
+                f"!= '{close_ch}' ({stripped.count(close_ch)})",
+            )
+
+# ---------- 4. Periksa kelas yang disebut di manifest ----------
+manifest_text = read(MANIFEST)
+package = "dev.retrobit.voice"
+for attr in ("android:name", "android:sessionService", "android:recognitionService"):
+    for match in re.finditer(rf'{attr}="([^"]+)"', manifest_text):
+        value = match.group(1)
+        if attr != "android:name" and not value.startswith(package):
+            continue
+        if attr == "android:name" and not value.startswith(".") and not value.startswith(package):
+            continue  # mis. androidx.core.content.FileProvider
+        cls = value.lstrip(".")
+        if value.startswith(package):
+            cls = value[len(package) + 1 :]
+        relative = cls.replace(".", "/")
+        hit = (JAVA / f"{relative}.kt").exists() or any(
+            (p.name == f"{cls.split('.')[-1]}.kt") for p in kotlin_files
+        )
+        if not hit:
+            errors.append(f"AndroidManifest.xml: kelas {value} tidak ditemukan di kode")
+
+# ---------- 5. Periksa referensi @resource di semua XML ----------
+xml_ref = re.compile(r"@(?P<kind>string|drawable|xml|color|mipmap|style|layout)/(?P<name>[A-Za-z0-9_.]+)")
+known_by_kind = {
+    "string": strings_id,
+    "drawable": drawables,
+    "xml": xmls,
+    "color": colors,
+    "mipmap": mipmaps,
+    "style": themes,
+    "layout": layouts,
+}
+for path in list(RES.rglob("*.xml")) + [MANIFEST]:
+    text = read(path)
+    for match in xml_ref.finditer(text):
+        kind, name = match.group("kind"), match.group("name")
+        if name.startswith("android:"):
+            continue
+        if name not in known_by_kind[kind]:
+            errors.append(f"{path.relative_to(ROOT)}: @{kind}/{name} tidak ditemukan")
+
+# ---------- 6. Cakupan terjemahan ----------
+missing_en = sorted(set(strings_id) - set(strings_en))
+if missing_en:
+    warnings.append(f"values-en/ belum memuat {len(missing_en)} kunci: {', '.join(missing_en[:10])}")
+
+# ---------- Laporan ----------
+print(f"Berkas Kotlin diperiksa : {len(kotlin_files)}")
+print(f"String (id/en)          : {len(strings_id)}/{len(strings_en)}")
+print(f"Drawable/layout/xml/id  : {len(drawables)}/{len(layouts)}/{len(xmls)}/{len(layout_ids)}")
+print()
+
+for warning in warnings:
+    print(f"PERINGATAN  {warning}")
+for error in errors:
+    print(f"KESALAHAN   {error}")
+
+if errors:
+    print(f"\n=> {len(errors)} kesalahan, {len(warnings)} peringatan")
+    sys.exit(1)
+print(f"\n=> Semua referensi konsisten ({len(warnings)} peringatan)")

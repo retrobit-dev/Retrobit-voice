@@ -1,0 +1,193 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- ===== Identitas ===== -->
+    <string name="app_name">Retrobit Voice</string>
+    <string name="ime_name">Retrobit Voice (Dikte)</string>
+    <string name="a11y_service_label">Retrobit Voice — tempel otomatis</string>
+    <string name="tile_assistant">Retrobit</string>
+
+    <!-- ===== Navigasi ===== -->
+    <string name="tab_home">Beranda</string>
+    <string name="tab_dictation">Dikte</string>
+    <string name="tab_assistant">Asisten</string>
+    <string name="tab_settings">Pengaturan</string>
+
+    <!-- ===== Aksi umum ===== -->
+    <string name="action_allow">Izinkan</string>
+    <string name="action_enable">Aktifkan</string>
+    <string name="action_select">Pilih</string>
+    <string name="action_set">Atur</string>
+    <string name="action_finish">Selesai</string>
+    <string name="action_cancel">Batal</string>
+    <string name="action_processing">Memproses…</string>
+    <string name="action_copy">Salin</string>
+    <string name="action_share">Bagikan</string>
+    <string name="action_send">Kirim</string>
+    <string name="action_speak">Bicara</string>
+    <string name="action_refresh">Perbarui</string>
+    <string name="action_send_to_assistant">Kirim ke asisten</string>
+
+    <!-- ===== Beranda ===== -->
+    <string name="home_tagline">Dikte secepat bicara, plus asisten yang paham perintah Bahasa Indonesia — semuanya di satu aplikasi.</string>
+    <string name="home_engine_title">Mesin yang siap dipakai</string>
+    <string name="home_insert_channels">Jalur penempelan</string>
+    <string name="home_current_config">Konfigurasi aktif</string>
+    <string name="home_quick_title">Coba dikte sekarang</string>
+    <string name="home_start_dictation">Mulai dikte</string>
+    <string name="home_idle_hint">Tekan tombol lalu bicara. Hasilnya muncul di sini.</string>
+    <string name="home_open_assistant">Buka asisten</string>
+    <string name="home_setup_title">Aktivasi fitur</string>
+    <string name="home_setup_subtitle">Tiga menit sekali saja, lalu semua fitur berjalan otomatis.</string>
+
+    <string name="status_mic_ok">mikrofon siap</string>
+    <string name="status_mic_missing">mikrofon belum diizinkan</string>
+    <string name="status_ime_active">keyboard aktif</string>
+    <string name="status_ime_idle">keyboard pasif</string>
+    <string name="status_a11y_on">aksesibilitas aktif</string>
+
+    <string name="setup_mic_title">Izin mikrofon</string>
+    <string name="setup_mic_subtitle">Wajib untuk merekam suara Anda.</string>
+    <string name="setup_ime_title">Keyboard Retrobit</string>
+    <string name="setup_ime_subtitle">Cara terbaik memakai dikte di aplikasi apa pun.</string>
+    <string name="setup_a11y_title">Tempel otomatis (aksesibilitas)</string>
+    <string name="setup_a11y_subtitle">Tanpa ini, teks disalin ke papan klip saja.</string>
+    <string name="setup_overlay_title">Bubble melayang</string>
+    <string name="setup_overlay_subtitle">Tombol mikrofon selalu tersedia di layar.</string>
+    <string name="setup_assistant_title">Jadikan asisten bawaan</string>
+    <string name="setup_assistant_subtitle">Tekan lama tombol Home untuk memanggil Retrobit.</string>
+    <string name="setup_notif_title">Izin notifikasi</string>
+    <string name="setup_notif_subtitle">Dipakai untuk status rekaman yang sedang berjalan.</string>
+    <string name="setup_contacts_title">Izin kontak</string>
+    <string name="setup_contacts_subtitle">Supaya perintah \"telepon Ibu\" bisa menemukan nomornya.</string>
+
+    <string name="error_need_mic">Izin mikrofon belum diberikan.</string>
+    <string name="toast_mic_granted">Mikrofon siap dipakai.</string>
+    <string name="toast_mic_denied">Izin mikrofon ditolak — dikte tidak akan berfungsi.</string>
+    <string name="toast_contacts_granted">Kontak bisa dipakai untuk panggilan dan pesan.</string>
+    <string name="toast_contacts_denied">Tanpa izin kontak, sebutkan nomor secara langsung.</string>
+
+    <!-- ===== Dikte ===== -->
+    <string name="dictation_idle">Siap mendengarkan</string>
+    <string name="dictation_listening">Mendengarkan…</string>
+    <string name="dictation_transcribing">Mengubah suara menjadi teks…</string>
+    <string name="dictation_cleaning">Merapikan teks…</string>
+    <string name="dictation_inserting">Menempelkan teks…</string>
+    <string name="dictation_done">Selesai</string>
+    <string name="dictation_error">Ada masalah</string>
+    <string name="dictation_result_title">Hasil</string>
+    <string name="dictation_result_empty">Belum ada hasil. Coba tekan tombol mikrofon di atas.</string>
+    <string name="dictation_tech_title">Detail teknis</string>
+    <string name="dictation_history_title">Riwayat dikte</string>
+    <string name="dictation_history_empty">Riwayat masih kosong.</string>
+    <string name="label_engine">Mesin</string>
+    <string name="label_inserted_via">Ditempel lewat</string>
+    <string name="label_available_channels">Tersedia</string>
+    <string name="label_llm">Otak AI</string>
+
+    <!-- ===== Keyboard dikte ===== -->
+    <string name="ime_hint">Tekan mikrofon lalu bicara</string>
+    <string name="ime_mic_start">Mulai dikte</string>
+    <string name="ime_mic_stop">Hentikan dikte</string>
+    <string name="ime_need_permission">Beri izin mikrofon di aplikasi Retrobit</string>
+    <string name="ime_done">Teks ditempel</string>
+    <string name="ime_repasted">Teks ditempel ulang</string>
+
+    <!-- ===== Asisten ===== -->
+    <string name="assistant_title">Retrobit Assistant</string>
+    <string name="assistant_subtitle">Perintah suara, tanya jawab, dan kontrol aplikasi — offline dulu, AI daring kalau diaktifkan.</string>
+    <string name="assistant_input_label">Tulis perintah atau pertanyaan</string>
+    <string name="assistant_listening">Sedang mendengarkan…</string>
+    <string name="assistant_thinking">Sedang berpikir…</string>
+    <string name="assistant_examples">Contoh: \"buka WhatsApp\", \"telepon Ibu\", \"alarm jam 5 pagi\", \"timer 10 menit\", \"nyalakan senter\", \"catat besok bayar listrik\", \"cari resep rendang\".</string>
+    <string name="assistant_settings_title">Pengaturan cepat asisten</string>
+    <string name="assistant_clear_history">Bersihkan riwayat percakapan</string>
+
+    <!-- ===== Pengaturan ===== -->
+    <string name="settings_title">Pengaturan</string>
+    <string name="settings_stt_title">Mesin pengenalan suara</string>
+    <string name="settings_stt_subtitle">Hybrid: coba di perangkat dulu, cloud sebagai cadangan.</string>
+    <string name="settings_engine_choice">Mode mesin</string>
+    <string name="engine_auto">Otomatis (hybrid)</string>
+    <string name="engine_on_device">Selalu di perangkat</string>
+    <string name="engine_cloud">Selalu cloud</string>
+    <string name="engine_system_live">Bawaan Android</string>
+    <string name="settings_cloud_provider">Penyedia cloud</string>
+    <string name="settings_api_key_stt">API key layanan suara</string>
+    <string name="settings_api_key_llm">API key asisten AI</string>
+    <string name="settings_base_url">Alamat server (opsional)</string>
+    <string name="settings_model">Model transkripsi</string>
+    <string name="settings_llm_model">Model AI</string>
+    <string name="settings_byok_note">API key disimpan terenkripsi di perangkat (Android Keystore) dan hanya dikirim ke penyedia yang Anda pilih.</string>
+    <string name="settings_text_title">Bahasa &amp; pembersihan teks</string>
+    <string name="settings_language">Bahasa dikte</string>
+    <string name="settings_cleanup_mode">Pembersihan teks</string>
+    <string name="cleanup_off">Mentah apa adanya</string>
+    <string name="cleanup_local">Otomatis offline</string>
+    <string name="cleanup_ai">Pakai AI</string>
+    <string name="settings_auto_punctuation">Tambahkan tanda baca</string>
+    <string name="settings_auto_capitalize">Huruf besar di awal kalimat</string>
+    <string name="settings_insert_title">Penempelan &amp; pemicu</string>
+    <string name="settings_insert_method">Cara menempelkan teks</string>
+    <string name="insert_auto">Otomatis</string>
+    <string name="insert_ime">Keyboard Retrobit</string>
+    <string name="insert_a11y">Layanan aksesibilitas</string>
+    <string name="insert_clipboard">Papan klip saja</string>
+    <string name="settings_trigger">Cara berhenti merekam</string>
+    <string name="trigger_hold">Tekan dan tahan</string>
+    <string name="trigger_hands_free">Otomatis saat berhenti bicara</string>
+    <string name="trigger_hybrid">Bisa keduanya</string>
+    <string name="settings_silence_timeout">Jeda hening sebelum berhenti</string>
+    <string name="settings_assistant_title">Asisten</string>
+    <string name="settings_assistant_subtitle">Tanpa AI daring, asisten tetap menjalankan puluhan perintah lewat aturan lokal.</string>
+    <string name="llm_off">Nonaktif</string>
+    <string name="settings_speak_replies">Bacakan jawaban</string>
+    <string name="settings_wake_word">Kata kunci panggilan</string>
+    <string name="settings_wake_word_note">Mendengarkan terus-menerus menambah pemakaian baterai.</string>
+    <string name="settings_wake_word_phrase">Frasa kata kunci</string>
+    <string name="settings_data_title">Tampilan &amp; data</string>
+    <string name="settings_overlay">Bubble mikrofon melayang</string>
+    <string name="settings_overlay_note">Ketuk untuk dikte, tekan lama untuk asisten.</string>
+    <string name="settings_save_history">Simpan riwayat di perangkat</string>
+    <string name="settings_clear_history">Bersihkan riwayat</string>
+    <string name="settings_battery">Izinkan berjalan di latar belakang</string>
+    <string name="settings_diagnostics">Diagnostik</string>
+    <string name="settings_check_engine">Cek mesin</string>
+    <string name="settings_log_empty">Belum ada catatan log. Jalankan dikte sekali untuk melihat aktivitas.</string>
+    <string name="settings_version">Versi aplikasi</string>
+
+    <!-- ===== Panduan ===== -->
+    <string name="guide_open">Buka panduan lengkap</string>
+    <string name="guide_title">Panduan aktivasi</string>
+    <string name="guide_intro">Ikuti lima langkah berikut. Setelah selesai, Anda bisa dikte dan memanggil asisten dari aplikasi mana pun.</string>
+    <string name="guide_step_label">Langkah</string>
+    <string name="guide_step1_title">Pilih keyboard Retrobit</string>
+    <string name="guide_step1_body">Buka pemilih keyboard lalu pilih \"Retrobit Voice\". Anda bisa kembali ke keyboard lama kapan pun lewat tombol keyboard di bar Retrobit.</string>
+    <string name="guide_step2_title">Aktifkan layanan aksesibilitas</string>
+    <string name="guide_step2_body">Cari \"Retrobit Voice — tempel otomatis\" di daftar layanan terpasang lalu aktifkan. Ini yang membuat teks menempel sendiri tanpa membuka keyboard.</string>
+    <string name="guide_step3_title">Izinkan bubble melayang</string>
+    <string name="guide_step3_body">Aktifkan \"Tampil di atas aplikasi lain\" agar tombol mikrofon selalu bisa dipanggil.</string>
+    <string name="guide_step4_title">Jadikan asisten bawaan (opsional)</string>
+    <string name="guide_step4_body">Dengan ini, tekan lama tombol Home langsung membuka Retrobit dan mulai mendengarkan.</string>
+    <string name="guide_step5_title">Rawat daya baterai</string>
+    <string name="guide_step5_body">Matikan optimasi baterai untuk Retrobit supaya rekaman dan kata kunci tidak terputus saat layar mati.</string>
+    <string name="guide_tips_title">Tips &amp; catatan privasi</string>
+    <string name="guide_tip_battery">Perekaman dibatasi otomatis (maksimal 3 menit) dan berhenti saat Anda diam.</string>
+    <string name="guide_tip_offline">Mode on-device bekerja tanpa internet sama sekali — cocok untuk catatan pribadi.</string>
+    <string name="guide_tip_privacy">Audio dihapus segera setelah transkripsi bila Anda memakai mesin on-device.</string>
+    <string name="guide_tip_llm">Asisten daring hanya aktif kalau Anda memasukkan API key Anda sendiri.</string>
+    <string name="guide_open_settings">Buka pengaturan aplikasi</string>
+    <string name="guide_refresh_status">Perbarui status mesin</string>
+
+    <!-- ===== Notifikasi ===== -->
+    <string name="notif_channel_dictation">Dikte Retrobit</string>
+    <string name="notif_channel_dictation_desc">Muncul selama mikrofon dipakai untuk dikte.</string>
+    <string name="notif_dictation_title">Retrobit sedang mendengarkan</string>
+    <string name="notif_dictation_idle">Siap merekam</string>
+    <string name="notif_dictation_listening">Silakan bicara…</string>
+    <string name="notif_dictation_no_permission">Izin mikrofon diperlukan</string>
+    <string name="notif_channel_overlay">Bubble Retrobit</string>
+    <string name="overlay_notif_title">Bubble mikrofon aktif</string>
+    <string name="overlay_notif_text">Ketuk bubble untuk dikte, tekan lama untuk asisten.</string>
+    <string name="overlay_permission_needed">Berikan izin \"Tampil di atas aplikasi lain\" untuk memakai bubble.</string>
+    <string name="overlay_processing">Masih memproses, tunggu sebentar…</string>
+</resources>
