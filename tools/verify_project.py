@@ -69,6 +69,7 @@ for path in (RES / "layout").glob("*.xml"):
 
 # ---------- 2. Periksa referensi di kode Kotlin ----------
 kotlin_files = sorted(JAVA.rglob("*.kt"))
+kotlin_sources = {p: read(p) for p in kotlin_files}
 prefix_map = {
     "R.string.": strings_id,
     "R.drawable.": drawables,
@@ -116,9 +117,12 @@ for attr in ("android:name", "android:sessionService", "android:recognitionServi
         cls = value.lstrip(".")
         if value.startswith(package):
             cls = value[len(package) + 1 :]
-        relative = cls.replace(".", "/")
-        hit = (JAVA / f"{relative}.kt").exists() or any(
-            (p.name == f"{cls.split('.')[-1]}.kt") for p in kotlin_files
+        # Kelas boleh berada di berkas dengan nama berbeda (mis. beberapa kelas per berkas),
+        # jadi kita cari deklarasinya di seluruh kode Kotlin.
+        simple_name = cls.split(".")[-1]
+        hit = any(
+            re.search(rf"\b(class|interface|object|enum class)\s+{re.escape(simple_name)}\b", source)
+            for source in kotlin_sources.values()
         )
         if not hit:
             errors.append(f"AndroidManifest.xml: kelas {value} tidak ditemukan di kode")

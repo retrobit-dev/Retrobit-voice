@@ -44,25 +44,28 @@ object NumberWords {
             val next = tokens.getOrNull(start + 1)
             if (base in 1..9 && next != null) {
                 when (next) {
-                    "belas" -> return (base * 10 + 10) to 2
+                    // "dua belas" = 12, "tiga belas" = 13 (bukan 20-an!)
+                    "belas" -> return (10 + base) to 2
                     "puluh" -> {
                         val third = tokens.getOrNull(start + 2)
                         val unit = third?.let { idBasic[it] }?.takeIf { it in 1..9 }
                         return if (unit != null) (base * 10 + unit) to 3 else (base * 10) to 2
                     }
                     "ratus" -> {
+                        // "tiga ratus lima" = 305
                         val third = tokens.getOrNull(start + 2)
                         val sub = third?.let { idBasic[it] }?.takeIf { it in 1..9 }
-                        return if (sub != null) (sub * 100 + base * 100) to 3 else (base * 100) to 2
+                        return if (sub != null) (base * 100 + sub) to 3 else (base * 100) to 2
                     }
                 }
             }
             return base to 1
         }
         if (first == "seratus") {
+            // "seratus lima" = 105; "seratus dua puluh" = 120 (dibaca bertahap oleh pemanggil)
             val next = tokens.getOrNull(start + 1)
             val sub = next?.let { idBasic[it] }?.takeIf { it in 1..9 }
-            return if (sub != null) (100 + sub * 10) to 2 else 100 to 1
+            return if (sub != null) (100 + sub) to 2 else 100 to 1
         }
 
         // Bahasa Inggris

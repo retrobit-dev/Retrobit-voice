@@ -78,6 +78,14 @@ class NumberWordsTest {
     }
 
     @Test
+    fun `belasan dan ratusan`() {
+        assertEquals(12, find("jam dua belas"))
+        assertEquals(305, find("tiga ratus lima"))
+        assertEquals(105, find("seratus lima"))
+        assertEquals(20, find("dua puluh"))
+    }
+
+    @Test
     fun `angka Inggris`() {
         assertEquals(7, find("seven minutes"))
         assertEquals(45, find("forty five seconds"))
