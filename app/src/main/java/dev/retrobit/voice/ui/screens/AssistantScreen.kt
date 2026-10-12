@@ -1,6 +1,5 @@
 package dev.retrobit.voice.ui.screens
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -9,11 +8,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -26,14 +21,17 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.retrobit.voice.R
 import dev.retrobit.voice.ui.AppViewModel
-import dev.retrobit.voice.ui.components.SectionCard
+import dev.retrobit.voice.ui.components.BracketButton
+import dev.retrobit.voice.ui.components.Panel
+import dev.retrobit.voice.ui.components.SettingTextField
 import dev.retrobit.voice.ui.components.SwitchRow
+import dev.retrobit.voice.ui.components.TerminalHeader
+import dev.retrobit.voice.ui.components.TerminalLogLine
 import dev.retrobit.voice.ui.components.str
-import dev.retrobit.voice.ui.theme.RetroColors
 
 /**
- * Layar Asisten: percakapan (suara atau teks), aksi yang dijalankan, dan
- * pengaturan cepat untuk kata kunci & suara balasan.
+ * Layar asisten: percakapan ditampilkan seperti log terminal
+ * (`> perintah` dan `< jawaban` dengan metadata aksi di bawahnya).
  */
 @Composable
 fun AssistantScreen(
@@ -62,105 +60,96 @@ fun AssistantScreen(
     Column(
         modifier
             .fillMaxWidth()
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+            .padding(14.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        Text(str(R.string.assistant_title), style = MaterialTheme.typography.headlineSmall)
-        Text(
-            str(R.string.assistant_subtitle),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        TerminalHeader(
+            title = "ASSISTANT",
+            right = if (state.listening) "REC" else if (state.thinking) "BUSY" else "RDY",
+            subtitle = str(R.string.assistant_subtitle),
         )
 
         if (state.error != null) {
-            Text(state.error!!, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+            Text(
+                text = "! " + state.error!!,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
         }
         if (state.status.isNotBlank() && !state.thinking) {
-            Text(state.status, style = MaterialTheme.typography.bodySmall, color = RetroColors.accent)
+            Text(
+                text = "$ ${state.status}",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
 
         LazyColumn(
             state = listState,
-            modifier = Modifier
-                .fillMaxWidth()
-                .weight(1f, fill = true),
+            modifier = Modifier.fillMaxWidth().weight(1f),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             if (turns.isEmpty()) {
                 item {
                     Text(
-                        str(R.string.assistant_examples),
+                        text = "$ " + str(R.string.assistant_examples),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
             }
             items(turns) { turn ->
-                Column(
-                    Modifier
-                        .fillMaxWidth()
-                        .background(MaterialTheme.colorScheme.primary, RoundedCornerShape(16.dp))
-                        .padding(12.dp),
-                ) {
-                    Text(turn.userText, style = MaterialTheme.typography.bodyMedium)
-                }
-                Column(
-                    Modifier
-                        .fillMaxWidth()
-                        .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(16.dp))
-                        .padding(12.dp),
-                ) {
-                    Text(turn.reply, style = MaterialTheme.typography.bodyMedium)
-                    Text(
-                        (turn.action?.let { it::class.simpleName } ?: "-") + " · " + turn.source,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
+                TerminalLogLine(
+                    prompt = ">",
+                    text = turn.userText,
+                    meta = null,
+                    emphasis = true,
+                )
+                TerminalLogLine(
+                    prompt = "<",
+                    text = turn.reply,
+                    meta = "# ${turn.action?.let { it::class.simpleName } ?: "pemahaman"} · ${turn.source}",
+                )
             }
             if (state.listening) {
-                item {
-                    Text(str(R.string.assistant_listening), style = MaterialTheme.typography.bodySmall, color = RetroColors.listening)
-                }
+                item { Text("> " + str(R.string.assistant_listening), style = MaterialTheme.typography.bodySmall) }
             }
             if (state.thinking) {
-                item { Text(str(R.string.assistant_thinking), style = MaterialTheme.typography.bodySmall, color = RetroColors.processing) }
+                item { Text("… " + str(R.string.assistant_thinking), style = MaterialTheme.typography.bodySmall) }
             }
         }
 
-        OutlinedTextField(
+        SettingTextField(
+            label = str(R.string.assistant_input_label),
             value = input,
-            onValueChange = { input = it },
-            label = { Text(str(R.string.assistant_input_label)) },
-            modifier = Modifier.fillMaxWidth(),
-            maxLines = 3,
+            onChange = { input = it },
+            placeholder = "buka whatsapp / alarm jam 5 pagi",
         )
 
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Button(
+            BracketButton(
+                text = str(R.string.action_send),
                 onClick = {
                     vm.sendToAssistant(input)
                     input = ""
                 },
                 enabled = input.isNotBlank(),
+                filled = true,
                 modifier = Modifier.weight(1f),
-            ) {
-                Text(str(R.string.action_send))
-            }
-            OutlinedButton(
+            )
+            BracketButton(
+                text = str(R.string.action_speak),
                 onClick = { vm.listenToAssistant() },
                 enabled = !state.listening && !state.thinking,
                 modifier = Modifier.weight(1f),
-            ) {
-                Text(str(R.string.action_speak))
-            }
+            )
         }
 
-        SectionCard(title = str(R.string.assistant_settings_title)) {
+        Panel(title = str(R.string.assistant_settings_title), code = "CFG") {
             val wakePhrase = settings?.wakeWordPhrase.orEmpty()
             SwitchRow(
                 title = str(R.string.settings_wake_word),
-                subtitle = str(R.string.settings_wake_word_phrase) + ": \"" + wakePhrase + "\"",
+                subtitle = str(R.string.settings_wake_word_phrase) + ": " + wakePhrase,
                 checked = settings?.wakeWordEnabled ?: false,
                 onChange = { enabled ->
                     vm.update { it.copy(wakeWordEnabled = enabled) }
@@ -173,9 +162,11 @@ fun AssistantScreen(
                 checked = settings?.speakReplies ?: true,
                 onChange = { value -> vm.update { it.copy(speakReplies = value) } },
             )
-            OutlinedButton(onClick = { vm.clearAssistantHistory() }, modifier = Modifier.fillMaxWidth()) {
-                Text(str(R.string.assistant_clear_history))
-            }
+            BracketButton(
+                text = str(R.string.assistant_clear_history),
+                onClick = { vm.clearAssistantHistory() },
+                modifier = Modifier.fillMaxWidth(),
+            )
         }
     }
 }

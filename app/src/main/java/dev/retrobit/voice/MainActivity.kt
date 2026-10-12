@@ -9,37 +9,49 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.retrobit.voice.ui.AppViewModel
+import dev.retrobit.voice.ui.components.epaperTexture
 import dev.retrobit.voice.ui.screens.AssistantScreen
 import dev.retrobit.voice.ui.screens.DictationScreen
 import dev.retrobit.voice.ui.screens.GuideScreen
 import dev.retrobit.voice.ui.screens.HomeScreen
 import dev.retrobit.voice.ui.screens.SettingsScreen
+import dev.retrobit.voice.ui.theme.Deck
 import dev.retrobit.voice.ui.theme.RetrobitTheme
 
 /**
- * Satu Activity untuk seluruh aplikasi:
- *  - tab Beranda, Dikte, Asisten, Pengaturan (plus Panduan),
- *  - pintu masuk untuk intent ACTION_ASSIST / VOICE_COMMAND dari sistem,
- *  - permintaan izin runtime (mikrofon, kontak, notifikasi).
+ * Satu Activity untuk seluruh aplikasi.
+ *
+ * Kerangka tampilan: tekstur panel e-paper sebagai latar, isi layar di tengah,
+ * dan bilah navigasi bawah bergaya tombol instrumen (bukan Material NavigationBar)
+ * supaya seluruh antarmuka konsisten dengan tema cyberdeck monokrom.
  */
 class MainActivity : ComponentActivity() {
 
@@ -49,11 +61,11 @@ class MainActivity : ComponentActivity() {
     private var autoListenRequested = mutableStateOf(false)
 
     private val microphonePermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-        if (granted) {
-            Toast.makeText(this, getString(R.string.toast_mic_granted), Toast.LENGTH_SHORT).show()
-        } else {
-            Toast.makeText(this, getString(R.string.toast_mic_denied), Toast.LENGTH_LONG).show()
-        }
+        Toast.makeText(
+            this,
+            getString(if (granted) R.string.toast_mic_granted else R.string.toast_mic_denied),
+            Toast.LENGTH_SHORT,
+        ).show()
     }
 
     private val contactsPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
@@ -73,16 +85,22 @@ class MainActivity : ComponentActivity() {
         requestNotificationPermissionIfNeeded()
 
         setContent {
-            RetrobitTheme(darkTheme = true) {
-                Surface(color = MaterialTheme.colorScheme.background) {
-                    MainScaffold(
-                        vm = vm,
-                        startOnAssistant = startOnAssistantTab.value,
-                        autoListen = autoListenRequested.value,
-                        onAutoListenConsumed = { autoListenRequested.value = false },
-                        onRequestMicrophone = { microphonePermission.launch(Manifest.permission.RECORD_AUDIO) },
-                        onRequestContacts = { contactsPermission.launch(Manifest.permission.READ_CONTACTS) },
-                    )
+            val settings by vm.settings.collectAsStateWithLifecycle()
+            val paperMode = settings?.epaperLightMode ?: false
+
+            RetrobitTheme(paperMode = paperMode) {
+                val textureColor = MaterialTheme.colorScheme.onBackground.copy(alpha = if (paperMode) 0.06f else 0.045f)
+                Surface(color = MaterialTheme.colorScheme.background, modifier = Modifier.fillMaxSize()) {
+                    Box(Modifier.fillMaxSize().epaperTexture(textureColor)) {
+                        MainScaffold(
+                            vm = vm,
+                            startOnAssistant = startOnAssistantTab.value,
+                            autoListen = autoListenRequested.value,
+                            onAutoListenConsumed = { autoListenRequested.value = false },
+                            onRequestMicrophone = { microphonePermission.launch(Manifest.permission.RECORD_AUDIO) },
+                            onRequestContacts = { contactsPermission.launch(Manifest.permission.READ_CONTACTS) },
+                        )
+                    }
                 }
             }
         }
@@ -114,11 +132,11 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-private enum class Tab(val labelRes: Int, val iconRes: Int) {
-    HOME(R.string.tab_home, R.drawable.ic_home),
-    DICTATION(R.string.tab_dictation, R.drawable.ic_mic),
-    ASSISTANT(R.string.tab_assistant, R.drawable.ic_spark),
-    SETTINGS(R.string.tab_settings, R.drawable.ic_settings_sliders),
+private enum class Tab(val labelRes: Int, val iconRes: Int, val code: String) {
+    HOME(R.string.tab_home, R.drawable.ic_home, "F1"),
+    DICTATION(R.string.tab_dictation, R.drawable.ic_mic, "F2"),
+    ASSISTANT(R.string.tab_assistant, R.drawable.ic_spark, "F3"),
+    SETTINGS(R.string.tab_settings, R.drawable.ic_settings_sliders, "F4"),
 }
 
 @Composable
@@ -133,36 +151,20 @@ private fun MainScaffold(
     var tab by remember { mutableStateOf(if (startOnAssistant) Tab.ASSISTANT else Tab.HOME) }
     var showGuide by remember { mutableStateOf(false) }
     val toast by vm.toast.collectAsStateWithLifecycle()
+    val context = LocalContext.current
 
-    val context = androidx.compose.ui.platform.LocalContext.current
-    androidx.compose.runtime.LaunchedEffect(toast) {
+    LaunchedEffect(toast) {
         if (!toast.isNullOrBlank()) {
             Toast.makeText(context, toast, Toast.LENGTH_SHORT).show()
             vm.consumeToast()
         }
     }
-    androidx.compose.runtime.LaunchedEffect(startOnAssistant) {
+    LaunchedEffect(startOnAssistant) {
         if (startOnAssistant) tab = Tab.ASSISTANT
     }
 
-    Scaffold(
-        bottomBar = {
-            NavigationBar(containerColor = MaterialTheme.colorScheme.surface) {
-                Tab.entries.forEach { entry ->
-                    NavigationBarItem(
-                        selected = tab == entry && !showGuide,
-                        onClick = {
-                            tab = entry
-                            showGuide = false
-                        },
-                        icon = { Icon(painterResource(entry.iconRes), contentDescription = null) },
-                        label = { Text(stringRes(entry.labelRes)) },
-                    )
-                }
-            }
-        },
-    ) { padding ->
-        Box(Modifier.fillMaxSize().padding(padding)) {
+    Box(Modifier.fillMaxSize()) {
+        Box(Modifier.fillMaxSize().padding(bottom = 46.dp)) {
             when {
                 showGuide -> GuideScreen(vm)
                 tab == Tab.HOME -> HomeScreen(
@@ -181,8 +183,74 @@ private fun MainScaffold(
                 else -> SettingsScreen(vm)
             }
         }
+
+        DeckNavBar(
+            selected = if (showGuide) null else tab,
+            onSelect = { entry ->
+                tab = entry
+                showGuide = false
+            },
+            modifier = Modifier.align(Alignment.BottomCenter),
+        )
+    }
+}
+
+/** Bilah navigasi bergaya tombol instrumen, menempel di dasar panel. */
+@Composable
+private fun DeckNavBar(
+    selected: Tab?,
+    onSelect: (Tab) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val ink = MaterialTheme.colorScheme.onSurface
+    val paper = MaterialTheme.colorScheme.surface
+    val outline = MaterialTheme.colorScheme.outline
+    val dim = MaterialTheme.colorScheme.onSurfaceVariant
+
+    Row(
+        modifier
+            .fillMaxWidth()
+            .background(MaterialTheme.colorScheme.surface)
+            .border(1.dp, outline)
+            .padding(horizontal = 4.dp, vertical = 4.dp),
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Tab.entries.forEach { entry ->
+            val isSelected = entry == selected
+            Row(
+                Modifier
+                    .weight(1f)
+                    .border(1.dp, if (isSelected) ink else Color.Transparent)
+                    .background(if (isSelected) ink else Color.Transparent)
+                    .clickable { onSelect(entry) }
+                    .padding(vertical = 7.dp),
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(
+                    painter = painterResource(entry.iconRes),
+                    contentDescription = null,
+                    tint = if (isSelected) paper else dim,
+                    modifier = Modifier.size(14.dp),
+                )
+                Box(Modifier.size(6.dp))
+                Text(
+                    text = str(entry.labelRes).uppercase(),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = if (isSelected) paper else dim,
+                    maxLines = 1,
+                )
+            }
+        }
+        Text(
+            text = Deck.GLYPH_BLOCK,
+            style = MaterialTheme.typography.labelSmall,
+            color = outline,
+            modifier = Modifier.padding(horizontal = 4.dp),
+        )
     }
 }
 
 @Composable
-private fun stringRes(id: Int): String = androidx.compose.ui.res.stringResource(id)
+private fun str(id: Int): String = androidx.compose.ui.res.stringResource(id)

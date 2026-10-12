@@ -2,9 +2,10 @@
 <resources>
     <style name="Theme.RetrobitVoice" parent="@android:style/Theme.Material.NoActionBar">
         <item name="android:windowBackground">@color/background</item>
+        <item name="android:windowLightStatusBar">false</item>
         <item name="android:statusBarColor">@android:color/transparent</item>
         <item name="android:navigationBarColor">@android:color/transparent</item>
-        <item name="android:colorControlNormal">#EDEDF2</item>
+        <item name="android:colorControlNormal">#E9E9E4</item>
         <item name="android:colorAccent">@color/accent</item>
         <item name="android:windowLightStatusBar">false</item>
     </style>

@@ -48,6 +48,7 @@ class OverlayBubbleService : Service() {
 
     private lateinit var windowManager: WindowManager
     private var bubbleView: View? = null
+    private var bubbleIcon: ImageView? = null
     private var params: WindowManager.LayoutParams? = null
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private var stateJob: Job? = null
@@ -99,17 +100,15 @@ class OverlayBubbleService : Service() {
         val container = FrameLayout(this).apply {
             layoutParams = FrameLayout.LayoutParams(size, size)
         }
-        container.background = GradientDrawable().apply {
-            shape = GradientDrawable.OVAL
-            setColor(Color.parseColor("#1B1B1F"))
-            setStroke(dp(2), Color.parseColor("#7C5CFF"))
-        }
+        // Gaya e-paper: persegi (tanpa lengkung), dasar kertas gelap, garis tinta tipis.
+        container.background = paneDrawable(fill = PANEL, stroke = LINE_STRONG, strokeWidth = 1)
         val icon = ImageView(this).apply {
             setImageResource(R.drawable.ic_mic)
-            setColorFilter(Color.WHITE)
+            setColorFilter(Color.parseColor("#E9E9E4"))
             layoutParams = FrameLayout.LayoutParams(dp(26), dp(26), Gravity.CENTER)
         }
         container.addView(icon)
+        bubbleIcon = icon
 
         val layoutParams = WindowManager.LayoutParams(
             size,
@@ -191,19 +190,18 @@ class OverlayBubbleService : Service() {
         stateJob?.cancel()
         stateJob = scope.launch {
             AppGraph.require.dictation.state.collect { state ->
-                val color = when (state.phase) {
-                    DictationController.Phase.LISTENING -> Color.parseColor("#FF4D6D")
+                // Monokrom: keadaan dibedakan lewat isi/garis, bukan warna.
+                val (fill, stroke, width) = when (state.phase) {
+                    DictationController.Phase.LISTENING -> Triple(INK, INK, 2)        // kotak penuh = merekam
                     DictationController.Phase.TRANSCRIBING, DictationController.Phase.CLEANING,
-                    DictationController.Phase.INSERTING -> Color.parseColor("#FFB703")
-                    DictationController.Phase.DONE -> Color.parseColor("#2ECC71")
-                    DictationController.Phase.ERROR -> Color.parseColor("#8D99AE")
-                    DictationController.Phase.IDLE -> Color.parseColor("#1B1B1F")
+                    DictationController.Phase.INSERTING -> Triple(PANEL_DIM, INK, 2)  // abu = memproses
+                    DictationController.Phase.DONE -> Triple(PANEL, INK, 2)           // garis tegas = selesai
+                    DictationController.Phase.ERROR -> Triple(PANEL, LINE_STRONG, 1)  // garis samar = galat
+                    DictationController.Phase.IDLE -> Triple(PANEL, LINE_STRONG, 1)
                 }
-                bubbleView?.background = GradientDrawable().apply {
-                    shape = GradientDrawable.OVAL
-                    setColor(Color.parseColor("#1B1B1F"))
-                    setStroke(dp(3), color)
-                }
+                bubbleView?.background = paneDrawable(fill, stroke, width)
+                // Ikon ikut ter-inversi supaya tetap kontras di kotak yang penuh tinta.
+                bubbleIcon?.setColorFilter(if (fill == INK) PANEL else INK)
             }
         }
     }
@@ -230,7 +228,21 @@ class OverlayBubbleService : Service() {
 
     private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()
 
+    /** Kotak panel e-paper: sudut tajam, garis 1px. */
+    private fun paneDrawable(fill: Int, stroke: Int, strokeWidth: Int) = GradientDrawable().apply {
+        shape = GradientDrawable.RECTANGLE
+        cornerRadius = 0f
+        setColor(fill)
+        setStroke(dp(strokeWidth), stroke)
+    }
+
     companion object {
+        // Palet e-paper (monokrom) untuk bubble.
+        private val PANEL = Color.parseColor("#141414")
+        private val PANEL_DIM = Color.parseColor("#3A3A3A")
+        private val INK = Color.parseColor("#E9E9E4")
+        private val LINE_STRONG = Color.parseColor("#4C4C4C")
+
         private const val CHANNEL_ID = "retrobit_overlay"
         private const val NOTIFICATION_ID = 4202
 

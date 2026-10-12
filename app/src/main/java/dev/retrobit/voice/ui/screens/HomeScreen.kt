@@ -8,15 +8,14 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
@@ -25,14 +24,17 @@ import dev.retrobit.voice.R
 import dev.retrobit.voice.dictation.DictationController
 import dev.retrobit.voice.ui.AppViewModel
 import dev.retrobit.voice.ui.DeviceState
-import dev.retrobit.voice.ui.components.SectionCard
+import dev.retrobit.voice.ui.components.BracketButton
+import dev.retrobit.voice.ui.components.LabeledValue
+import dev.retrobit.voice.ui.components.Panel
 import dev.retrobit.voice.ui.components.SetupRow
-import dev.retrobit.voice.ui.components.StatusPill
+import dev.retrobit.voice.ui.components.StatusStrip
+import dev.retrobit.voice.ui.components.TerminalHeader
 import dev.retrobit.voice.ui.components.str
-import dev.retrobit.voice.ui.theme.RetroColors
 
 /**
- * Beranda: status kesiapan + tombol dikte cepat + daftar langkah aktivasi.
+ * Beranda bergaya panel cyberdeck: header terminal, strip status 1-bit,
+ * lalu panel-panel instrumen.
  */
 @Composable
 fun HomeScreen(
@@ -46,12 +48,9 @@ fun HomeScreen(
     val context = LocalContext.current
     val settings by vm.settings.collectAsStateWithLifecycle()
     val dictation by vm.dictation.collectAsStateWithLifecycle()
-
-    // Tick dipakai untuk memaksa pembacaan ulang status izin setelah kembali dari pengaturan sistem.
     var tick by remember { mutableStateOf(0) }
 
     val mic = DeviceState.hasMicrophone(context)
-    val imeEnabled = DeviceState.isImeEnabled(context)
     val imeSelected = DeviceState.isImeSelected(context)
     val a11y = DeviceState.isAccessibilityEnabled(context)
     val overlay = DeviceState.hasOverlayPermission(context)
@@ -62,86 +61,75 @@ fun HomeScreen(
         modifier
             .fillMaxWidth()
             .verticalScroll(rememberScrollState())
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp),
+            .padding(14.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Text(str(R.string.app_name), style = MaterialTheme.typography.headlineSmall)
-        Text(
-            str(R.string.home_tagline),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        TerminalHeader(
+            title = "RETROBIT//VOICE",
+            right = "v0.1.0",
+            subtitle = str(R.string.home_tagline),
         )
 
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            StatusPill(
-                text = if (mic) str(R.string.status_mic_ok) else str(R.string.status_mic_missing),
-                color = if (mic) RetroColors.success else RetroColors.processing,
-            )
-            StatusPill(
-                text = if (imeSelected) str(R.string.status_ime_active) else str(R.string.status_ime_idle),
-                color = if (imeSelected) RetroColors.success else RetroColors.accent,
-            )
-            if (a11y) StatusPill(str(R.string.status_a11y_on), RetroColors.success)
-        }
+        StatusStrip(
+            items = listOf(
+                "MIC" to mic,
+                "IME" to imeSelected,
+                "A11Y" to a11y,
+                "OVR" to overlay,
+                "AST" to assistantDefault,
+            ),
+        )
 
-        SectionCard(title = str(R.string.home_engine_title), subtitle = vm.sttStatusSummary()) {
-            Text(
-                str(R.string.home_insert_channels) + ": " + vm.appGraph().textInserter.describeAvailable(),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            settings?.let { s ->
-                Text(
-                    str(R.string.home_current_config) + ": " + s.sttEngine.name + " · " +
-                        s.cleanupMode.name + " · " + str(R.string.label_llm) + " " + s.llmProvider.name,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-        }
-
-        SectionCard(title = str(R.string.home_quick_title)) {
-            Button(
+        Panel(title = str(R.string.home_quick_title), code = "01") {
+            BracketButton(
+                text = when {
+                    dictation.phase == DictationController.Phase.LISTENING -> str(R.string.action_finish)
+                    dictation.isBusy -> str(R.string.action_processing)
+                    else -> str(R.string.home_start_dictation)
+                },
                 onClick = { vm.startDictation(DictationController.Source.MANUAL) },
                 enabled = !dictation.isBusy,
+                filled = true,
                 modifier = Modifier.fillMaxWidth(),
-            ) {
-                Text(
-                    when {
-                        dictation.phase == DictationController.Phase.LISTENING -> str(R.string.action_finish)
-                        dictation.isBusy -> str(R.string.action_processing)
-                        else -> str(R.string.home_start_dictation)
-                    },
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                BracketButton(
+                    text = str(R.string.action_finish),
+                    onClick = { vm.stopDictation() },
+                    enabled = dictation.phase == DictationController.Phase.LISTENING,
                 )
-            }
-            if (dictation.phase == DictationController.Phase.LISTENING) {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button(onClick = { vm.stopDictation() }) { Text(str(R.string.action_finish)) }
-                    OutlinedButton(onClick = { vm.cancelDictation() }) { Text(str(R.string.action_cancel)) }
-                }
-            }
-            OutlinedButton(onClick = onOpenAssistant, modifier = Modifier.fillMaxWidth()) {
-                Text(str(R.string.home_open_assistant))
-            }
-            val status = when {
-                dictation.needsMicrophonePermission -> str(R.string.error_need_mic)
-                dictation.error != null -> dictation.error!!
-                dictation.stage.isNotBlank() -> dictation.stage
-                dictation.finalText.isNotBlank() -> dictation.finalText
-                else -> str(R.string.home_idle_hint)
-            }
-            Text(status, style = MaterialTheme.typography.bodySmall)
-            if (dictation.engine.isNotBlank()) {
-                Text(
-                    str(R.string.label_engine) + ": " + dictation.engine +
-                        (dictation.insertChannel?.let { " · " + str(R.string.label_inserted_via) + " " + it } ?: ""),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                BracketButton(
+                    text = str(R.string.action_cancel),
+                    onClick = { vm.cancelDictation() },
+                    enabled = dictation.isBusy,
                 )
+                BracketButton(text = str(R.string.home_open_assistant), onClick = onOpenAssistant)
+            }
+
+            Text(
+                text = when {
+                    dictation.needsMicrophonePermission -> "> " + str(R.string.error_need_mic)
+                    dictation.error != null -> "! " + dictation.error!!
+                    dictation.stage.isNotBlank() -> "> " + dictation.stage
+                    dictation.finalText.isNotBlank() -> "< " + dictation.finalText
+                    else -> "> " + str(R.string.home_idle_hint)
+                },
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+        }
+
+        Panel(title = str(R.string.home_engine_title), code = "02") {
+            LabeledValue(str(R.string.label_engine), vm.sttStatusSummary())
+            LabeledValue(str(R.string.home_insert_channels), vm.appGraph().textInserter.describeAvailable())
+            settings?.let { s ->
+                LabeledValue("MODE", s.sttEngine.name.lowercase())
+                LabeledValue(str(R.string.settings_cleanup_mode), s.cleanupMode.name.lowercase())
+                LabeledValue(str(R.string.label_llm), s.llmProvider.name.lowercase())
             }
         }
 
-        SectionCard(title = str(R.string.home_setup_title), subtitle = str(R.string.home_setup_subtitle)) {
+        Panel(title = str(R.string.home_setup_title), code = "03", subtitle = str(R.string.home_setup_subtitle)) {
             SetupRow(
                 title = str(R.string.setup_mic_title),
                 subtitle = str(R.string.setup_mic_subtitle),
@@ -152,8 +140,8 @@ fun HomeScreen(
             SetupRow(
                 title = str(R.string.setup_ime_title),
                 subtitle = str(R.string.setup_ime_subtitle),
-                done = imeEnabled && imeSelected,
-                actionLabel = if (imeEnabled) str(R.string.action_select) else str(R.string.action_enable),
+                done = imeSelected,
+                actionLabel = str(R.string.action_select),
                 onAction = { pickKeyboard(context) },
             )
             SetupRow(
@@ -193,19 +181,27 @@ fun HomeScreen(
                 actionLabel = str(R.string.action_allow),
                 onAction = onRequestContacts,
             )
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedButton(onClick = onOpenGuide) { Text(str(R.string.guide_open)) }
-                OutlinedButton(onClick = { tick++ }) { Text(str(R.string.action_refresh)) }
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                BracketButton(text = str(R.string.guide_open), onClick = onOpenGuide)
+                BracketButton(text = str(R.string.action_refresh), onClick = { tick++ })
             }
+        }
+
+        Panel(title = str(R.string.settings_data_title), code = "04", inactive = true) {
+            Text(
+                text = "SYS: ${if (tick % 2 == 0) "NOMINAL" else "NOMINAL"} · ${vm.appGraph().textInserter.describeAvailable()}",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
     }
 }
 
 private fun pickKeyboard(context: Context) {
     val imm = context.getSystemService(Context.INPUT_METHOD_SERVICE) as? android.view.inputmethod.InputMethodManager
-    if (imm != null) {
-        imm.showInputMethodPicker()
-    } else {
-        context.startActivity(DeviceState.imeSettingsIntent())
-    }
+    if (imm != null) imm.showInputMethodPicker() else context.startActivity(DeviceState.imeSettingsIntent())
 }

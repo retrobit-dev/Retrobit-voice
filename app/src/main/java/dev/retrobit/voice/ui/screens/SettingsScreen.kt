@@ -8,8 +8,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -32,13 +32,16 @@ import dev.retrobit.voice.data.SttEngineChoice
 import dev.retrobit.voice.dictation.insert.ClipboardHelper
 import dev.retrobit.voice.ui.AppViewModel
 import dev.retrobit.voice.ui.DeviceState
+import dev.retrobit.voice.ui.components.BracketButton
+import dev.retrobit.voice.ui.components.LabeledValue
+import dev.retrobit.voice.ui.components.Panel
 import dev.retrobit.voice.ui.components.PillsColumn
-import dev.retrobit.voice.ui.components.SectionCard
 import dev.retrobit.voice.ui.components.SettingTextField
 import dev.retrobit.voice.ui.components.SwitchRow
+import dev.retrobit.voice.ui.components.TerminalHeader
 import dev.retrobit.voice.ui.components.str
 
-/** Pengaturan lengkap: mesin dikte, pembersihan teks, asisten, dan data. */
+/** Pengaturan: kumpulan panel konfigurasi bernomor, gaya menu servis perangkat. */
 @Composable
 fun SettingsScreen(vm: AppViewModel, modifier: Modifier = Modifier) {
     val settings by vm.settings.collectAsStateWithLifecycle()
@@ -51,13 +54,23 @@ fun SettingsScreen(vm: AppViewModel, modifier: Modifier = Modifier) {
         modifier
             .fillMaxWidth()
             .verticalScroll(rememberScrollState())
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp),
+            .padding(14.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Text(str(R.string.settings_title), style = MaterialTheme.typography.headlineSmall)
+        TerminalHeader(title = "SETUP", right = "0.1.0")
+
+        // ---------- Tampilan ----------
+        Panel(title = str(R.string.settings_display_title), code = "00") {
+            SwitchRow(
+                title = str(R.string.settings_epaper_mode),
+                subtitle = str(R.string.settings_epaper_mode_note),
+                checked = current.epaperLightMode,
+                onChange = { value -> vm.update { it.copy(epaperLightMode = value) } },
+            )
+        }
 
         // ---------- Mesin dikte ----------
-        SectionCard(title = str(R.string.settings_stt_title), subtitle = str(R.string.settings_stt_subtitle)) {
+        Panel(title = str(R.string.settings_stt_title), code = "01", subtitle = str(R.string.settings_stt_subtitle)) {
             Text(str(R.string.settings_engine_choice), style = MaterialTheme.typography.bodyMedium)
             PillsColumn(
                 options = listOf(
@@ -114,7 +127,7 @@ fun SettingsScreen(vm: AppViewModel, modifier: Modifier = Modifier) {
         }
 
         // ---------- Bahasa & pembersihan ----------
-        SectionCard(title = str(R.string.settings_text_title)) {
+        Panel(title = str(R.string.settings_text_title), code = "02") {
             SettingTextField(
                 label = str(R.string.settings_language),
                 value = current.dictationLanguage,
@@ -154,7 +167,7 @@ fun SettingsScreen(vm: AppViewModel, modifier: Modifier = Modifier) {
         }
 
         // ---------- Penempelan & pemicu ----------
-        SectionCard(title = str(R.string.settings_insert_title)) {
+        Panel(title = str(R.string.settings_insert_title), code = "03") {
             Text(str(R.string.settings_insert_method), style = MaterialTheme.typography.bodyMedium)
             PillsColumn(
                 options = listOf(
@@ -177,19 +190,24 @@ fun SettingsScreen(vm: AppViewModel, modifier: Modifier = Modifier) {
                 onSelect = { value -> vm.update { it.copy(dictationTrigger = value) } },
             )
             Text(
-                str(R.string.settings_silence_timeout) + ": " + current.silenceTimeoutMs + " ms",
-                style = MaterialTheme.typography.bodyMedium,
+                text = str(R.string.settings_silence_timeout) + ": " + current.silenceTimeoutMs + " MS",
+                style = MaterialTheme.typography.bodySmall,
             )
             Slider(
                 value = current.silenceTimeoutMs.toFloat(),
                 onValueChange = { value -> vm.update { it.copy(silenceTimeoutMs = value.toInt()) } },
                 valueRange = 400f..4000f,
                 steps = 8,
+                colors = SliderDefaults.colors(
+                    thumbColor = MaterialTheme.colorScheme.onSurface,
+                    activeTrackColor = MaterialTheme.colorScheme.onSurface,
+                    inactiveTrackColor = MaterialTheme.colorScheme.outline,
+                ),
             )
         }
 
         // ---------- Asisten ----------
-        SectionCard(title = str(R.string.settings_assistant_title), subtitle = str(R.string.settings_assistant_subtitle)) {
+        Panel(title = str(R.string.settings_assistant_title), code = "04", subtitle = str(R.string.settings_assistant_subtitle)) {
             Text(str(R.string.label_llm), style = MaterialTheme.typography.bodyMedium)
             PillsColumn(
                 options = listOf(
@@ -250,8 +268,8 @@ fun SettingsScreen(vm: AppViewModel, modifier: Modifier = Modifier) {
             )
         }
 
-        // ---------- Bubble & data ----------
-        SectionCard(title = str(R.string.settings_data_title)) {
+        // ---------- Data & bubble ----------
+        Panel(title = str(R.string.settings_data_title), code = "05") {
             SwitchRow(
                 title = str(R.string.settings_overlay),
                 subtitle = str(R.string.settings_overlay_note),
@@ -264,46 +282,55 @@ fun SettingsScreen(vm: AppViewModel, modifier: Modifier = Modifier) {
                 onChange = { value -> vm.update { it.copy(saveHistory = value) } },
             )
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedButton(onClick = { vm.clearAssistantHistory() }) { Text(str(R.string.settings_clear_history)) }
-                OutlinedButton(onClick = { context.startActivity(DeviceState.batterySettingsIntent()) }) {
-                    Text(str(R.string.settings_battery))
-                }
+                BracketButton(text = str(R.string.settings_clear_history), onClick = { vm.clearAssistantHistory() })
+                BracketButton(
+                    text = str(R.string.settings_battery),
+                    onClick = { context.startActivity(DeviceState.batterySettingsIntent()) },
+                )
             }
         }
 
         // ---------- Diagnostik ----------
-        SectionCard(title = str(R.string.settings_diagnostics)) {
+        Panel(title = str(R.string.settings_diagnostics), code = "06") {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedButton(
+                BracketButton(
+                    text = str(R.string.action_refresh),
                     onClick = {
                         vm.refreshLog()
                         log = vm.log.value
                     },
-                ) { Text(str(R.string.action_refresh)) }
-                OutlinedButton(onClick = { ClipboardHelper.copy(context, log.ifBlank { vm.log.value }) }) {
-                    Text(str(R.string.action_copy))
-                }
-                OutlinedButton(onClick = {
-                    vm.refreshLog()
-                    deviceCheck = vm.sttStatusSummary()
-                }) {
-                    Text(str(R.string.settings_check_engine))
-                }
+                )
+                BracketButton(
+                    text = str(R.string.action_copy),
+                    onClick = { ClipboardHelper.copy(context, log.ifBlank { vm.log.value }) },
+                )
+                BracketButton(
+                    text = str(R.string.settings_check_engine),
+                    onClick = {
+                        vm.refreshLog()
+                        deviceCheck = vm.sttStatusSummary()
+                    },
+                )
             }
             if (deviceCheck.isNotBlank()) {
-                Text(deviceCheck, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                LabeledValue("MESIN", deviceCheck)
             }
             Text(
-                log.ifBlank { vm.log.value }.ifBlank { str(R.string.settings_log_empty) },
+                text = log.ifBlank { vm.log.value }.ifBlank { str(R.string.settings_log_empty) },
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
 
         Text(
-            str(R.string.settings_version) + " 0.1.0 (MIT)",
+            text = "RETROBIT//VOICE ${str(R.string.settings_version)} 0.1.0 · MIT",
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Text(
+            text = "█▚▚▚▚▚▚▚▚▚▚▚▚▚▚▚▚▚▚▚▚▚▚▚▚█",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.outline,
         )
     }
 }

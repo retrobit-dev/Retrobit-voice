@@ -64,6 +64,8 @@ data class AppSettings(
     // --- Tampilan & data ---
     val overlayBubbleEnabled: Boolean = false,
     val saveHistory: Boolean = true,
+    /** true = kertas terang (e-paper sesungguhnya), false = panel gelap cyberdeck. */
+    val epaperLightMode: Boolean = false,
     val lastOnboardingStep: Int = 0,
 ) {
     /** Apakah STT cloud siap dipakai (ada API key). */
@@ -105,6 +107,7 @@ class SettingsRepository(private val context: Context) {
 
         val overlayBubble = booleanPreferencesKey("overlay_bubble")
         val saveHistory = booleanPreferencesKey("save_history")
+        val epaperLight = booleanPreferencesKey("epaper_light")
         val onboardingStep = intPreferencesKey("onboarding_step")
     }
 
@@ -141,6 +144,7 @@ class SettingsRepository(private val context: Context) {
 
             prefs[K.overlayBubble] = updated.overlayBubbleEnabled
             prefs[K.saveHistory] = updated.saveHistory
+            prefs[K.epaperLight] = updated.epaperLightMode
             prefs[K.onboardingStep] = updated.lastOnboardingStep
         }
     }
@@ -176,6 +180,7 @@ class SettingsRepository(private val context: Context) {
             assistantLanguage = this[K.assistantLanguage] ?: defaults.assistantLanguage,
             overlayBubbleEnabled = this[K.overlayBubble] ?: defaults.overlayBubbleEnabled,
             saveHistory = this[K.saveHistory] ?: defaults.saveHistory,
+            epaperLightMode = this[K.epaperLight] ?: defaults.epaperLightMode,
             lastOnboardingStep = this[K.onboardingStep] ?: defaults.lastOnboardingStep,
         )
     }

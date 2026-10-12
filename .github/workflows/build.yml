@@ -1,5 +1,9 @@
 name: Build APK
 
+# Semua pembangunan APK dilakukan di GitHub Actions.
+# - Setiap push/PR  : unit test + APK debug (tersedia sebagai artifact)
+# - Push ke main    : tambahan APK rilis ber-tanda tangan + Release "build-terbaru"
+# - Tag v*          : Release resmi dengan catatan rilis
 on:
   push:
     branches: ["**"]
@@ -11,9 +15,16 @@ permissions:
   contents: write
   pull-requests: write
 
+env:
+  # Dipakai hanya untuk build dari main/tag; kalau secret tidak ada, nilai bawaan
+  # ini membuat APK tetap terbangun (kunci uji, bukan kunci rilis Play Store).
+  KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD || 'retrobit-ci-pass' }}
+  KEY_PASSWORD: ${{ secrets.KEY_PASSWORD || 'retrobit-ci-pass' }}
+  KEY_ALIAS: ${{ secrets.KEY_ALIAS || 'retrobit' }}
+
 jobs:
   build:
-    name: Assemble debug + unit test
+    name: Test + APK
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -35,7 +46,6 @@ jobs:
           echo "ANDROID_SDK_ROOT=$SDK" >> "$GITHUB_ENV"
           echo "SDK -> $SDK"
           ls "$SDK" || true
-          echo "platforms:"; ls "$SDK/platforms" 2>/dev/null || true
           if [ -x "$SDK/cmdline-tools/latest/bin/sdkmanager" ]; then
             yes | "$SDK/cmdline-tools/latest/bin/sdkmanager" --licenses >/dev/null 2>&1 || true
           fi
@@ -56,8 +66,6 @@ jobs:
           fi
           chmod +x gradlew
 
-      # Semua keluaran Gradle disimpan ke build.log supaya bisa diringkas
-      # otomatis di komentar PR kalau build gagal (lihat langkah terakhir).
       - name: Unit test
         run: |
           set -o pipefail
@@ -68,37 +76,77 @@ jobs:
           set -o pipefail
           ./gradlew assembleDebug --stacktrace 2>&1 | tee -a build.log
 
-      - name: Bangun keystore debug yang stabil (opsional)
-        if: startsWith(github.ref, 'refs/tags/v')
+      # ---------- APK rilis ber-tanda tangan (main & tag saja) ----------
+      - name: Siapkan keystore
+        if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')
         run: |
           keytool -genkeypair -v -keystore "$RUNNER_TEMP/retrobit.jks" \
-            -alias retrobit -keyalg RSA -keysize 2048 -validity 10000 \
-            -storepass "${{ secrets.KEYSTORE_PASSWORD || 'retrobit-ci' }}" \
-            -keypass "${{ secrets.KEY_PASSWORD || 'retrobit-ci' }}" \
-            -dname "CN=Retrobit Voice, OU=CI, O=Retrobit, L=Jepara, C=ID"
+            -alias "$KEY_ALIAS" -keyalg RSA -keysize 2048 -validity 10000 \
+            -storepass "$KEYSTORE_PASSWORD" -keypass "$KEY_PASSWORD" \
+            -dname "CN=Retrobit Voice, OU=Release, O=Retrobit, L=Jepara, C=ID"
           echo "KEYSTORE_PATH=$RUNNER_TEMP/retrobit.jks" >> "$GITHUB_ENV"
-          echo "KEYSTORE_PASSWORD=${{ secrets.KEYSTORE_PASSWORD || 'retrobit-ci' }}" >> "$GITHUB_ENV"
-          echo "KEY_ALIAS=retrobit" >> "$GITHUB_ENV"
-          echo "KEY_PASSWORD=${{ secrets.KEY_PASSWORD || 'retrobit-ci' }}" >> "$GITHUB_ENV"
 
-      - name: Build APK rilis (hanya untuk tag v*)
-        if: startsWith(github.ref, 'refs/tags/v')
-        run: ./gradlew assembleRelease --stacktrace
+      - name: Build APK rilis
+        if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')
+        run: |
+          set -o pipefail
+          ./gradlew assembleRelease --stacktrace 2>&1 | tee -a build.log
 
-      - name: Unggah APK debug
+      - name: Unggah APK debug (artifact)
         uses: actions/upload-artifact@v4
         with:
           name: retrobit-voice-debug
           path: app/build/outputs/apk/debug/*.apk
           if-no-files-found: error
 
-      - name: Unggah APK rilis (tag v*)
-        if: startsWith(github.ref, 'refs/tags/v')
+      - name: Unggah APK rilis (artifact)
+        if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')
         uses: actions/upload-artifact@v4
         with:
           name: retrobit-voice-release
           path: app/build/outputs/apk/release/*.apk
           if-no-files-found: warn
+
+      - name: Catat versi aplikasi
+        if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')
+        id: appver
+        run: |
+          VERSION=$(grep -oP 'versionName = "\K[^"]+' app/build.gradle.kts | head -1)
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      # Release "build-terbaru": APK siap unduh TANPA perlu login GitHub.
+      - name: Release build-terbaru (dari main)
+        if: github.ref == 'refs/heads/main'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: build-terbaru
+          name: Build terbaru (${{ steps.appver.outputs.version }})
+          body: |
+            APK terbaru dari branch `main` — commit ${{ github.sha }}.
+
+            | Berkas | Kegunaan |
+            | --- | --- |
+            | `app-release.apk` | Rilis (lebih kecil & lebih cepat, sudah diminifikasi) |
+            | `app-debug.apk` | Debug (untuk melaporkan masalah dengan log lengkap) |
+
+            Cara pasang: unduh APK → buka di ponsel → izinkan "Instal dari sumber tidak dikenal".
+            Setelah terpasang, ikuti 5 langkah aktivasi di tab **Beranda**.
+          files: |
+            app/build/outputs/apk/release/*.apk
+            app/build/outputs/apk/debug/*.apk
+          prerelease: true
+          make_latest: true
+
+      # Release resmi untuk tag v*
+      - name: Release resmi (tag v*)
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            app/build/outputs/apk/release/*.apk
+            app/build/outputs/apk/debug/*.apk
+          generate_release_notes: true
+          make_latest: true
 
       - name: Ringkasan error ke komentar PR (bila gagal)
         if: failure() && github.event_name == 'pull_request'
@@ -116,12 +164,3 @@ jobs:
             echo '```'
           } > /tmp/failure-comment.md
           gh pr comment ${{ github.event.pull_request.number }} --body-file /tmp/failure-comment.md || true
-
-      - name: Lampirkan APK ke Release (tag v*)
-        if: startsWith(github.ref, 'refs/tags/v')
-        uses: softprops/action-gh-release@v2
-        with:
-          files: |
-            app/build/outputs/apk/release/*.apk
-            app/build/outputs/apk/debug/*.apk
-          generate_release_notes: true

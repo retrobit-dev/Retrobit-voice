@@ -145,6 +145,9 @@
     <string name="settings_wake_word_note">Mendengarkan terus-menerus menambah pemakaian baterai.</string>
     <string name="settings_wake_word_phrase">Frasa kata kunci</string>
     <string name="settings_data_title">Tampilan &amp; data</string>
+    <string name="settings_display_title">Mode tampilan</string>
+    <string name="settings_epaper_mode">Mode kertas terang (e-paper)</string>
+    <string name="settings_epaper_mode_note">Panel jadi terang seperti e-reader di bawah matahari.</string>
     <string name="settings_overlay">Bubble mikrofon melayang</string>
     <string name="settings_overlay_note">Ketuk untuk dikte, tekan lama untuk asisten.</string>
     <string name="settings_save_history">Simpan riwayat di perangkat</string>

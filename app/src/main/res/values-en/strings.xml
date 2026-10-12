@@ -137,6 +137,9 @@
     <string name="settings_wake_word_note">Continuous listening costs extra battery.</string>
     <string name="settings_wake_word_phrase">Wake phrase</string>
     <string name="settings_data_title">Appearance &amp; data</string>
+    <string name="settings_display_title">Display mode</string>
+    <string name="settings_epaper_mode">Light paper mode (e-paper)</string>
+    <string name="settings_epaper_mode_note">Panel turns bright, like an e-reader in sunlight.</string>
     <string name="settings_overlay">Floating mic bubble</string>
     <string name="settings_overlay_note">Tap to dictate, long-press for the assistant.</string>
     <string name="settings_save_history">Keep history on device</string>
