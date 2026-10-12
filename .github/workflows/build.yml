@@ -78,7 +78,7 @@ jobs:
 
       # ---------- APK rilis ber-tanda tangan (main & tag saja) ----------
       - name: Siapkan keystore
-        if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/arena/70e018a0-retrobit-voice' || startsWith(github.ref, 'refs/tags/v')
+        if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')
         run: |
           keytool -genkeypair -v -keystore "$RUNNER_TEMP/retrobit.jks" \
             -alias "$KEY_ALIAS" -keyalg RSA -keysize 2048 -validity 10000 \
@@ -87,7 +87,7 @@ jobs:
           echo "KEYSTORE_PATH=$RUNNER_TEMP/retrobit.jks" >> "$GITHUB_ENV"
 
       - name: Build APK rilis
-        if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/arena/70e018a0-retrobit-voice' || startsWith(github.ref, 'refs/tags/v')
+        if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')
         run: |
           set -o pipefail
           ./gradlew assembleRelease --stacktrace 2>&1 | tee -a build.log
@@ -100,7 +100,7 @@ jobs:
           if-no-files-found: error
 
       - name: Unggah APK rilis (artifact)
-        if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/arena/70e018a0-retrobit-voice' || startsWith(github.ref, 'refs/tags/v')
+        if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')
         uses: actions/upload-artifact@v4
         with:
           name: retrobit-voice-release
@@ -108,7 +108,7 @@ jobs:
           if-no-files-found: warn
 
       - name: Catat versi aplikasi
-        if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/arena/70e018a0-retrobit-voice' || startsWith(github.ref, 'refs/tags/v')
+        if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')
         id: appver
         run: |
           VERSION=$(grep -oP 'versionName = "\K[^"]+' app/build.gradle.kts | head -1)
@@ -116,10 +116,10 @@ jobs:
 
       # Release "build-terbaru": APK siap unduh TANPA perlu login GitHub.
       - name: Release build-terbaru (dari main)
-        if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/arena/70e018a0-retrobit-voice'
+        if: github.ref == 'refs/heads/main'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: build-terbaru-uji
+          tag_name: build-terbaru
           name: Build terbaru (${{ steps.appver.outputs.version }})
           body: |
             APK terbaru dari branch `main` — commit ${{ github.sha }}.

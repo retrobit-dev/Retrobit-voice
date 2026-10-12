@@ -16,7 +16,9 @@ supaya bisa langsung dikerjakan.
 | Kamus pengguna (nama & istilah sendiri) | Nama orang/istilah teknis adalah sumber kesalahan utama STT | `LocalTextCleaner.Options.replacements` sudah ada → tinggal UI di Pengaturan + penyimpanan |
 | Mode "dikte berkelanjutan" (lanjut merekam setelah jeda) | Untuk menulis panjang tanpa menekan tombol berulang | `PcmRecorder` (batas durasi), `DictationController` |
 | Umpan balik haptic + suara mulai/berhenti | Kejelasan saat dikte tanpa melihat layar | `DictationService`, `OverlayBubbleService` |
-| Cek bahasa on-device di Diagnostik | Menghindari kebingungan "kenapa on-device selalu gagal" | `HybridSttEngine.checkOnDeviceLanguage()` sudah ada → tampilkan hasilnya |
+| Cek bahasa on-device di Diagnostik | Menghindari kebingungan "kenapa on-device selalu gagal" | `UiState`/`HybridSttEngine.statusSummary()` diperluas |
+| Tangkapan layar otomatis untuk README | Tema baru ini butuh bukti visual di halaman repo | Roborazzi/Paparazzi atau `screengrab` + jalankan di CI |
+| Uji kontras WCAG untuk mode PAPER | Kertas terang gampang membuat teks abu-abu terlalu pudar | `ui/theme/Theme.kt` (nilai `dimLight`/`faintLight`) |
 
 ## 0.3 — Asisten lebih pintar, tetap sopan privasi
 

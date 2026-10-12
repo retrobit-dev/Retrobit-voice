@@ -168,7 +168,28 @@ hanya menuju penyedia yang API key-nya dimasukkan pengguna sendiri.
 
 ---
 
-## 6. Peta berkas
+## 6. Sistem visual: e-paper monokrom
+
+Tema ada di `ui/theme/Theme.kt` dan seluruh komponennya di `ui/components/Common.kt`.
+Keputusan yang perlu diketahui sebelum mengubah tampilan:
+
+| Keputusan | Alasan |
+| --- | --- |
+| Palet hanya berisi tinta + kertas (8 nilai per mode) | E-paper tidak punya hue; menambahkan satu warna akan langsung merusak ilusi perangkat |
+| Warna skema `error` = tinta, bukan merah | Kalau galat ditandai warna, info itu hilang di layar monokrom — jadi galat ditandai `!` + teks |
+| Status dibawa glyph (`● ○ ■ □ ▚ ! > <`) | Satu-satunya pembeda yang tersisa setelah warna dihapus; sekaligus tetap terbaca oleh pengguna dengan buta warna |
+| Inversi (tinta ↔ kertas) untuk keadaan aktif | Meniru perilaku panel 1-bit dan tetap kontras di kedua mode |
+| Sudut 0–2dp, garis 1px, tipografi monospace | Bahasa visual instrumen/perangkat, bukan kartu konsumen |
+| `Modifier.epaperTexture()` (drawBehind + garis 1px) | Tekstur murah: digambar saat draw, tanpa alokasi bitmap atau gambar berukuran besar |
+| Dua mode permukaan lewat `RetrobitTheme(paperMode = ...)` | Kertas terang untuk pemakaian siang; panel gelap untuk malam — tanpa dua set kode |
+| `PillsColumn` disusun manual (bukan `FlowRow`) | Menghindari API eksperimental agar proyek tetap bisa dibangun di versi Compose stabil mana pun |
+
+Catatan: `MainActivity` tidak memakai `Scaffold`/`NavigationBar` Material, melainkan
+`DeckNavBar` sendiri. Ini disengaja supaya bilah bawah tidak membawa serta elevasi,
+lengkungan, dan warna Material — sekaligus menghindari ketergantungan pada
+`NavigationBarItem` yang sulit dibuat monokrom.
+
+## 7. Peta berkas
 
 | Berkas | Tanggung jawab |
 | --- | --- |
@@ -189,11 +210,13 @@ hanya menuju penyedia yang API key-nya dimasukkan pengguna sendiri.
 | `dictation/insert/TextInserter.kt` | Tiga jalur penempelan |
 | `text/LocalTextCleaner.kt` | Filler, tanda baca, kapitalisasi, kamus pengguna |
 | `text/NumberWords.kt` | "tujuh" → 7 (id + en), durasi & jam |
+| `ui/theme/Theme.kt` | Palet e-paper (Deck), glyph, tipografi mono, dua skema permukaan |
+| `ui/components/Common.kt` | Seluruh komponen visual: Panel, TerminalHeader, LevelMeter, BracketButton, dll. |
 | `ui/AppViewModel.kt` | Satu sumber status untuk seluruh layar |
 
 ---
 
-## 7. Cara memperluas
+## 8. Cara memperluas
 
 | Ingin menambah… | Sentuh berkas |
 | --- | --- |

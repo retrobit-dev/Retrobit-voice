@@ -44,7 +44,26 @@ Dirancang **offline-first**: dikte dan puluhan perintah tetap jalan tanpa intern
 
 ---
 
-## Tangkapan layar alur kerja
+## Tampilan: retro cyberdeck, grayscale e-paper
+
+Seluruh antarmuka mengikuti estetika **layar e-paper 1-bit**: hanya ada tinta dan kertas,
+tanpa satu pun warna.
+
+- **Status dibawa oleh glyph, bukan warna** — `●`/`○` untuk perangkat, `■`/`□` untuk langkah
+  aktivasi, `▚` untuk panel aktif, `!` untuk galat, `>`/`<` untuk log masuk/keluar.
+  Ini bukan pilihan gaya, melainkan konsekuensi: di layar monokrom warna tidak bisa diandalkan.
+- **Inversi sebagai penanda "aktif"** — tombol mikrofon berubah menjadi balok penuh tinta saat
+  merekam; tab navigasi ter-inversi saat dipilih.
+- **Tipografi monospace, sudut tajam (0–2dp), garis tepi 1px**, plus tekstur scanline halus
+  (`Modifier.epaperTexture()`) agar terasa seperti panel perangkat, bukan kartu Material.
+- **Bilah navigasi sendiri** (bukan `NavigationBar` Material) bergaya tombol instrumen F1–F4.
+- **Dua mode permukaan**: **DECK** (panel gelap, bawaan) dan **PAPER** (kertas terang seperti
+  e-reader) — bisa diganti di *Pengaturan → Mode tampilan*.
+
+Keyboard dikte dan bubble melayang mengikuti bahasa visual yang sama: persegi tanpa lengkung,
+dengan bubble yang terisi penuh tinta saat merekam.
+
+## Alur kerja
 
 ```
         ┌────────────┐   tekan mikrofon   ┌──────────────┐   transkripsi   ┌──────────────┐
@@ -62,14 +81,22 @@ Anda ──►│ Keyboard / │ ───────────────�
 
 ## Unduh APK (tanpa memasang Android Studio)
 
-1. Buka tab **Actions** di repositori ini.
-2. Pilih workflow **Build APK** yang paling baru (tanda centang hijau).
-3. Di bagian **Artifacts**, unduh **`retrobit-voice-debug`** → di dalamnya ada `app-debug.apk`.
-4. Pasang di ponsel (aktifkan "Instal dari sumber tidak dikenal" bila diminta).
+**Cara termudah — halaman Releases:**
 
-> APK debug ditandatangani dengan kunci debug otomatis, jadi aman untuk uji coba pribadi.
-> Untuk APK rilis, buat tag `v*` — CI akan menandatanganinya dengan keystore dari GitHub Secrets
-> (`KEYSTORE_PATH`, `KEYSTORE_PASSWORD`, `KEY_ALIAS`, `KEY_PASSWORD`) dan melampirkannya ke Release.
+1. Buka tab **Releases** di repositori ini.
+2. Pilih release **Build terbaru**.
+3. Unduh:
+   - **`app-release.apk`** (±1,5 MB) — versi rilis, sudah diminifikasi & ditandatangani. **Pakai ini.**
+   - `app-debug.apk` (±10 MB) — versi debug, untuk melaporkan masalah dengan log lengkap.
+4. Buka berkas di ponsel → izinkan "Instal dari sumber tidak dikenal" bila diminta.
+
+Release dibuat otomatis oleh CI setiap kali `main` diperbarui, jadi tidak perlu login untuk mengunduh.
+
+**Alternatif (butuh login GitHub):** tab **Actions** → workflow **Build APK** → **Artifacts**.
+
+> APK rilis untuk versi resmi dibuat lewat tag `v*` dan ditandatangani dengan keystore dari
+> GitHub Secrets (`KEYSTORE_PATH`, `KEYSTORE_PASSWORD`, `KEY_ALIAS`, `KEY_PASSWORD`).
+> Kalau secret belum diisi, CI memakai kunci uji — cukup untuk dipasang, tidak untuk Play Store.
 
 ## Cara build
 
