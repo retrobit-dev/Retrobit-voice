@@ -19,6 +19,20 @@ android {
         resourceConfigurations += listOf("in", "en")
     }
 
+    // Tanda tangan rilis diambil dari CI (GitHub Actions) lewat variabel lingkungan.
+    // Dideklarasikan SEBELUM buildTypes supaya buildTypes bisa merujuknya.
+    signingConfigs {
+        create("ci") {
+            val storePath = System.getenv("KEYSTORE_PATH")
+            if (!storePath.isNullOrBlank()) {
+                storeFile = file(storePath)
+                storePassword = System.getenv("KEYSTORE_PASSWORD")
+                keyAlias = System.getenv("KEY_ALIAS")
+                keyPassword = System.getenv("KEY_PASSWORD")
+            }
+        }
+    }
+
     buildTypes {
         debug {
             applicationIdSuffix = ".debug"
@@ -31,19 +45,10 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",
             )
-        }
-    }
-
-    // Tanda tangan rilis diambil dari CI (GitHub Actions) lewat variabel lingkungan.
-    // Kalau tidak diset, build rilis tetap jalan tapi menghasilkan APK unsigned.
-    signingConfigs {
-        create("ci") {
-            val storePath = System.getenv("KEYSTORE_PATH")
-            if (!storePath.isNullOrBlank()) {
-                storeFile = file(storePath)
-                storePassword = System.getenv("KEYSTORE_PASSWORD")
-                keyAlias = System.getenv("KEY_ALIAS")
-                keyPassword = System.getenv("KEY_PASSWORD")
+            // Tanda tangani dengan keystore dari CI (GitHub Secrets) bila tersedia.
+            // Tanpa KEYSTORE_PATH, build tetap berjalan tetapi menghasilkan APK unsigned.
+            if (!System.getenv("KEYSTORE_PATH").isNullOrBlank()) {
+                signingConfig = signingConfigs.getByName("ci")
             }
         }
     }
