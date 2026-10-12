@@ -158,6 +158,8 @@ object VolumeKeyTrigger {
         val graph = runCatching { AppGraph.require }.getOrNull() ?: return
 
         when (action) {
+            VolumeTriggerLogic.Action.NONE -> Unit // sudah disaring di atas
+
             VolumeTriggerLogic.Action.START, VolumeTriggerLogic.Action.TOGGLE -> {
                 when (graph.dictation.state.value.phase) {
                     DictationController.Phase.LISTENING -> {

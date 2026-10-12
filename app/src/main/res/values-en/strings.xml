@@ -62,8 +62,8 @@
     <string name="toast_mic_denied">Microphone denied — dictation will not work.</string>
     <string name="toast_contacts_granted">Contacts are available for calls and messages.</string>
     <string name="toast_contacts_denied">Without contacts, say the number out loud instead.</string>
-    <string name="toast_volume_needs_mic">Microphone permission is missing — the volume buttons can't start dictation yet.</string>
-    <string name="toast_volume_start_failed">Couldn't start dictation from the volume button. Open the Retrobit app once, then try again.</string>
+    <string name="toast_volume_needs_mic">Microphone permission is missing — the volume buttons cannot start dictation yet.</string>
+    <string name="toast_volume_start_failed">Could not start dictation from the volume button. Open the Retrobit app once, then try again.</string>
 
     <string name="dictation_idle">Ready to listen</string>
     <string name="dictation_listening">Listening…</string>
