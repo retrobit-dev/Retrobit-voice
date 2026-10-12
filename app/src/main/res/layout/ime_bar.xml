@@ -1,0 +1,130 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Bar keyboard Retrobit: mikrofon, status/teks berjalan, lalu tombol bantu
+  (tempel, spasi, hapus, enter, ganti keyboard, pengaturan).
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/ime_root"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="horizontal"
+    android:gravity="center_vertical"
+    android:background="@drawable/bg_ime_bar"
+    android:padding="6dp">
+
+    <ImageButton
+        android:id="@+id/ime_mic"
+        android:layout_width="46dp"
+        android:layout_height="46dp"
+        android:background="@drawable/bg_ime_mic"
+        android:src="@drawable/ic_mic"
+        android:padding="11dp"
+        android:scaleType="fitCenter"
+        android:contentDescription="@string/ime_mic_start" />
+
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:orientation="vertical"
+        android:layout_marginStart="8dp"
+        android:layout_marginEnd="6dp">
+
+        <TextView
+            android:id="@+id/ime_status"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textSize="11sp"
+            android:maxLines="1"
+            android:ellipsize="end"
+            android:textColor="#9A9AA5"
+            android:text="@string/ime_hint" />
+
+        <TextView
+            android:id="@+id/ime_partial"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textSize="13sp"
+            android:maxLines="2"
+            android:ellipsize="end"
+            android:textColor="#EDEDF2"
+            android:visibility="gone" />
+    </LinearLayout>
+
+    <ImageButton
+        android:id="@+id/ime_paste"
+        android:layout_width="30dp"
+        android:layout_height="34dp"
+        android:layout_marginEnd="4dp"
+        android:background="@drawable/bg_ime_key"
+        android:src="@drawable/ic_paste"
+        android:padding="6dp"
+        android:scaleType="fitCenter"
+        android:visibility="gone"
+        android:contentDescription="@string/ime_repasted" />
+
+    <ImageButton
+        android:id="@+id/ime_space"
+        android:layout_width="30dp"
+        android:layout_height="34dp"
+        android:layout_marginEnd="4dp"
+        android:background="@drawable/bg_ime_key"
+        android:src="@drawable/ic_space"
+        android:padding="6dp"
+        android:scaleType="fitCenter"
+        android:contentDescription="Spasi" />
+
+    <ImageButton
+        android:id="@+id/ime_delete"
+        android:layout_width="30dp"
+        android:layout_height="34dp"
+        android:layout_marginEnd="4dp"
+        android:background="@drawable/bg_ime_key"
+        android:src="@drawable/ic_backspace"
+        android:padding="6dp"
+        android:scaleType="fitCenter"
+        android:contentDescription="Hapus" />
+
+    <ImageButton
+        android:id="@+id/ime_enter"
+        android:layout_width="30dp"
+        android:layout_height="34dp"
+        android:layout_marginEnd="4dp"
+        android:background="@drawable/bg_ime_key"
+        android:src="@drawable/ic_enter"
+        android:padding="6dp"
+        android:scaleType="fitCenter"
+        android:contentDescription="Enter" />
+
+    <ImageButton
+        android:id="@+id/ime_keyboard"
+        android:layout_width="30dp"
+        android:layout_height="34dp"
+        android:layout_marginEnd="4dp"
+        android:background="@drawable/bg_ime_key"
+        android:src="@drawable/ic_keyboard"
+        android:padding="6dp"
+        android:scaleType="fitCenter"
+        android:contentDescription="Ganti keyboard" />
+
+    <ImageButton
+        android:id="@+id/ime_settings"
+        android:layout_width="30dp"
+        android:layout_height="34dp"
+        android:layout_marginEnd="4dp"
+        android:background="@drawable/bg_ime_key"
+        android:src="@drawable/ic_settings_sliders"
+        android:padding="6dp"
+        android:scaleType="fitCenter"
+        android:contentDescription="@string/tab_settings" />
+
+    <ImageButton
+        android:id="@+id/ime_close"
+        android:layout_width="30dp"
+        android:layout_height="34dp"
+        android:background="@drawable/bg_ime_key"
+        android:src="@drawable/ic_close"
+        android:padding="7dp"
+        android:scaleType="fitCenter"
+        android:contentDescription="Sembunyikan keyboard" />
+</LinearLayout>
