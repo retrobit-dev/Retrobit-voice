@@ -169,7 +169,7 @@ object CommandParser {
     }
 
     private fun cleanAppName(target: String): String = target
-        .replace(Regex("(?i)^(?:aplikasi|app|the)\s+"), "")
+        .replace(Regex("(?i)^(?:aplikasi|app|the)\\s+"), "")
         .trim()
 
     private fun extractLabel(text: String, verb: String): String =
