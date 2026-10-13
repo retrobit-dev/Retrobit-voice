@@ -122,6 +122,27 @@ class SettingsExportTest {
     }
 
     @Test
+    fun `preset parsial hanya mengubah field yang dicantumkan dan mempertahankan API key`() {
+        val aktif = AppSettings(
+            sttEngine = SttEngineChoice.AUTO,
+            cloudSttApiKey = "key-cloud-yang-ada",
+            llmProvider = LlmProvider.OPENAI,
+            llmApiKey = "key-llm-yang-ada",
+            wakeWordEnabled = true,
+            cleanupMode = CleanupMode.AI,
+            epaperLightMode = true,
+        )
+        val preset = """{"app":"${SettingsSnapshotFormat.APP_ID}","schema":${SettingsSnapshotFormat.SCHEMA_VERSION},"sttEngine":"SYSTEM_LIVE","wakeWordEnabled":false}"""
+
+        val restored = decodeSettingsSnapshot(preset).toSettings(aktif)
+
+        assertEquals(
+            aktif.copy(sttEngine = SttEngineChoice.SYSTEM_LIVE, wakeWordEnabled = false),
+            restored,
+        )
+    }
+
+    @Test
     fun `nilai enum tak dikenal memakai setelan yang sedang aktif, bukan bawaan`() {
         val rusak = """{"app":"${SettingsSnapshotFormat.APP_ID}","schema":1,"sttEngine":"MESIN_MASA_DEPAN"}"""
         val aktif = AppSettings(sttEngine = SttEngineChoice.SYSTEM_LIVE)

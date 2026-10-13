@@ -10,12 +10,13 @@ import kotlinx.serialization.json.Json
  *  - `schema` dan `app` membuat berkas asing bisa ditolak dengan pesan yang jelas,
  *  - enum disimpan sebagai teks supaya berkas lama tetap terbaca walau daftar
  *    nilai enum berubah kelak,
+ *  - kolom preferensi bersifat opsional agar preset parsial dapat mengubah beberapa
+ *    setelan tanpa menghapus preferensi lain (termasuk API key) yang sudah aktif,
  *  - [AppSettings] sendiri tetap bebas dari anotasi serialisasi.
  *
- * Berkas ini memuat API key dalam bentuk teks biasa — itu memang tujuannya, supaya
- * setelan bisa dipulihkan setelah uninstall, saat kunci Android Keystore sudah ikut
- * terhapus. Karena itu berkasnya harus disimpan di tempat aman (peringatan juga
- * ditampilkan di layar Pengaturan).
+ * Ekspor cadangan penuh memuat API key dalam bentuk teks biasa — itu memang
+ * tujuannya, supaya setelan bisa dipulihkan setelah uninstall, saat kunci Android
+ * Keystore ikut terhapus. Karena itu berkas ekspor penuh harus disimpan aman.
  */
 @Serializable
 data class SettingsSnapshot(
@@ -24,37 +25,37 @@ data class SettingsSnapshot(
     val versionName: String = "",
     val exportedAtMs: Long = 0L,
 
-    // ---- Dikte ----
-    val sttEngine: String = SttEngineChoice.AUTO.name,
-    val cloudSttProvider: String = CloudSttProvider.OPENAI.name,
-    val cloudSttApiKey: String = "",
-    val cloudSttBaseUrl: String = "",
-    val cloudSttModel: String = "",
-    val dictationLanguage: String = "id-ID",
-    val cleanupMode: String = CleanupMode.LOCAL.name,
-    val autoPunctuation: Boolean = true,
-    val autoCapitalize: Boolean = true,
-    val insertMethod: String = InsertMethod.AUTO.name,
-    val dictationTrigger: String = DictationTrigger.HOLD_TO_TALK.name,
-    val volumeKeyTriggerEnabled: Boolean = false,
-    val silenceTimeoutMs: Int = 1600,
-    val keepScreenOnWhileDictating: Boolean = false,
+    // ---- Dikte (null = pertahankan nilai aktif; ekspor penuh selalu mengisinya) ----
+    val sttEngine: String? = null,
+    val cloudSttProvider: String? = null,
+    val cloudSttApiKey: String? = null,
+    val cloudSttBaseUrl: String? = null,
+    val cloudSttModel: String? = null,
+    val dictationLanguage: String? = null,
+    val cleanupMode: String? = null,
+    val autoPunctuation: Boolean? = null,
+    val autoCapitalize: Boolean? = null,
+    val insertMethod: String? = null,
+    val dictationTrigger: String? = null,
+    val volumeKeyTriggerEnabled: Boolean? = null,
+    val silenceTimeoutMs: Int? = null,
+    val keepScreenOnWhileDictating: Boolean? = null,
 
     // ---- Asisten ----
-    val llmProvider: String = LlmProvider.OFF.name,
-    val llmApiKey: String = "",
-    val llmBaseUrl: String = "",
-    val llmModel: String = "",
-    val wakeWordEnabled: Boolean = false,
-    val wakeWordPhrase: String = "hai retro",
-    val confirmBeforeActions: Boolean = true,
-    val speakReplies: Boolean = true,
-    val assistantLanguage: String = "id-ID",
+    val llmProvider: String? = null,
+    val llmApiKey: String? = null,
+    val llmBaseUrl: String? = null,
+    val llmModel: String? = null,
+    val wakeWordEnabled: Boolean? = null,
+    val wakeWordPhrase: String? = null,
+    val confirmBeforeActions: Boolean? = null,
+    val speakReplies: Boolean? = null,
+    val assistantLanguage: String? = null,
 
     // ---- Tampilan & data ----
-    val overlayBubbleEnabled: Boolean = false,
-    val saveHistory: Boolean = true,
-    val epaperLightMode: Boolean = false,
+    val overlayBubbleEnabled: Boolean? = null,
+    val saveHistory: Boolean? = null,
+    val epaperLightMode: Boolean? = null,
 )
 
 /** Berkas cadangan tidak bisa dipakai; [message] sudah siap ditampilkan ke pengguna. */
@@ -63,7 +64,8 @@ class InvalidSnapshotException(message: String) : Exception(message)
 /** Aturan tetap format cadangan: nomor skema, penanda aplikasi, dan parser JSON. */
 object SettingsSnapshotFormat {
 
-    const val SCHEMA_VERSION: Int = 1
+    /** Skema 2 menambahkan impor parsial; skema 1 (ekspor penuh lama) tetap didukung. */
+    const val SCHEMA_VERSION: Int = 2
     const val APP_ID: String = "retrobit-voice"
 
     /** Nama berkas yang disarankan saat pengguna memilih lokasi ekspor. */
@@ -118,46 +120,57 @@ fun AppSettings.toSnapshot(
 )
 
 /**
- * Terapkan isi cadangan ke setelan.
+ * Terapkan isi cadangan/preset ke setelan.
  *
- * [current] dipakai sebagai dasar, jadi field yang tidak ada di berkas (atau nilainya
- * tidak dikenal) tetap memakai nilai yang sedang aktif — bukan direset ke bawaan.
+ * [current] dipakai sebagai dasar: field yang tidak ada (atau null) dan enum
+ * yang tidak dikenal tetap memakai nilai aktif, bukan direset ke bawaan. Nilai
+ * string kosong yang eksplisit tetap bisa mengosongkan field seperti API key.
  * `lastOnboardingStep` memang tidak ikut dipulihkan: itu status UI, bukan preferensi.
  */
 fun SettingsSnapshot.toSettings(current: AppSettings = AppSettings()): AppSettings = current.copy(
     sttEngine = enumOrDefault(sttEngine, current.sttEngine),
     cloudSttProvider = enumOrDefault(cloudSttProvider, current.cloudSttProvider),
-    cloudSttApiKey = cloudSttApiKey,
-    cloudSttBaseUrl = cloudSttBaseUrl,
-    cloudSttModel = cloudSttModel,
-    dictationLanguage = dictationLanguage.ifBlank { current.dictationLanguage },
+    cloudSttApiKey = cloudSttApiKey ?: current.cloudSttApiKey,
+    cloudSttBaseUrl = cloudSttBaseUrl ?: current.cloudSttBaseUrl,
+    cloudSttModel = cloudSttModel ?: current.cloudSttModel,
+    dictationLanguage = dictationLanguage?.ifBlank { current.dictationLanguage } ?: current.dictationLanguage,
     cleanupMode = enumOrDefault(cleanupMode, current.cleanupMode),
-    autoPunctuation = autoPunctuation,
-    autoCapitalize = autoCapitalize,
+    autoPunctuation = autoPunctuation ?: current.autoPunctuation,
+    autoCapitalize = autoCapitalize ?: current.autoCapitalize,
     insertMethod = enumOrDefault(insertMethod, current.insertMethod),
     dictationTrigger = enumOrDefault(dictationTrigger, current.dictationTrigger),
-    volumeKeyTriggerEnabled = volumeKeyTriggerEnabled,
-    silenceTimeoutMs = silenceTimeoutMs,
-    keepScreenOnWhileDictating = keepScreenOnWhileDictating,
+    volumeKeyTriggerEnabled = volumeKeyTriggerEnabled ?: current.volumeKeyTriggerEnabled,
+    silenceTimeoutMs = silenceTimeoutMs ?: current.silenceTimeoutMs,
+    keepScreenOnWhileDictating = keepScreenOnWhileDictating ?: current.keepScreenOnWhileDictating,
     llmProvider = enumOrDefault(llmProvider, current.llmProvider),
-    llmApiKey = llmApiKey,
-    llmBaseUrl = llmBaseUrl,
-    llmModel = llmModel,
-    wakeWordEnabled = wakeWordEnabled,
-    wakeWordPhrase = wakeWordPhrase.ifBlank { current.wakeWordPhrase },
-    confirmBeforeActions = confirmBeforeActions,
-    speakReplies = speakReplies,
-    assistantLanguage = assistantLanguage.ifBlank { current.assistantLanguage },
-    overlayBubbleEnabled = overlayBubbleEnabled,
-    saveHistory = saveHistory,
-    epaperLightMode = epaperLightMode,
+    llmApiKey = llmApiKey ?: current.llmApiKey,
+    llmBaseUrl = llmBaseUrl ?: current.llmBaseUrl,
+    llmModel = llmModel ?: current.llmModel,
+    wakeWordEnabled = wakeWordEnabled ?: current.wakeWordEnabled,
+    wakeWordPhrase = wakeWordPhrase?.ifBlank { current.wakeWordPhrase } ?: current.wakeWordPhrase,
+    confirmBeforeActions = confirmBeforeActions ?: current.confirmBeforeActions,
+    speakReplies = speakReplies ?: current.speakReplies,
+    assistantLanguage = assistantLanguage?.ifBlank { current.assistantLanguage } ?: current.assistantLanguage,
+    overlayBubbleEnabled = overlayBubbleEnabled ?: current.overlayBubbleEnabled,
+    saveHistory = saveHistory ?: current.saveHistory,
+    epaperLightMode = epaperLightMode ?: current.epaperLightMode,
 )
 
-/** Ringkasan singkat isi cadangan, dipakai untuk konfirmasi setelah impor. */
+/** Ringkasan isi backup/preset untuk konfirmasi setelah impor. */
 fun SettingsSnapshot.describe(): String = buildList {
-    add("STT ${sttEngine.lowercase()}")
-    add(if (llmProvider == LlmProvider.OFF.name) "asisten nonaktif" else "LLM ${llmProvider.lowercase()}")
-    add(if (cloudSttApiKey.isNotBlank() || llmApiKey.isNotBlank()) "dengan API key" else "tanpa API key")
+    val engine = sttEngine?.takeIf { it.isNotBlank() }?.lowercase() ?: "tidak diubah"
+    add("STT $engine")
+    when (val llm = llmProvider) {
+        null -> add("asisten tidak diubah")
+        LlmProvider.OFF.name -> add("asisten nonaktif")
+        else -> add("LLM ${llm.lowercase()}")
+    }
+    val keys = listOf(cloudSttApiKey, llmApiKey)
+    when {
+        keys.any { !it.isNullOrBlank() } -> add("dengan API key")
+        keys.all { it != null } -> add("tanpa API key")
+        else -> add("API key tidak diubah")
+    }
 }.joinToString(" · ")
 
 /** Serialisasi ke teks JSON siap tulis. */
