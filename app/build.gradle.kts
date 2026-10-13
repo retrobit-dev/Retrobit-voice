@@ -78,7 +78,13 @@ android {
     }
 
     lint {
-        abortOnError = false
+        // Temuan Lint bertingkat "error" menggagalkan build; peringatan tetap lolos.
+        // Ini penjaga regresi yang tidak terlihat oleh unit test: API yang dipakai
+        // tanpa cek versi, resource yang hilang, komponen manifest yang tidak valid,
+        // dan sejenisnya. Sebelumnya nilai ini `false`, jadi temuan Lint tidak pernah
+        // sampai ke siapa pun.
+        abortOnError = true
+        textReport = true
     }
 }
 
