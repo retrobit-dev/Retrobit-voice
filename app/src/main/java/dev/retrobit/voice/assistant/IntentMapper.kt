@@ -124,7 +124,7 @@ object ActionText {
             }
         is AssistantAction.SetDnd -> if (action.enabled) "Mode Jangan Ganggu dinyalakan." else "Mode Jangan Ganggu dimatikan."
         is AssistantAction.SetBluetooth ->
-            "Panel Bluetooth dibuka untuk ${if (action.enabled) "menyalakan" else "mematikan"} Bluetooth; konfirmasikan perubahan di panel sistem."
+            "Pengaturan Bluetooth dibuka untuk ${if (action.enabled) "menyalakan" else "mematikan"} Bluetooth; konfirmasikan perubahan di sana."
         AssistantAction.AnswerCall -> "Mencoba menjawab panggilan masuk."
         is AssistantAction.Unknown -> "Maaf, saya belum paham perintah itu."
     }
@@ -142,7 +142,7 @@ object ActionText {
         "volume" -> "Mengubah volume."
         "brightness", "set_brightness" -> "Mengubah kecerahan layar."
         "dnd", "do_not_disturb" -> "Mengubah mode Jangan Ganggu."
-        "bluetooth" -> "Mengubah Bluetooth melalui panel sistem."
+        "bluetooth" -> "Membuka pengaturan Bluetooth untuk konfirmasi pengguna."
         "answer_call" -> "Mencoba menjawab panggilan masuk."
         "open_settings" -> "Membuka pengaturan."
         else -> "Baik."

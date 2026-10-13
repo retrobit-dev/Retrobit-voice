@@ -406,23 +406,12 @@ class AssistantExecutor(
     }
 
     private fun setBluetooth(enabled: Boolean): Outcome {
-        val message = "Panel Bluetooth dibuka. ${if (enabled) "Nyalakan" else "Matikan"} Bluetooth di panel sistem untuk mengonfirmasi."
-        val panelIntent = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            Intent(Settings.Panel.ACTION_BLUETOOTH)
-        } else {
-            Intent(Settings.ACTION_BLUETOOTH_SETTINGS)
-        }.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        val message = "Pengaturan Bluetooth dibuka. ${if (enabled) "Nyalakan" else "Matikan"} Bluetooth di sana untuk mengonfirmasi."
         return try {
-            context.startActivity(panelIntent)
+            context.startActivity(Intent(Settings.ACTION_BLUETOOTH_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
             Outcome(true, message)
         } catch (_: Throwable) {
-            val fallback = Intent(Settings.ACTION_BLUETOOTH_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            try {
-                context.startActivity(fallback)
-                Outcome(true, message)
-            } catch (_: Throwable) {
-                Outcome(false, "Pengaturan Bluetooth tidak tersedia di perangkat ini.")
-            }
+            Outcome(false, "Pengaturan Bluetooth tidak tersedia di perangkat ini.")
         }
     }
 

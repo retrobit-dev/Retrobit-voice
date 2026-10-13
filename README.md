@@ -33,7 +33,7 @@ Dirancang **offline-first**: dikte dan puluhan perintah tetap jalan tanpa intern
 
 ### Asisten (Google Assistant style)
 - **Kaskade cerdas**: aturan lokal → LLM (opsional) → fallback pencarian web. Artinya asisten tetap berguna tanpa API key.
-- Perintah yang dikenali secara offline: buka aplikasi, cari di web/YouTube/Maps/Tokopedia, telepon, alarm, timer, pesan, catatan, senter, dan volume musik. Kecerahan dan Jangan Ganggu memerlukan akses khusus Android; Bluetooth dibuka lewat panel sistem untuk konfirmasi; menjawab panggilan memerlukan izin Telepon.
+- Perintah yang dikenali secara offline: buka aplikasi, cari di web/YouTube/Maps/Tokopedia, telepon, alarm, timer, pesan, catatan, senter, dan volume musik. Kecerahan dan Jangan Ganggu memerlukan akses khusus Android; pengaturan Bluetooth dibuka agar pengguna mengonfirmasi perubahan; menjawab panggilan memerlukan izin Telepon.
 - **Konteks layar opt-in** — snapshot teks layar hanya dipakai saat pengguna meminta membaca/membalas chat. Teks bisa dibacakan langsung offline; permintaan balasan/ringkasan memakai LLM terpilih. Snapshot tidak disimpan di riwayat.
 - **Kirim pesan selalu perlu konfirmasi eksplisit** — setelah setuju, Retrobit membuka draf atau pemilih penerima WhatsApp; pengguna memeriksa dan menekan Kirim di WhatsApp.
 - **Bisa dipilih sebagai asisten digital bawaan** (`VoiceInteractionService`) — tekan lama tombol Home langsung mendengarkan dan mengucapkan prompt siap.

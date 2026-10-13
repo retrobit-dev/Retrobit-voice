@@ -56,7 +56,7 @@ object Prompts {
             - volume: {"percent": 0-100, "relative": false}  // relative true dengan percent 1/-1 untuk naik/turun satu langkah
             - brightness: {"percent": 0-100, "relative": false}  // relative true dengan percent 10/-10 untuk langkah kecerahan
             - dnd: {"on": true}  // mode Jangan Ganggu
-            - bluetooth: {"on": true}  // perubahan dibuka lewat panel sistem untuk konfirmasi pengguna
+            - bluetooth: {"on": true}  // buka Pengaturan Bluetooth; pengguna mengonfirmasi toggle
             - answer_call: {}  // hanya untuk perintah eksplisit menjawab panggilan masuk
             - answer: {"text": "jawaban lengkap"}  // dipakai kalau pengguna hanya bertanya/ngobrol
 
