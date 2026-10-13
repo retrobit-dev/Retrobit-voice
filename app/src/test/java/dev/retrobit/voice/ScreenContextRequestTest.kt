@@ -19,6 +19,16 @@ class ScreenContextRequestTest {
     }
 
     @Test
+    fun `detects explicit request to read visible text`() {
+        listOf("Tolong bacakan pesan WhatsApp", "Baca layar ini", "Read the screen")
+            .forEach {
+                assertTrue(it, ScreenContextRequest.isRequested(it))
+                assertTrue(it, ScreenContextRequest.isReadRequested(it))
+            }
+        assertFalse(ScreenContextRequest.isReadRequested("Balas pesan terbaru"))
+    }
+
+    @Test
     fun `does not capture screen for unrelated assistant commands`() {
         listOf("Pasang alarm jam tujuh", "Nyalakan senter", "Kirim pesan ke Adi isinya aku otw")
             .forEach { assertFalse(it, ScreenContextRequest.isRequested(it)) }

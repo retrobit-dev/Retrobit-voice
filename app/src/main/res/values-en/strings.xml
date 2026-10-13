@@ -65,8 +65,6 @@
     <string name="toast_volume_needs_mic">Microphone permission is missing — the volume buttons cannot start dictation yet.</string>
     <string name="toast_volume_start_failed">Could not start dictation from the volume button. Open the Retrobit app once, then try again.</string>
     <string name="toast_volume_assistant_busy">The assistant or dictation is already running. Wait for it to finish.</string>
-    <string name="toast_wake_dictation_needs_mic">Microphone permission is missing. Open Retrobit and grant it before using the wake word for dictation.</string>
-    <string name="toast_wake_dictation_failed">Wake word detected, but dictation could not start. Try again from the Retrobit app.</string>
     <string name="overlay_need_text_focus">Focus a text field and place the cursor to use the dictation bubble.</string>
     <string name="toast_export_done">Settings exported to the chosen file.</string>
     <string name="toast_export_failed">Could not write the backup file.</string>
@@ -177,7 +175,7 @@
     <string name="settings_screen_context_needs_a11y">Enable the accessibility service to read a screen snapshot on request. Passwords and text being edited are excluded.</string>
     <string name="settings_screen_context_enabled_note">Opt-in is on: one snapshot is captured when an assistant session starts and forwarded to your selected LLM only for screen-related requests. Passwords/editable fields are excluded; it is not saved in history.</string>
     <string name="settings_wake_word">Wake word</string>
-    <string name="settings_wake_word_note">With Retrobit accessibility or keyboard active, a focused non-password text field routes the wake word to dictation; outside typing mode, the assistant listens for a command. Continuous listening costs extra battery.</string>
+    <string name="settings_wake_word_note">When detected, the wake word always opens the assistant ready for a command, even while a text field is focused. It never switches to dictation. Continuous listening costs extra battery.</string>
     <string name="settings_wake_word_phrase">Wake phrase</string>
     <string name="settings_data_title">Appearance &amp; data</string>
     <string name="settings_display_title">Display mode</string>

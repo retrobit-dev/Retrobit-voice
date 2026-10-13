@@ -52,8 +52,20 @@ class AssistantBrain(
             )
         }
 
-        // 1. Aturan lokal
-        val ruleResult = CommandParser.parse(userText)
+        // Pembacaan sederhana tetap berfungsi offline. Snapshot hanya sampai di sini
+        // bila opt-in aktif dan pengguna secara eksplisit meminta teks layar.
+        val wantsReadScreen = ScreenContextRequest.isReadRequested(userText)
+        if (screenContextRequested && wantsReadScreen && !settings.llmReady) {
+            return Understanding(
+                action = null,
+                reply = directScreenReadReply(screenContext.orEmpty()),
+                source = "baca layar (offline)",
+            )
+        }
+
+        // Permintaan baca/balas layar harus sampai ke LLM dengan konteksnya;
+        // jangan biarkan kata di kalimat seperti "volume 50" mengambil alih aksi.
+        val ruleResult = if (screenContextRequested) null else CommandParser.parse(userText)
         if (ruleResult != null && ruleResult.confidence >= 0.85f) {
             VoiceLog.d("Perintah dikenali aturan lokal: ${ruleResult.matchedRule}")
             return Understanding(
@@ -97,16 +109,18 @@ class AssistantBrain(
                 VoiceLog.w("LLM gagal: ${t.message}")
                 val fallback: AssistantAction? = ruleResult?.action
                     ?: if (screenContext != null || screenContextRequested) null else AssistantAction.WebSearch(userText)
+                val canReadScreenOffline = screenContextRequested && wantsReadScreen && !screenContext.isNullOrBlank()
                 val reply = when {
+                    canReadScreenOffline -> directScreenReadReply(screenContext.orEmpty())
                     ruleResult != null -> "Asisten daring sedang tidak bisa dihubungi. " + ActionText.describe(ruleResult.action)
                     screenContext != null || screenContextRequested -> "Asisten daring sedang tidak bisa dihubungi. Konteks layar tidak dikirim ke pencarian lain; coba lagi nanti."
                     else -> "Asisten daring sedang tidak bisa dihubungi (${t.message?.take(80) ?: "kesalahan jaringan"}). " +
                         ActionText.describe(fallback ?: AssistantAction.WebSearch(userText))
                 }
                 return Understanding(
-                    action = fallback,
+                    action = if (canReadScreenOffline) null else fallback,
                     reply = reply,
-                    source = "aturan lokal (fallback)",
+                    source = if (canReadScreenOffline) "baca layar (offline)" else "aturan lokal (fallback)",
                     confidence = 0.5f,
                 )
             }
@@ -123,8 +137,21 @@ class AssistantBrain(
         return Understanding(action, reply, "aturan lokal (offline)", ruleResult?.confidence ?: 0.3f)
     }
 
+    private fun directScreenReadReply(screenContext: String): String {
+        val visibleText = screenContext.lineSequence()
+            .filterNot { it.trimStart().startsWith("Aplikasi:", ignoreCase = true) }
+            .map { it.trim().removePrefix("-").trim() }
+            .filter { it.isNotBlank() }
+            .joinToString(". ")
+        if (visibleText.isBlank()) return "Saya tidak menemukan teks yang bisa dibacakan di layar."
+        val clipped = visibleText.take(MAX_DIRECT_SCREEN_READ_CHARS)
+        val suffix = if (visibleText.length > clipped.length) " … teks lainnya tidak dibacakan." else ""
+        return "Teks yang terlihat di layar: $clipped$suffix"
+    }
+
     private companion object {
         const val MAX_SCREEN_CONTEXT_CHARS = 2_400
+        const val MAX_DIRECT_SCREEN_READ_CHARS = 900
     }
 
     fun toTurn(userText: String, understanding: Understanding): AssistantTurn = AssistantTurn(

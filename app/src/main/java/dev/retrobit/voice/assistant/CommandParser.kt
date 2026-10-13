@@ -38,6 +38,13 @@ object CommandParser {
     private val torchOff = listOf("matikan senter", "matikan flash", "turn off flashlight", "torch off", "matiin senter")
     private val volumeUp = listOf("keraskan volume", "naikkan volume", "volume naik", "turn up volume", "volume up")
     private val volumeDown = listOf("kecilkan volume", "turunkan volume", "volume turun", "turn down volume", "volume down", "turunkan suara")
+    private val brightnessUp = listOf("naikkan kecerahan", "cerahkan layar", "terangkan layar", "brightness up", "brighten screen")
+    private val brightnessDown = listOf("turunkan kecerahan", "redupkan layar", "gelapkan layar", "brightness down", "dim screen")
+    private val dndOff = listOf("matikan dnd", "nonaktifkan dnd", "matikan mode dnd", "nonaktifkan mode dnd", "dnd off", "turn off dnd", "disable dnd", "matikan jangan ganggu", "nonaktifkan jangan ganggu", "matikan mode jangan ganggu", "nonaktifkan mode jangan ganggu", "jangan ganggu matikan", "do not disturb off", "turn off do not disturb", "disable do not disturb")
+    private val dndOn = listOf("aktifkan dnd", "nyalakan dnd", "aktifkan mode dnd", "nyalakan mode dnd", "dnd on", "turn on dnd", "enable dnd", "aktifkan jangan ganggu", "nyalakan jangan ganggu", "aktifkan mode jangan ganggu", "nyalakan mode jangan ganggu", "mode jangan ganggu aktif", "do not disturb on", "turn on do not disturb", "enable do not disturb")
+    private val bluetoothOff = listOf("matikan bluetooth", "nonaktifkan bluetooth", "bluetooth off", "turn off bluetooth")
+    private val bluetoothOn = listOf("aktifkan bluetooth", "nyalakan bluetooth", "hidupkan bluetooth", "bluetooth on", "turn on bluetooth")
+    private val answerCallPhrases = listOf("jawab telepon", "jawab telfon", "angkat telepon", "terima telepon", "jawab panggilan", "angkat panggilan", "terima panggilan", "answer call", "answer the call", "answer incoming call", "accept call", "pick up the phone")
 
     private val settingsMap = linkedMapOf(
         "wifi" to "wifi", "wi-fi" to "wifi", "bluetooth" to "bluetooth", "lokasi" to "location",
@@ -65,6 +72,37 @@ object CommandParser {
         val text = stripLeadIns(rawText).trim()
         if (text.isBlank()) return null
         val tokens = Tokenizer.normalize(text)
+
+        // Kontrol sistem harus dikenali lokal agar tidak menunggu LLM.
+        dndOff.firstOrNull { text.contains(it, ignoreCase = true) }?.let {
+            return Result(AssistantAction.SetDnd(false), 0.98f, "dnd-off")
+        }
+        dndOn.firstOrNull { text.contains(it, ignoreCase = true) }?.let {
+            return Result(AssistantAction.SetDnd(true), 0.98f, "dnd-on")
+        }
+        bluetoothOff.firstOrNull { text.contains(it, ignoreCase = true) }?.let {
+            return Result(AssistantAction.SetBluetooth(false), 0.98f, "bluetooth-off")
+        }
+        bluetoothOn.firstOrNull { text.contains(it, ignoreCase = true) }?.let {
+            return Result(AssistantAction.SetBluetooth(true), 0.98f, "bluetooth-on")
+        }
+        answerCallPhrases.firstOrNull { text.contains(it, ignoreCase = true) }?.let {
+            return Result(AssistantAction.AnswerCall, 0.98f, "answer-call")
+        }
+
+        // Naik/turunkan kecerahan dalam langkah 10%; nilai absolut memakai persen.
+        brightnessUp.firstOrNull { text.contains(it, ignoreCase = true) }?.let {
+            return Result(AssistantAction.SetBrightness(10, relative = true), 0.95f, "brightness-up")
+        }
+        brightnessDown.firstOrNull { text.contains(it, ignoreCase = true) }?.let {
+            return Result(AssistantAction.SetBrightness(-10, relative = true), 0.95f, "brightness-down")
+        }
+        if (tokens.any { it in setOf("kecerahan", "brightness", "terang") }) {
+            val percent = extractPercent(tokens, "kecerahan", "brightness", "terang")
+            if (percent != null) {
+                return Result(AssistantAction.SetBrightness(percent, relative = false), 0.95f, "brightness-set")
+            }
+        }
 
         // 1. Senter
         torchOn.firstOrNull { text.contains(it) }?.let { return Result(AssistantAction.SetTorch(true), 0.95f, "torch-on:$it") }
@@ -178,9 +216,14 @@ object CommandParser {
     private fun extractPercent(tokens: List<String>, vararg keywords: String): Int? {
         val idx = tokens.indexOfFirst { keywords.contains(it) }
         if (idx < 0) return null
-        // cari angka setelah kata kunci, lalu sebelum
-        NumberWords.parse(tokens, idx + 1)?.let { return it.first.coerceIn(0, 100) }
-        if (idx > 0) NumberWords.parse(tokens, idx - 1)?.let { return it.first.coerceIn(0, 100) }
+        // Lewati kata penghubung seperti "ke" pada "atur kecerahan ke 50 persen".
+        val afterKeyword = (idx + 1 until minOf(tokens.size, idx + 5))
+        for (start in afterKeyword) {
+            NumberWords.parse(tokens, start)?.let { return it.first.coerceIn(0, 100) }
+        }
+        for (start in (idx - 1 downTo maxOf(0, idx - 3))) {
+            NumberWords.parse(tokens, start)?.let { return it.first.coerceIn(0, 100) }
+        }
         return null
     }
 

@@ -39,6 +39,10 @@ sealed interface AssistantAction {
     data class SetTorch(val on: Boolean) : AssistantAction
     /** [relative] = true berarti [percent] sebagai langkah (+1 / -1), bukan persentase. */
     data class SetVolume(val percent: Int, val relative: Boolean = false) : AssistantAction
+    data class SetBrightness(val percent: Int, val relative: Boolean = false) : AssistantAction
+    data class SetDnd(val enabled: Boolean) : AssistantAction
+    data class SetBluetooth(val enabled: Boolean) : AssistantAction
+    data object AnswerCall : AssistantAction
     data class Unknown(val rawText: String) : AssistantAction
 }
 

@@ -69,8 +69,6 @@
     <string name="toast_volume_needs_mic">Izin mikrofon belum diberikan — tombol volume belum bisa memulai dikte.</string>
     <string name="toast_volume_start_failed">Tidak bisa memulai dikte dari tombol volume. Buka aplikasi Retrobit sekali, lalu coba lagi.</string>
     <string name="toast_volume_assistant_busy">Asisten atau dikte sedang berjalan. Tunggu sampai sesi selesai.</string>
-    <string name="toast_wake_dictation_needs_mic">Izin mikrofon belum diberikan. Buka Retrobit untuk mengaktifkannya sebelum memakai wake word untuk dikte.</string>
-    <string name="toast_wake_dictation_failed">Wake word terdeteksi, tetapi dikte tidak dapat dimulai. Coba lagi dari aplikasi Retrobit.</string>
     <string name="overlay_need_text_focus">Buka kolom teks lalu letakkan kursor agar bubble dikte tersedia.</string>
     <string name="toast_export_done">Setelan diekspor ke berkas yang dipilih.</string>
     <string name="toast_export_failed">Gagal menulis berkas cadangan.</string>
@@ -185,7 +183,7 @@
     <string name="settings_screen_context_needs_a11y">Aktifkan layanan aksesibilitas untuk membaca snapshot layar atas permintaan. Kata sandi dan kolom yang sedang diketik dikecualikan.</string>
     <string name="settings_screen_context_enabled_note">Opt-in aktif: snapshot satu kali saat sesi asisten dimulai; hanya diteruskan ke LLM pilihan untuk permintaan yang merujuk teks layar. Kata sandi dan kolom edit dikecualikan; tidak disimpan di riwayat.</string>
     <string name="settings_wake_word">Kata kunci panggilan</string>
-    <string name="settings_wake_word_note">Dengan aksesibilitas atau keyboard Retrobit aktif, kolom teks biasa (bukan kata sandi) yang fokus membuat wake word memulai dikte; di luar mode mengetik, asisten mendengarkan perintah. Mendengarkan terus-menerus menambah baterai.</string>
+    <string name="settings_wake_word_note">Saat terdeteksi, wake word selalu membuka asisten dan siap mendengar perintah, termasuk ketika kolom teks sedang fokus. Wake word tidak pernah dialihkan menjadi dikte. Mendengarkan terus-menerus menambah baterai.</string>
     <string name="settings_wake_word_phrase">Frasa kata kunci</string>
     <string name="settings_data_title">Tampilan &amp; data</string>
     <string name="settings_display_title">Mode tampilan</string>

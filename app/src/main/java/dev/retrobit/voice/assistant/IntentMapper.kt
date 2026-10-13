@@ -47,6 +47,12 @@ object IntentMapper {
             "volume" -> slots.int("percent")?.let {
                 AssistantAction.SetVolume(it, relative = slots.bool("relative") == true)
             }
+            "brightness", "set_brightness" -> slots.int("percent")?.let {
+                AssistantAction.SetBrightness(it, relative = slots.bool("relative") == true)
+            }
+            "dnd", "do_not_disturb" -> slots.bool("on")?.let { AssistantAction.SetDnd(it) }
+            "bluetooth" -> slots.bool("on")?.let { AssistantAction.SetBluetooth(it) }
+            "answer_call" -> AssistantAction.AnswerCall
             else -> null
         }
 
@@ -110,6 +116,16 @@ object ActionText {
             } else {
                 "Volume diatur ke ${action.percent} persen."
             }
+        is AssistantAction.SetBrightness ->
+            if (action.relative) {
+                if (action.percent >= 0) "Kecerahan layar dinaikkan." else "Kecerahan layar diturunkan."
+            } else {
+                "Kecerahan layar diatur ke ${action.percent} persen."
+            }
+        is AssistantAction.SetDnd -> if (action.enabled) "Mode Jangan Ganggu dinyalakan." else "Mode Jangan Ganggu dimatikan."
+        is AssistantAction.SetBluetooth ->
+            "Panel Bluetooth dibuka untuk ${if (action.enabled) "menyalakan" else "mematikan"} Bluetooth; konfirmasikan perubahan di panel sistem."
+        AssistantAction.AnswerCall -> "Mencoba menjawab panggilan masuk."
         is AssistantAction.Unknown -> "Maaf, saya belum paham perintah itu."
     }
 
@@ -124,6 +140,10 @@ object ActionText {
         "save_note" -> "Catatan disimpan."
         "torch" -> "Mengubah senter."
         "volume" -> "Mengubah volume."
+        "brightness", "set_brightness" -> "Mengubah kecerahan layar."
+        "dnd", "do_not_disturb" -> "Mengubah mode Jangan Ganggu."
+        "bluetooth" -> "Mengubah Bluetooth melalui panel sistem."
+        "answer_call" -> "Mencoba menjawab panggilan masuk."
         "open_settings" -> "Membuka pengaturan."
         else -> "Baik."
     }

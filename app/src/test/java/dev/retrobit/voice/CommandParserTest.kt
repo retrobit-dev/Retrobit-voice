@@ -135,6 +135,40 @@ class CommandParserTest {
     }
 
     @Test
+    fun `kontrol kecerahan layar`() {
+        val set = action("atur kecerahan ke 50 persen")
+        assertTrue("hasil: $set", set is AssistantAction.SetBrightness)
+        assertEquals(50, (set as AssistantAction.SetBrightness).percent)
+        assertTrue(action("naikkan kecerahan") is AssistantAction.SetBrightness)
+    }
+
+    @Test
+    fun `kontrol jangan ganggu dan bluetooth`() {
+        val dndOn = action("aktifkan jangan ganggu")
+        assertTrue(dndOn is AssistantAction.SetDnd)
+        assertEquals(true, (dndOn as AssistantAction.SetDnd).enabled)
+        val dndOff = action("turn off do not disturb")
+        assertTrue(dndOff is AssistantAction.SetDnd)
+        assertEquals(false, (dndOff as AssistantAction.SetDnd).enabled)
+        val dndModeOff = action("matikan mode jangan ganggu") as AssistantAction.SetDnd
+        assertEquals(false, dndModeOff.enabled)
+        assertEquals(null, action("balas chat ini dengan teks jangan ganggu"))
+
+        val bluetoothOn = action("nyalakan bluetooth")
+        assertTrue(bluetoothOn is AssistantAction.SetBluetooth)
+        assertEquals(true, (bluetoothOn as AssistantAction.SetBluetooth).enabled)
+        val bluetoothOff = action("matikan bluetooth")
+        assertTrue(bluetoothOff is AssistantAction.SetBluetooth)
+        assertEquals(false, (bluetoothOff as AssistantAction.SetBluetooth).enabled)
+    }
+
+    @Test
+    fun `menjawab panggilan masuk`() {
+        assertEquals(AssistantAction.AnswerCall, action("angkat panggilan masuk"))
+        assertEquals(AssistantAction.AnswerCall, action("answer the call"))
+    }
+
+    @Test
     fun `pengaturan sistem`() {
         val a = action("buka pengaturan wifi")
         assertTrue(a is AssistantAction.OpenSettingsPanel)

@@ -1,6 +1,7 @@
 package dev.retrobit.voice.assistant
 
 import android.Manifest
+import android.app.NotificationManager
 import android.app.SearchManager
 import android.content.ActivityNotFoundException
 import android.content.Context
@@ -10,8 +11,10 @@ import android.hardware.camera2.CameraCharacteristics
 import android.hardware.camera2.CameraManager
 import android.media.AudioManager
 import android.net.Uri
+import android.os.Build
 import android.provider.AlarmClock
 import android.provider.Settings
+import android.telecom.TelecomManager
 import androidx.core.content.ContextCompat
 import dev.retrobit.voice.core.AssistantAction
 import dev.retrobit.voice.core.VoiceLog
@@ -61,6 +64,10 @@ class AssistantExecutor(
                 is AssistantAction.SaveNote -> saveNote(action.body)
                 is AssistantAction.SetTorch -> setTorch(action.on)
                 is AssistantAction.SetVolume -> setVolume(action)
+                is AssistantAction.SetBrightness -> setBrightness(action)
+                is AssistantAction.SetDnd -> setDnd(action.enabled)
+                is AssistantAction.SetBluetooth -> setBluetooth(action.enabled)
+                AssistantAction.AnswerCall -> answerCall()
                 is AssistantAction.Unknown -> Outcome(false, "Perintah tidak dikenali")
             }
         } catch (t: Throwable) {
@@ -267,7 +274,24 @@ class AssistantExecutor(
             }
         }
 
-        // Nomor tidak diketahui → buka aplikasi pesan dengan teks terisi
+        // Tanpa nomor kontak, izinkan pengguna memilih penerima di WhatsApp.
+        // Ini tetap hanya membuka lembar draf; tombol Kirim tetap ditekan pengguna.
+        val whatsappShare = Intent(Intent.ACTION_SEND).apply {
+            type = "text/plain"
+            putExtra(Intent.EXTRA_TEXT, body)
+            setPackage("com.whatsapp")
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        if (whatsappShare.resolveActivity(context.packageManager) != null) {
+            try {
+                context.startActivity(whatsappShare)
+                return Outcome(true, "WhatsApp dibuka untuk memilih penerima. Periksa draf lalu tekan Kirim; pesan belum dikirim.")
+            } catch (t: Throwable) {
+                VoiceLog.w("WhatsApp tidak dapat membuka lembar berbagi: ${t.message}")
+            }
+        }
+
+        // WhatsApp tidak terpasang → lempar ke aplikasi pesan yang tersedia.
         val generic = Intent(Intent.ACTION_SEND).apply {
             type = "text/plain"
             putExtra(Intent.EXTRA_TEXT, body)
@@ -275,7 +299,7 @@ class AssistantExecutor(
         }
         return try {
             context.startActivity(Intent.createChooser(generic, "Kirim pesan").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-            Outcome(false, "Nomor $display tidak ditemukan. Pesan disiapkan untuk dipilih manual.")
+            Outcome(false, "Nomor $display tidak ditemukan. Pesan disiapkan untuk dipilih manual; belum dikirim.")
         } catch (t: Throwable) {
             Outcome(false, "Tidak bisa membuka aplikasi pesan")
         }
@@ -319,6 +343,115 @@ class AssistantExecutor(
             Outcome(true, "Volume sekarang $now persen.")
         } catch (t: Throwable) {
             Outcome(false, "Tidak bisa mengubah volume")
+        }
+    }
+
+    private fun setBrightness(action: AssistantAction.SetBrightness): Outcome {
+        if (!Settings.System.canWrite(context)) {
+            val permissionIntent = Intent(
+                Settings.ACTION_MANAGE_WRITE_SETTINGS,
+                Uri.parse("package:${context.packageName}"),
+            ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            return try {
+                context.startActivity(permissionIntent)
+                Outcome(false, "Izinkan Retrobit mengubah setelan sistem, lalu ulangi perintah kecerahan.")
+            } catch (_: Throwable) {
+                Outcome(false, "Izin ubah kecerahan belum aktif. Aktifkan ‘Ubah setelan sistem’ untuk Retrobit.")
+            }
+        }
+
+        return try {
+            val resolver = context.contentResolver
+            val current = Settings.System.getInt(resolver, Settings.System.SCREEN_BRIGHTNESS, 128).coerceIn(0, 255)
+            val target = if (action.relative) {
+                (current + action.percent * 255 / 100).coerceIn(0, 255)
+            } else {
+                (action.percent.coerceIn(0, 100) * 255 / 100)
+            }
+            val manual = Settings.System.putInt(
+                resolver,
+                Settings.System.SCREEN_BRIGHTNESS_MODE,
+                Settings.System.SCREEN_BRIGHTNESS_MODE_MANUAL,
+            )
+            val changed = Settings.System.putInt(resolver, Settings.System.SCREEN_BRIGHTNESS, target)
+            if (!manual || !changed) return Outcome(false, "Setelan kecerahan tidak dapat diubah pada perangkat ini.")
+            Outcome(true, "Kecerahan layar diatur ke ${target * 100 / 255} persen.")
+        } catch (t: Throwable) {
+            Outcome(false, "Tidak bisa mengubah kecerahan layar: ${t.message ?: "izin sistem ditolak"}")
+        }
+    }
+
+    private fun setDnd(enabled: Boolean): Outcome {
+        val notifications = context.getSystemService(NotificationManager::class.java)
+            ?: return Outcome(false, "Layanan notifikasi tidak tersedia")
+        if (!notifications.isNotificationPolicyAccessGranted) {
+            val accessIntent = Intent(Settings.ACTION_NOTIFICATION_POLICY_ACCESS_SETTINGS)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            return try {
+                context.startActivity(accessIntent)
+                Outcome(false, "Izinkan akses Jangan Ganggu untuk Retrobit, lalu ulangi perintah.")
+            } catch (_: Throwable) {
+                Outcome(false, "Aktifkan akses Jangan Ganggu untuk Retrobit di Pengaturan khusus.")
+            }
+        }
+        return try {
+            notifications.setInterruptionFilter(
+                if (enabled) NotificationManager.INTERRUPTION_FILTER_NONE
+                else NotificationManager.INTERRUPTION_FILTER_ALL,
+            )
+            Outcome(true, if (enabled) "Mode Jangan Ganggu dinyalakan." else "Mode Jangan Ganggu dimatikan.")
+        } catch (t: Throwable) {
+            Outcome(false, "Tidak bisa mengubah mode Jangan Ganggu: ${t.message ?: "akses sistem ditolak"}")
+        }
+    }
+
+    private fun setBluetooth(enabled: Boolean): Outcome {
+        val message = "Panel Bluetooth dibuka. ${if (enabled) "Nyalakan" else "Matikan"} Bluetooth di panel sistem untuk mengonfirmasi."
+        val panelIntent = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            Intent(Settings.Panel.ACTION_BLUETOOTH)
+        } else {
+            Intent(Settings.ACTION_BLUETOOTH_SETTINGS)
+        }.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        return try {
+            context.startActivity(panelIntent)
+            Outcome(true, message)
+        } catch (_: Throwable) {
+            val fallback = Intent(Settings.ACTION_BLUETOOTH_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            try {
+                context.startActivity(fallback)
+                Outcome(true, message)
+            } catch (_: Throwable) {
+                Outcome(false, "Pengaturan Bluetooth tidak tersedia di perangkat ini.")
+            }
+        }
+    }
+
+    private fun answerCall(): Outcome {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
+            return Outcome(false, "Menjawab panggilan lewat asisten memerlukan Android 8 atau yang lebih baru.")
+        }
+        if (ContextCompat.checkSelfPermission(context, Manifest.permission.ANSWER_PHONE_CALLS) !=
+            PackageManager.PERMISSION_GRANTED
+        ) {
+            val appSettings = Intent(
+                Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                Uri.parse("package:${context.packageName}"),
+            ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            return try {
+                context.startActivity(appSettings)
+                Outcome(false, "Izinkan izin Telepon untuk Retrobit di Pengaturan aplikasi, lalu ulangi perintah.")
+            } catch (_: Throwable) {
+                Outcome(false, "Izin Telepon diperlukan untuk menjawab panggilan masuk.")
+            }
+        }
+        val telecom = context.getSystemService(Context.TELECOM_SERVICE) as? TelecomManager
+            ?: return Outcome(false, "Layanan telepon tidak tersedia")
+        return try {
+            @Suppress("DEPRECATION")
+            telecom.acceptRingingCall()
+            Outcome(true, "Perintah untuk menjawab panggilan masuk dikirim ke sistem telepon.")
+        } catch (t: Throwable) {
+            Outcome(false, "Sistem tidak mengizinkan Retrobit menjawab panggilan ini: ${t.message ?: "izin ditolak"}")
         }
     }
 }

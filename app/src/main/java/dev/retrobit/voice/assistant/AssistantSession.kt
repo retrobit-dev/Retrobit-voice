@@ -12,10 +12,8 @@ import dev.retrobit.voice.core.VoiceLog
 import dev.retrobit.voice.data.AppSettings
 import dev.retrobit.voice.data.SttEngineChoice
 import dev.retrobit.voice.dictation.DictationController
-import dev.retrobit.voice.dictation.DictationService
 import dev.retrobit.voice.dictation.a11y.TextInsertAccessibilityService
 import dev.retrobit.voice.dictation.overlay.OverlayBubbleService
-import dev.retrobit.voice.dictation.ime.RetrobitImeService
 import dev.retrobit.voice.stt.RecognizerGate
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -584,68 +582,6 @@ class AssistantSession(
         }
     }
 
-    /**
-     * Wake word yang terdeteksi saat kolom teks fokus berarti dikte: umumkan kesiapan,
-     * lalu mulai jalur bubble dengan auto-stop hening dan sisip langsung di kursor.
-     * Controller dikte mengambil alih wake-word dan menyambungkannya kembali setelah selesai.
-     */
-    private suspend fun startDictationFromWakeWord() {
-        if (graph.dictation.state.value.isBusy || _state.value.listening || _state.value.thinking) return
-        if (!graph.dictation.hasMicrophonePermission()) {
-            _state.value = _state.value.copy(
-                needsMicrophonePermission = true,
-                status = "",
-                error = "Izin mikrofon belum diberikan",
-            )
-            ToastHub.show(context, context.getString(R.string.toast_wake_dictation_needs_mic), long = true)
-            return
-        }
-
-        var wakeWordPaused = false
-        var handedOffToDictation = false
-        try {
-            _state.value = _state.value.copy(
-                needsMicrophonePermission = false,
-                status = "Menyiapkan dikte…",
-                error = null,
-            )
-            pauseWakeWordForDictation()
-            wakeWordPaused = true
-            val settings = graph.settings.current()
-
-            if (settings.speakReplies) {
-                runCatching {
-                    graph.tts.speakAndWait("Siap.", settings.assistantLanguage)
-                }.onFailure { VoiceLog.w("Prompt siap dikte gagal: ${it.message}") }
-            }
-
-            graph.dictation.reset()
-            DictationService.start(context, DictationController.Source.WAKE_WORD)
-            val startupState = withTimeoutOrNull(DICTATION_START_TIMEOUT_MS) {
-                graph.dictation.state.first {
-                    it.isBusy || it.phase == DictationController.Phase.ERROR
-                }
-            }
-            if (startupState?.isBusy == true) {
-                // Jangan sambungkan wake-word di sini. DictationController memegang
-                // mikrofon lalu memulihkan wake-word setelah sesi dikte selesai.
-                handedOffToDictation = true
-                _state.value = _state.value.copy(status = "Mendikte…", error = null)
-            } else {
-                val message = startupState?.error ?: "Dikte tidak dapat dimulai"
-                _state.value = _state.value.copy(status = "", error = message)
-                ToastHub.show(context, message, long = true)
-            }
-        } catch (t: Throwable) {
-            pendingScreenCapture = null
-            VoiceLog.e("Wake word gagal memulai dikte", t)
-            _state.value = _state.value.copy(status = "", error = t.message ?: "Dikte tidak dapat dimulai")
-            ToastHub.show(context, context.getString(R.string.toast_wake_dictation_failed), long = true)
-        } finally {
-            if (wakeWordPaused && !handedOffToDictation) resumeWakeWordAfterDictation()
-        }
-    }
-
     fun startWakeWordIfEnabled() {
         scope.launch {
             val settings = graph.settings.current()
@@ -659,18 +595,14 @@ class AssistantSession(
                     context = context,
                     phrase = settings.wakeWordPhrase,
                     onWake = { heard ->
-                        val textInputFocused = TextInsertAccessibilityService.hasFocusedTextField() ||
-                            RetrobitImeService.hasActiveTextField()
-                        val route = WakeWordIntentRouter.route(textInputFocused)
-                        if (route == WakeWordIntentRouter.Route.DICTATION) {
-                            VoiceLog.i("Wake word diarahkan ke dikte karena kolom teks sedang fokus")
-                            pendingScreenCapture = null
-                            _state.value = _state.value.copy(status = "Kata kunci terdeteksi: mulai dikte")
-                            scope.launch { startDictationFromWakeWord() }
-                        } else {
-                            _state.value = _state.value.copy(status = "Kata kunci terdeteksi: \"$heard\"")
-                            scope.launch { listenAndHandle(announceReady = false) }
-                        }
+                        // Hentikan loop KWS sebelum memulai recognizer perintah kedua.
+                        // Ini mencegah sesi wake word berikutnya berebut SpeechRecognizer.
+                        stopWakeWord()
+                        VoiceLog.i("Wake word membuka sesi asisten: $heard")
+                        _state.value = _state.value.copy(status = "Kata kunci terdeteksi: \"$heard\"")
+                        // Sama seperti tahan Volume Atas: snapshot layar sebelum popup,
+                        // lalu langsung buka overlay asisten dan dengarkan perintah.
+                        openAssistantUi(autoListen = true, captureScreenContext = true)
                     },
                     onStateChange = { status -> _state.value = _state.value.copy(status = status) },
                     // Mengalah terhadap dikte dan sesi asisten yang sedang berjalan:
@@ -794,7 +726,6 @@ class AssistantSession(
         const val ASSISTANT_STT_TIMEOUT_MS = 20_000L
         const val MIN_ASSISTANT_SILENCE_TIMEOUT_MS = 400L
         const val ASSISTANT_SILENCE_TIMEOUT_MS = 3_000L
-        const val DICTATION_START_TIMEOUT_MS = 5_000L
         const val SCREEN_CONTEXT_SOURCE_TAG = "konteks layar"
     }
 }

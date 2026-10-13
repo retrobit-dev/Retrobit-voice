@@ -9,7 +9,7 @@ Retrobit Voice menggabungkan dua hal yang biasanya terpisah:
 | Bagian | Meniru | Yang Anda dapat |
 | --- | --- | --- |
 | **Mode Dikte** | Wispr Flow | Ucapan langsung menjadi teks rapi di aplikasi apa pun — WhatsApp, Gmail, Notes, kolom pencarian |
-| **Mode Asisten** | Google Assistant | "Buka WhatsApp", "telepon Ibu", "alarm jam 5 pagi", "timer 10 menit", "nyalakan senter", dan tanya-jawab bebas |
+| **Mode Asisten** | Google Assistant | "Buka WhatsApp", "telepon Ibu", "alarm jam 5 pagi", "atur volume/kecerahan", "aktifkan Jangan Ganggu", "angkat panggilan", dan tanya-jawab bebas |
 
 Dirancang **offline-first**: dikte dan puluhan perintah tetap jalan tanpa internet, lalu meningkat otomatis kalau Anda memasukkan API key milik Anda sendiri (BYOK).
 
@@ -28,14 +28,14 @@ Dirancang **offline-first**: dikte dan puluhan perintah tetap jalan tanpa intern
 - **Pembersihan teks dua tingkat** — aturan lokal (buang "eee/emm/anu", perbaiki tanda baca, huruf besar) atau LLM untuk hasil yang lebih natural.
 - **Auto-stop saat berhenti bicara** — detektor aktivitas suara (VAD) dengan noise floor adaptif.
 - **Pintasan tombol volume** — tahan Volume Atas sekitar 0,7 detik untuk asisten/voice command; tahan Volume Bawah untuk mulai dikte dan lepas untuk selesai. Ketukan singkat tetap menaikkan/menurunkan volume. Masing-masing pintasan dapat diaktifkan di Pengaturan dan memerlukan aksesibilitas.
-- **Wake word kontekstual** — saat kolom teks fokus, wake word memulai dikte dan menyisipkan teks di kursor; di luar mode mengetik, wake word membuka sesi perintah asisten.
+- **Wake word membuka asisten** — setiap kali terdeteksi, overlay/sesi asisten langsung siap mendengar perintah, termasuk saat kolom teks sedang fokus; wake word tidak pernah dialihkan menjadi dikte.
 - Pemicu tile **Pengaturan Cepat** Android.
 
 ### Asisten (Google Assistant style)
 - **Kaskade cerdas**: aturan lokal → LLM (opsional) → fallback pencarian web. Artinya asisten tetap berguna tanpa API key.
-- Perintah yang dikenali secara offline: buka aplikasi, cari di web/YouTube/Maps/Tokopedia, telepon kontak atau nomor, alarm, timer, pesan, catatan, senter, volume, dan panel pengaturan.
-- **Konteks layar opt-in** — snapshot teks layar hanya dipakai saat pengguna meminta membaca/membalas chat. Teks dikecualikan dari riwayat dan hanya dikirim ke LLM terpilih untuk permintaan kontekstual.
-- **Kirim pesan selalu perlu konfirmasi eksplisit** — setelah setuju, Retrobit membuka draf WhatsApp; pengguna memeriksa dan menekan Kirim di WhatsApp.
+- Perintah yang dikenali secara offline: buka aplikasi, cari di web/YouTube/Maps/Tokopedia, telepon, alarm, timer, pesan, catatan, senter, dan volume musik. Kecerahan dan Jangan Ganggu memerlukan akses khusus Android; Bluetooth dibuka lewat panel sistem untuk konfirmasi; menjawab panggilan memerlukan izin Telepon.
+- **Konteks layar opt-in** — snapshot teks layar hanya dipakai saat pengguna meminta membaca/membalas chat. Teks bisa dibacakan langsung offline; permintaan balasan/ringkasan memakai LLM terpilih. Snapshot tidak disimpan di riwayat.
+- **Kirim pesan selalu perlu konfirmasi eksplisit** — setelah setuju, Retrobit membuka draf atau pemilih penerima WhatsApp; pengguna memeriksa dan menekan Kirim di WhatsApp.
 - **Bisa dipilih sebagai asisten digital bawaan** (`VoiceInteractionService`) — tekan lama tombol Home langsung mendengarkan dan mengucapkan prompt siap.
 - **Kata kunci panggilan** opsional ("hai retro"), dengan catatan baterai yang jujur di pengaturan.
 - Jawaban dibacakan dengan TTS bawaan Android.
