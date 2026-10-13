@@ -109,11 +109,14 @@ object CommandParser {
         }
 
         // 6. Buka aplikasi / panel pengaturan
-        openVerbs.firstOrNull { text.contains(it) }?.let { verb ->
-            val target = text.substringAfter(verb, "").trim().trimEnd('.', '!', '?')
+        // STT sering mengkapitalkan kata pertama ("Buka WhatsApp"). Cocokkan
+        // verba tanpa membedakan kapitalisasi dan ambil target dari teks asli.
+        openVerbs.firstOrNull { text.contains(it, ignoreCase = true) }?.let { verb ->
+            val verbStart = text.indexOf(verb, ignoreCase = true)
+            val target = text.substring(verbStart + verb.length).trim().trimEnd('.', '!', '?')
             if (target.isNotBlank()) {
-                val panel = settingsMap.entries.firstOrNull { target.contains(it.key) }?.value
-                return if (panel != null && (target.contains("pengaturan") || target.contains("setting"))) {
+                val panel = settingsMap.entries.firstOrNull { target.contains(it.key, ignoreCase = true) }?.value
+                return if (panel != null && (target.contains("pengaturan", ignoreCase = true) || target.contains("setting", ignoreCase = true))) {
                     Result(AssistantAction.OpenSettingsPanel(panel), 0.85f, "open-settings")
                 } else {
                     Result(AssistantAction.OpenApp(cleanAppName(target)), 0.85f, "open-app")

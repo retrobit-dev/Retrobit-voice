@@ -30,6 +30,13 @@ class CommandParserTest {
     }
 
     @Test
+    fun `membuka aplikasi saat STT mengkapitalkan awal kalimat`() {
+        val a = action("Buka WhatsApp")
+        assertTrue("hasil: $a", a is AssistantAction.OpenApp)
+        assertEquals("WhatsApp", (a as AssistantAction.OpenApp).appQuery)
+    }
+
+    @Test
     fun `pencarian web`() {
         val a = action("cari resep rendang")
         assertTrue(a is AssistantAction.WebSearch)
