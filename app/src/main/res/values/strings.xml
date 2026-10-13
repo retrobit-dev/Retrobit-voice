@@ -53,7 +53,7 @@
     <string name="setup_a11y_title">Sisip otomatis (aksesibilitas)</string>
     <string name="setup_a11y_subtitle">Diperlukan untuk mendeteksi kolom yang fokus, menyisipkan teks langsung, dan membaca tombol volume.</string>
     <string name="setup_overlay_title">Bubble melayang</string>
-    <string name="setup_overlay_subtitle">Bubble hanya muncul saat kolom teks mendapat fokus.</string>
+    <string name="setup_overlay_subtitle">Bubble muncul saat kolom teks fokus; izin yang sama menampilkan popup asisten sementara.</string>
     <string name="setup_assistant_title">Jadikan asisten bawaan</string>
     <string name="setup_assistant_subtitle">Tekan lama tombol Home untuk memanggil Retrobit.</string>
     <string name="setup_notif_title">Izin notifikasi</string>
@@ -117,6 +117,19 @@
     <string name="assistant_confirmation_to">Penerima</string>
     <string name="assistant_confirmation_note">Pesan belum dikirim. Setujui untuk membuka draf di aplikasi pesan; periksa kembali lalu tekan Kirim.</string>
     <string name="assistant_confirm_prepare">Setuju &amp; buka draf</string>
+    <string name="assistant_popup_title">RETROBIT // ASISTEN</string>
+    <string name="assistant_popup_command">PERINTAH</string>
+    <string name="assistant_popup_answer">JAWABAN</string>
+    <string name="assistant_popup_listening">[ MENDENGARKAN ]</string>
+    <string name="assistant_popup_processing">[ MEMPROSES ]</string>
+    <string name="assistant_popup_responding">[ MENJAWAB ]</string>
+    <string name="assistant_popup_finished">[ SESI SELESAI ]</string>
+    <string name="assistant_popup_listening_hint">Ucapkan perintah…</string>
+    <string name="assistant_popup_processing_hint">Perintah sedang diproses…</string>
+    <string name="assistant_popup_reply_waiting">Menunggu jawaban…</string>
+    <string name="assistant_popup_autohide">OVERLAY RETROBIT · HILANG SETELAH 10 DETIK</string>
+    <string name="assistant_popup_close">Tutup popup asisten</string>
+    <string name="assistant_popup_avatar">Karakter Retrobit</string>
 
     <!-- ===== Pengaturan ===== -->
     <string name="settings_title">Pengaturan</string>
@@ -179,7 +192,7 @@
     <string name="settings_epaper_mode">Mode kertas terang (e-paper)</string>
     <string name="settings_epaper_mode_note">Panel jadi terang seperti e-reader di bawah matahari.</string>
     <string name="settings_overlay">Bubble mikrofon melayang</string>
-    <string name="settings_overlay_note">Muncul hanya ketika kolom teks fokus. Ketuk untuk dikte hands-free; tekan lama untuk asisten.</string>
+    <string name="settings_overlay_note">Saat kolom teks fokus: ketuk untuk dikte, tekan lama untuk asisten. Izin overlay ini juga menampilkan popup asisten saat sesi aktif.</string>
     <string name="settings_save_history">Simpan riwayat di perangkat</string>
     <string name="settings_clear_history">Bersihkan riwayat</string>
     <string name="settings_backup_title">Cadangan setelan</string>
@@ -223,9 +236,9 @@
     <string name="notif_dictation_idle">Siap merekam</string>
     <string name="notif_dictation_listening">Silakan bicara…</string>
     <string name="notif_dictation_no_permission">Izin mikrofon diperlukan</string>
-    <string name="notif_channel_overlay">Bubble Retrobit</string>
-    <string name="overlay_notif_title">Bubble mikrofon aktif</string>
-    <string name="overlay_notif_text">Bubble hanya muncul pada kolom teks fokus; ketuk untuk dikte, tekan lama untuk asisten.</string>
-    <string name="overlay_permission_needed">Berikan izin \"Tampil di atas aplikasi lain\" untuk memakai bubble.</string>
+    <string name="notif_channel_overlay">Overlay Retrobit</string>
+    <string name="overlay_notif_title">Overlay Retrobit aktif</string>
+    <string name="overlay_notif_text">Bubble dikte dan popup asisten ditampilkan saat diperlukan.</string>
+    <string name="overlay_permission_needed">Berikan izin \"Tampil di atas aplikasi lain\" untuk bubble dan popup asisten.</string>
     <string name="overlay_processing">Masih memproses, tunggu sebentar…</string>
 </resources>

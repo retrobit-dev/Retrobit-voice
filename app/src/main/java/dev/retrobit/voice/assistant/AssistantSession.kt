@@ -14,6 +14,7 @@ import dev.retrobit.voice.data.SttEngineChoice
 import dev.retrobit.voice.dictation.DictationController
 import dev.retrobit.voice.dictation.DictationService
 import dev.retrobit.voice.dictation.a11y.TextInsertAccessibilityService
+import dev.retrobit.voice.dictation.overlay.OverlayBubbleService
 import dev.retrobit.voice.dictation.ime.RetrobitImeService
 import dev.retrobit.voice.stt.RecognizerGate
 import kotlinx.coroutines.CancellationException
@@ -46,6 +47,10 @@ class AssistantSession(
         val listening: Boolean = false,
         val thinking: Boolean = false,
         val partial: String = "",
+        /** Kalimat aktif yang sedang dipahami, ditampilkan pada popup asisten. */
+        val currentCommand: String = "",
+        /** Jawaban giliran aktif, ditampilkan pada popup asisten. */
+        val currentReply: String = "",
         val status: String = "",
         val lastTurn: AssistantTurn? = null,
         val error: String? = null,
@@ -93,10 +98,20 @@ class AssistantSession(
             return AssistantTurn(cleanText, null, "Tunggu sampai sesi asisten selesai.", "busy")
         }
         val pending = _state.value.pendingMessage
-        if (pending != null) return resolvePendingMessage(cleanText, pending, speakReply)
+        if (pending != null) {
+            _state.value = _state.value.copy(currentCommand = cleanText, currentReply = "")
+            return resolvePendingMessage(cleanText, pending, speakReply)
+        }
 
         val settings = graph.settings.current()
-        _state.value = _state.value.copy(thinking = true, status = "Memproses…", error = null, partial = "")
+        _state.value = _state.value.copy(
+            thinking = true,
+            status = "Memproses…",
+            error = null,
+            partial = "",
+            currentCommand = cleanText,
+            currentReply = "",
+        )
 
         val screenContextRequested = ScreenContextRequest.isRequested(cleanText)
         val screenContext = try {
@@ -349,6 +364,8 @@ class AssistantSession(
         _state.value = _state.value.copy(
             thinking = true,
             status = publishedTurn.reply,
+            currentCommand = publishedTurn.userText,
+            currentReply = publishedTurn.reply,
             pendingMessage = pendingMessage,
             pendingMessageCreatedAtMs = pendingCreatedAt,
             pendingMessageUsesScreenContext = pendingUsesScreenContext,
@@ -365,6 +382,8 @@ class AssistantSession(
         _state.value = _state.value.copy(
             thinking = false,
             status = publishedTurn.reply,
+            currentCommand = publishedTurn.userText,
+            currentReply = publishedTurn.reply,
             lastTurn = publishedTurn,
             error = null,
             pendingMessage = pendingMessage,
@@ -400,7 +419,12 @@ class AssistantSession(
     private suspend fun retryAssistantTextWithHybrid(settings: AppSettings, cause: Throwable): Result<String> {
         if (settings.sttEngine != SttEngineChoice.AUTO) return Result.failure(cause)
         VoiceLog.w("STT live asisten gagal; meminta ulangan lalu mencoba kaskade STT: ${cause.message}")
-        _state.value = _state.value.copy(partial = "", status = "Silakan ulangi perintah…")
+        _state.value = _state.value.copy(
+            partial = "",
+            currentCommand = "",
+            currentReply = "",
+            status = "Silakan ulangi perintah…",
+        )
         if (settings.speakReplies) {
             runCatching { graph.tts.speakAndWait("Silakan ulangi.", settings.assistantLanguage) }
                 .onFailure { VoiceLog.w("Prompt ulangan asisten gagal: ${it.message}") }
@@ -427,7 +451,7 @@ class AssistantSession(
         return try {
             val transcript = graph.stt.listenLive(
                 settings = settings,
-                onPartial = { partial -> _state.value = _state.value.copy(partial = partial) },
+                onPartial = { partial -> _state.value = _state.value.copy(partial = partial, currentCommand = partial) },
                 onLevel = {},
                 timeoutMs = ASSISTANT_STT_TIMEOUT_MS,
                 silenceTimeoutMs = settings.silenceTimeoutMs.toLong(),
@@ -467,6 +491,8 @@ class AssistantSession(
                 listening = false,
                 thinking = true,
                 partial = "",
+                currentCommand = "",
+                currentReply = "",
                 status = "Menyiapkan mikrofon…",
                 error = null,
                 needsMicrophonePermission = false,
@@ -648,7 +674,11 @@ class AssistantSession(
         listener?.stop()
     }
 
-    /** Buka layar asisten dari luar (bubble, tile, wake word, atau tombol volume). */
+    /**
+     * Buka asisten dari luar (bubble, tile, wake word, tombol volume, atau sistem).
+     * Jika izin overlay dan mikrofon siap, pertahankan aplikasi asal tetap di depan
+     * dan tampilkan sesi lewat popup; jika tidak, gunakan layar asisten sebagai fallback.
+     */
     fun openAssistantUi(autoListen: Boolean, captureScreenContext: Boolean = false) {
         val intent = Intent(context, MainActivity::class.java).apply {
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
@@ -656,27 +686,43 @@ class AssistantSession(
             putExtra(MainActivity.EXTRA_AUTO_LISTEN, autoListen)
         }
 
+        val canListenOverCurrentApp = autoListen &&
+            OverlayBubbleService.hasPermission(context) && graph.dictation.hasMicrophonePermission()
+        if (canListenOverCurrentApp) {
+            scope.launch {
+                capturePendingScreenContext(captureScreenContext)
+                listenAndHandle(announceReady = true)
+            }
+            return
+        }
+
         if (!captureScreenContext || !autoListen) {
             withContextNoThrow { context.startActivity(intent) }
             return
         }
 
-        // Ambil snapshot sebelum Activity Retrobit menjadi jendela teratas. Teks
-        // hanya dikumpulkan bila opt-in aktif; kegagalan capture tidak memblokir UI.
         scope.launch {
-            val settings = runCatching { graph.settings.current() }.getOrNull()
-            val captured = if (settings?.screenContextEnabled == true) {
-                runCatching { TextInsertAccessibilityService.readActiveScreenContext() }
-                    .onFailure { VoiceLog.e("Capture konteks layar sebelum membuka asisten gagal", it) }
-                    .getOrNull()
-            } else {
-                null
-            }
-            pendingScreenCapture = PendingScreenCapture(attempted = true, text = captured)
+            capturePendingScreenContext(enabled = true)
             withContext(Dispatchers.Main.immediate) {
                 withContextNoThrow { context.startActivity(intent) }
             }
         }
+    }
+
+    private suspend fun capturePendingScreenContext(enabled: Boolean) {
+        if (!enabled) {
+            pendingScreenCapture = null
+            return
+        }
+        val settings = runCatching { graph.settings.current() }.getOrNull()
+        val captured = if (settings?.screenContextEnabled == true) {
+            runCatching { TextInsertAccessibilityService.readActiveScreenContext() }
+                .onFailure { VoiceLog.e("Capture konteks layar sebelum sesi asisten gagal", it) }
+                .getOrNull()
+        } else {
+            null
+        }
+        pendingScreenCapture = PendingScreenCapture(attempted = true, text = captured)
     }
 
     private fun withContextNoThrow(block: () -> Unit) {

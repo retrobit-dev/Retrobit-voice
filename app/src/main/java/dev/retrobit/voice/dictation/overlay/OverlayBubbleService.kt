@@ -10,6 +10,7 @@ import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.PixelFormat
+import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.net.Uri
 import android.os.Build
@@ -21,10 +22,15 @@ import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
 import android.view.WindowManager
+import android.view.ViewGroup
 import android.widget.FrameLayout
 import android.widget.ImageView
+import android.widget.LinearLayout
+import android.widget.ScrollView
+import android.widget.TextView
 import androidx.core.app.NotificationCompat
 import dev.retrobit.voice.R
+import dev.retrobit.voice.assistant.AssistantSession
 import dev.retrobit.voice.core.AppGraph
 import dev.retrobit.voice.core.ToastHub
 import dev.retrobit.voice.core.VoiceLog
@@ -36,16 +42,17 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 
 /**
- * Bubble mikrofon melayang (opsional, butuh izin "tampil di atas aplikasi lain").
+ * Overlay mikrofon melayang dan popup jawaban asisten (butuh izin "tampil di atas aplikasi lain").
  *
- * Bubble hanya tampak saat layanan aksesibilitas mendeteksi kolom teks yang
- * sedang fokus. Ketuk untuk mulai dikte hands-free; gelombang mengikuti input
- * mikrofon dan rekaman berhenti setelah jeda. Teks disisipkan langsung pada kursor.
- * Tekan lama membuka asisten.
+ * Bubble mikrofon hanya tampak saat layanan aksesibilitas mendeteksi kolom teks
+ * yang sedang fokus. Ketuk untuk mulai dikte hands-free; gelombang mengikuti input
+ * mikrofon dan rekaman berhenti setelah jeda. Tekan lama membuka asisten. Popup asisten
+ * tampil saat sesi berlangsung lalu menghilang otomatis setelah sepuluh detik idle.
  */
 class OverlayBubbleService : Service() {
 
@@ -54,9 +61,29 @@ class OverlayBubbleService : Service() {
     private var bubbleIcon: ImageView? = null
     private var waveformView: MicWaveformView? = null
     private var params: WindowManager.LayoutParams? = null
+    private var assistantPopupView: View? = null
+    private var popupTitleText: TextView? = null
+    private var popupStatusText: TextView? = null
+    private var popupCommandLabelText: TextView? = null
+    private var popupCommandText: TextView? = null
+    private var popupReplyLabelText: TextView? = null
+    private var popupReplyText: TextView? = null
+    private var popupFooterText: TextView? = null
+    private var popupCloseText: TextView? = null
+    private var popupDivider: View? = null
+    private var popupSectionDivider: View? = null
+    private var popupMascot: ImageView? = null
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private var stateJob: Job? = null
+    private var assistantStateJob: Job? = null
     private val handler = Handler(Looper.getMainLooper())
+    private var popupDismissRunnable: Runnable? = null
+    private var assistantPopupRequested = false
+    private var assistantWasActive = false
+    private var paperMode = false
+    private var persistentBubbleEnabled = false
+    private var focusedTextField = false
+    private var assistantSessionActive = false
 
     private var longPressRunnable: Runnable? = null
     private var downX = 0f
@@ -66,6 +93,21 @@ class OverlayBubbleService : Service() {
     private var moved = false
 
     override fun onBind(intent: Intent?): IBinder? = null
+
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        if (intent?.action == ACTION_SHOW_ASSISTANT_POPUP) {
+            if (!Settings.canDrawOverlays(this)) {
+                stopSelf(startId)
+                return START_NOT_STICKY
+            }
+            assistantPopupRequested = true
+            cancelPopupDismiss()
+            runCatching { AppGraph.require.assistant.state.value }
+                .onSuccess(::renderAssistantPopup)
+                .onFailure { VoiceLog.e("Gagal membaca status popup asisten", it) }
+        }
+        return START_STICKY
+    }
 
     override fun onCreate() {
         super.onCreate()
@@ -212,8 +254,9 @@ class OverlayBubbleService : Service() {
                 TextInsertAccessibilityService.focusedTextField,
             ) { state, textFieldFocused -> state to textFieldFocused }
                 .collect { (state, textFieldFocused) ->
-                    // Bubble tidak tersedia di beranda atau kolom yang tidak fokus.
-                    bubbleView?.visibility = if (textFieldFocused) View.VISIBLE else View.GONE
+                    // Bubble mic hanya tersedia jika pengguna mengaktifkannya dan kolom teks fokus.
+                    focusedTextField = textFieldFocused
+                    bubbleView?.visibility = if (persistentBubbleEnabled && textFieldFocused && !assistantSessionActive) View.VISIBLE else View.GONE
 
                     // Monokrom: keadaan dibedakan lewat isi/garis, bukan warna.
                     val recording = state.phase == DictationController.Phase.LISTENING
@@ -231,6 +274,293 @@ class OverlayBubbleService : Service() {
                     waveformView?.setLevel(state.amplitude, if (fill == INK) PANEL else INK)
                 }
         }
+
+        assistantStateJob?.cancel()
+        assistantStateJob = scope.launch {
+            combine(
+                AppGraph.require.assistant.state,
+                AppGraph.require.settings.flow,
+            ) { state, settings -> state to settings }
+                .collect { (state, settings) ->
+                    paperMode = settings.epaperLightMode
+                    persistentBubbleEnabled = settings.overlayBubbleEnabled
+                    assistantSessionActive = state.listening || state.thinking
+                    bubbleView?.visibility = if (persistentBubbleEnabled && focusedTextField && !assistantSessionActive) View.VISIBLE else View.GONE
+                    renderAssistantPopup(state)
+                }
+        }
+    }
+
+    private fun renderAssistantPopup(state: AssistantSession.UiState) {
+        if (!assistantPopupRequested) return
+        val active = state.listening || state.thinking
+        val command = state.currentCommand.ifBlank { state.partial }
+        val hasContent = active || command.isNotBlank() || state.currentReply.isNotBlank() || !state.error.isNullOrBlank()
+        if (!hasContent && assistantPopupView == null) return
+        if (assistantPopupView == null) addAssistantPopup()
+        if (assistantPopupView == null) return
+
+        val palette = popupPalette()
+        assistantPopupView?.background = paneDrawable(palette.panel, palette.line, 2)
+        popupTitleText?.setTextColor(palette.ink)
+        popupStatusText?.apply {
+            setTextColor(palette.dim)
+            text = when {
+                !state.error.isNullOrBlank() -> "[ ! ERROR ]"
+                state.listening -> getString(R.string.assistant_popup_listening)
+                state.thinking && state.currentReply.isNotBlank() -> getString(R.string.assistant_popup_responding)
+                state.thinking -> getString(R.string.assistant_popup_processing)
+                else -> getString(R.string.assistant_popup_finished)
+            }
+        }
+        popupCommandLabelText?.setTextColor(palette.dim)
+        popupCommandText?.apply {
+            setTextColor(palette.ink)
+            text = command.ifBlank {
+                when {
+                    state.listening -> getString(R.string.assistant_popup_listening_hint)
+                    state.thinking -> getString(R.string.assistant_popup_processing_hint)
+                    else -> "—"
+                }
+            }
+        }
+        popupReplyLabelText?.setTextColor(palette.dim)
+        popupReplyText?.apply {
+            setTextColor(palette.ink)
+            text = state.currentReply.ifBlank {
+                when {
+                    !state.error.isNullOrBlank() -> "! ${state.error}"
+                    state.listening -> getString(R.string.assistant_popup_reply_waiting)
+                    state.thinking -> getString(R.string.assistant_popup_processing_hint)
+                    else -> "—"
+                }
+            }
+        }
+        popupFooterText?.setTextColor(palette.dim)
+        popupCloseText?.setTextColor(palette.ink)
+        popupDivider?.setBackgroundColor(palette.line)
+        popupSectionDivider?.setBackgroundColor(palette.line)
+        popupMascot?.setColorFilter(palette.ink)
+
+        if (active) {
+            assistantWasActive = true
+            cancelPopupDismiss()
+        } else {
+            val shouldScheduleDismiss = assistantWasActive || popupDismissRunnable == null
+            assistantWasActive = false
+            if (shouldScheduleDismiss) schedulePopupDismiss()
+        }
+    }
+
+    private fun addAssistantPopup() {
+        val palette = popupPalette()
+        val panel = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(14), dp(12), dp(14), dp(10))
+            background = paneDrawable(palette.panel, palette.line, 2)
+            elevation = dp(8).toFloat()
+            isClickable = true
+        }
+
+        val header = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        val mascot = ImageView(this).apply {
+            setImageResource(R.drawable.ic_retrobit_mascot)
+            setColorFilter(palette.ink)
+            contentDescription = getString(R.string.assistant_popup_avatar)
+            layoutParams = LinearLayout.LayoutParams(dp(48), dp(48)).apply { marginEnd = dp(12) }
+        }
+        header.addView(mascot)
+
+        val heading = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+        }
+        val title = popupText(getString(R.string.assistant_popup_title), 13f, bold = true).apply {
+            setTextColor(palette.ink)
+        }
+        val status = popupText(getString(R.string.assistant_popup_listening), 10f, bold = true).apply {
+            setTextColor(palette.dim)
+            setPadding(0, dp(4), 0, 0)
+        }
+        heading.addView(title)
+        heading.addView(status)
+        header.addView(heading)
+
+        val close = popupText("×", 25f, bold = false).apply {
+            setTextColor(palette.ink)
+            gravity = Gravity.CENTER
+            contentDescription = getString(R.string.assistant_popup_close)
+            isClickable = true
+            isFocusable = false
+            setOnClickListener { dismissAssistantPopup() }
+        }
+        header.addView(close, LinearLayout.LayoutParams(dp(38), dp(42)))
+        panel.addView(header)
+
+        val divider = View(this).apply {
+            setBackgroundColor(palette.line)
+            layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(1)).apply {
+                topMargin = dp(8)
+                bottomMargin = dp(8)
+            }
+        }
+        panel.addView(divider)
+
+        val content = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        val (commandLabel, commandText) = addPopupSection(content, getString(R.string.assistant_popup_command), palette)
+        val sectionDivider = View(this).apply {
+            setBackgroundColor(palette.line)
+            layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(1)).apply {
+                topMargin = dp(10)
+                bottomMargin = dp(10)
+            }
+        }
+        content.addView(sectionDivider)
+        val (replyLabel, replyText) = addPopupSection(content, getString(R.string.assistant_popup_answer), palette)
+
+        val maxScrollHeight = minOf(dp(280), (resources.displayMetrics.heightPixels * 0.42f).toInt())
+        val scroll = BoundedScrollView(this, maxScrollHeight).apply {
+            isVerticalScrollBarEnabled = true
+            overScrollMode = View.OVER_SCROLL_IF_CONTENT_SCROLLS
+            addView(content)
+        }
+        panel.addView(scroll, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+
+        val footer = popupText(getString(R.string.assistant_popup_autohide), 9f, bold = true).apply {
+            setTextColor(palette.dim)
+            setPadding(0, dp(8), 0, 0)
+        }
+        panel.addView(footer)
+
+        val screenWidth = resources.displayMetrics.widthPixels
+        val popupWidth = (screenWidth - dp(32)).coerceAtMost(dp(560)).coerceAtLeast(dp(240))
+        val windowType = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+        } else {
+            @Suppress("DEPRECATION")
+            WindowManager.LayoutParams.TYPE_PHONE
+        }
+        val windowParams = WindowManager.LayoutParams(
+            popupWidth,
+            WindowManager.LayoutParams.WRAP_CONTENT,
+            windowType,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
+            PixelFormat.TRANSLUCENT,
+        ).apply {
+            gravity = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
+            y = dp(24)
+        }
+
+        try {
+            windowManager.addView(panel, windowParams)
+            assistantPopupView = panel
+            popupTitleText = title
+            popupStatusText = status
+            popupCommandLabelText = commandLabel
+            popupCommandText = commandText
+            popupReplyLabelText = replyLabel
+            popupReplyText = replyText
+            popupFooterText = footer
+            popupCloseText = close
+            popupDivider = divider
+            popupSectionDivider = sectionDivider
+            popupMascot = mascot
+            VoiceLog.i("Popup asisten Retrobit ditampilkan")
+        } catch (t: Throwable) {
+            assistantPopupRequested = false
+            VoiceLog.e("Gagal menampilkan popup asisten", t)
+            if (!persistentBubbleEnabled) stopSelf()
+        }
+    }
+
+    private fun addPopupSection(
+        parent: LinearLayout,
+        label: String,
+        palette: PopupPalette,
+    ): Pair<TextView, TextView> {
+        val labelView = popupText(label, 10f, bold = true).apply { setTextColor(palette.dim) }
+        val valueView = popupText("—", 13f, bold = false).apply {
+            setTextColor(palette.ink)
+            setPadding(0, dp(4), 0, 0)
+        }
+        parent.addView(labelView)
+        parent.addView(valueView)
+        return labelView to valueView
+    }
+
+    private fun popupText(text: String, sizeSp: Float, bold: Boolean): TextView = TextView(this).apply {
+        this.text = text
+        textSize = sizeSp
+        typeface = if (bold) Typeface.create(Typeface.MONOSPACE, Typeface.BOLD) else Typeface.MONOSPACE
+        letterSpacing = 0.06f
+        setLineSpacing(dp(2).toFloat(), 1f)
+        includeFontPadding = false
+    }
+
+    private fun popupPalette(): PopupPalette = if (paperMode) {
+        PopupPalette(
+            panel = Color.parseColor("#F2F2EE"),
+            ink = Color.parseColor("#111111"),
+            dim = Color.parseColor("#5E5E58"),
+            line = Color.parseColor("#8A8A84"),
+        )
+    } else {
+        PopupPalette(
+            panel = Color.parseColor("#141414"),
+            ink = Color.parseColor("#E9E9E4"),
+            dim = Color.parseColor("#8E8E88"),
+            line = Color.parseColor("#4C4C4C"),
+        )
+    }
+
+    private fun cancelPopupDismiss() {
+        popupDismissRunnable?.let(handler::removeCallbacks)
+        popupDismissRunnable = null
+    }
+
+    private fun schedulePopupDismiss() {
+        if (popupDismissRunnable != null) return
+        val runnable = Runnable {
+            popupDismissRunnable = null
+            val latestState = runCatching { AppGraph.require.assistant.state.value }.getOrNull()
+            if (latestState?.listening == true || latestState?.thinking == true) {
+                assistantWasActive = true
+                return@Runnable
+            }
+            assistantPopupRequested = false
+            assistantWasActive = false
+            removeAssistantPopup()
+            if (!persistentBubbleEnabled) stopSelf()
+        }
+        popupDismissRunnable = runnable
+        handler.postDelayed(runnable, POPUP_IDLE_TIMEOUT_MS)
+    }
+
+    private fun dismissAssistantPopup() {
+        assistantPopupRequested = false
+        assistantWasActive = false
+        cancelPopupDismiss()
+        removeAssistantPopup()
+        if (!persistentBubbleEnabled) stopSelf()
+    }
+
+    private fun removeAssistantPopup() {
+        assistantPopupView?.let { runCatching { windowManager.removeView(it) } }
+        assistantPopupView = null
+        popupTitleText = null
+        popupStatusText = null
+        popupCommandLabelText = null
+        popupCommandText = null
+        popupReplyLabelText = null
+        popupReplyText = null
+        popupFooterText = null
+        popupCloseText = null
+        popupDivider = null
+        popupSectionDivider = null
+        popupMascot = null
     }
 
     private fun createChannel() {
@@ -247,6 +577,9 @@ class OverlayBubbleService : Service() {
 
     override fun onDestroy() {
         stateJob?.cancel()
+        assistantStateJob?.cancel()
+        cancelPopupDismiss()
+        removeAssistantPopup()
         scope.cancel()
         bubbleView?.let { runCatching { windowManager.removeView(it) } }
         bubbleView = null
@@ -263,6 +596,16 @@ class OverlayBubbleService : Service() {
         cornerRadius = 0f
         setColor(fill)
         setStroke(dp(strokeWidth), stroke)
+    }
+
+    private data class PopupPalette(val panel: Int, val ink: Int, val dim: Int, val line: Int)
+
+    /** Batasi tinggi konten popup; jawaban panjang tetap dapat digulir. */
+    private class BoundedScrollView(context: Context, private val maxContentHeight: Int) : ScrollView(context) {
+        override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+            val boundedHeight = View.MeasureSpec.makeMeasureSpec(maxContentHeight, View.MeasureSpec.AT_MOST)
+            super.onMeasure(widthMeasureSpec, boundedHeight)
+        }
     }
 
     /** Gelombang mini di dalam bubble; tinggi batang mengikuti level mikrofon. */
@@ -312,6 +655,24 @@ class OverlayBubbleService : Service() {
 
         private const val CHANNEL_ID = "retrobit_overlay"
         private const val NOTIFICATION_ID = 4202
+        private const val ACTION_SHOW_ASSISTANT_POPUP = "dev.retrobit.voice.action.SHOW_ASSISTANT_POPUP"
+        private const val POPUP_IDLE_TIMEOUT_MS = 10_000L
+
+        fun showAssistantPopup(context: Context) {
+            val appContext = context.applicationContext
+            if (!hasPermission(appContext)) {
+                VoiceLog.w("Popup asisten dilewati: izin tampil di atas aplikasi belum diberikan")
+                return
+            }
+            val intent = Intent(appContext, OverlayBubbleService::class.java).setAction(ACTION_SHOW_ASSISTANT_POPUP)
+            runCatching {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    appContext.startForegroundService(intent)
+                } else {
+                    appContext.startService(intent)
+                }
+            }.onFailure { VoiceLog.e("Gagal memulai popup asisten", it) }
+        }
 
         fun start(context: Context) {
             val intent = Intent(context, OverlayBubbleService::class.java)

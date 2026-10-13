@@ -11,8 +11,9 @@ import dev.retrobit.voice.core.VoiceLog
  * Membuat Retrobit Voice bisa dipilih sebagai **asisten digital bawaan Android**
  * (Pengaturan → Aplikasi → Asisten digital).
  *
- * Setelah dipilih, menahan tombol home / tombol asisten akan membuka Retrobit
- * dan langsung mendengarkan — persis perilaku Google Assistant.
+ * Setelah dipilih, menahan tombol Home/tombol asisten memulai sesi dengar.
+ * Jika izin overlay dan mikrofon tersedia, popup Retrobit tampil tanpa mengganti
+ * aplikasi yang sedang dibuka; layar asisten menjadi fallback bila izin belum siap.
  */
 class VoiceAssistantService : VoiceInteractionService() {
 
@@ -64,9 +65,9 @@ class RetrobitVoiceInteractionSessionService : android.service.voice.VoiceIntera
 }
 
 /**
- * Sesi singkat: begitu asisten dipanggil, Retrobit membuka layar asisten
- * dan langsung mendengarkan. Kami sengaja tidak menggambar panel sendiri
- * supaya seluruh pengalaman terkontrol di satu tempat (dan mudah diuji).
+ * Sesi singkat: begitu asisten dipanggil, mulai mendengarkan dan serahkan
+ * presentasi ke popup overlay Retrobit. Jika izin overlay/mikrofon belum siap,
+ * AssistantSession membuka layar asisten sebagai fallback.
  */
 class RetrobitVoiceSession(context: Context) : VoiceInteractionSession(context) {
 

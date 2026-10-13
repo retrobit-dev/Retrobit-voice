@@ -7,6 +7,7 @@ import dev.retrobit.voice.dictation.overlay.OverlayBubbleService
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
 
 /**
@@ -33,6 +34,21 @@ class RetrobitApp : Application() {
             }
             if (settings.wakeWordEnabled) {
                 graph.assistant.startWakeWordIfEnabled()
+            }
+        }
+
+        appScope.launch {
+            var assistantWasActive = false
+            graph.assistant.state.collect { state ->
+                val assistantActive = state.listening || state.thinking
+                if (
+                    assistantActive && !assistantWasActive &&
+                    OverlayBubbleService.hasPermission(this@RetrobitApp) &&
+                    graph.dictation.hasMicrophonePermission()
+                ) {
+                    OverlayBubbleService.showAssistantPopup(this@RetrobitApp)
+                }
+                assistantWasActive = assistantActive
             }
         }
 

@@ -112,7 +112,7 @@
             android:foregroundServiceType="specialUse">
             <property
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
-                android:value="Bubble mikrofon melayang untuk mulai dikte dari aplikasi apa pun" />
+                android:value="Bubble mikrofon dan popup asisten saat sesi Retrobit aktif" />
         </service>
 
         <!-- ============ DIKTE: JALUR CADANGAN VIA AKSESIBILITAS ============ -->

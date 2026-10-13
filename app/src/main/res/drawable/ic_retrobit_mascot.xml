@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="56dp"
+    android:height="56dp"
+    android:viewportWidth="64"
+    android:viewportHeight="64">
+    <!-- Monochrome pixel-bot mascot for the floating assistant panel. -->
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M32,11 L32,6"
+        android:strokeColor="#E9E9E4"
+        android:strokeWidth="2.5"
+        android:strokeLineCap="square" />
+    <path
+        android:fillColor="#E9E9E4"
+        android:pathData="M30,2h4v4h-4z" />
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M16,14h32v28h-32z"
+        android:strokeColor="#E9E9E4"
+        android:strokeWidth="2.5" />
+    <path
+        android:fillColor="#E9E9E4"
+        android:pathData="M11,22h5v12h-5zM48,22h5v12h-5zM22,22h7v7h-7zM35,22h7v7h-7zM25,35h4v3h-4zM31,35h4v3h-4zM37,35h4v3h-4zM29,42h6v6h-6zM20,49h24v10h-24zM25,53h4v3h-4zM35,53h4v3h-4z" />
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M22,48v-2h20v2"
+        android:strokeColor="#E9E9E4"
+        android:strokeWidth="2" />
+</vector>

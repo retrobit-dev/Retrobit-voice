@@ -49,7 +49,7 @@
     <string name="setup_a11y_title">Direct insertion (accessibility)</string>
     <string name="setup_a11y_subtitle">Required to detect a focused field, insert text directly, and read volume buttons.</string>
     <string name="setup_overlay_title">Floating bubble</string>
-    <string name="setup_overlay_subtitle">The bubble appears only while a text field is focused.</string>
+    <string name="setup_overlay_subtitle">The bubble appears at text fields; the same permission enables a temporary assistant popup.</string>
     <string name="setup_assistant_title">Set as default assistant</string>
     <string name="setup_assistant_subtitle">Long-press Home to summon Retrobit.</string>
     <string name="setup_notif_title">Notification permission</string>
@@ -110,6 +110,19 @@
     <string name="assistant_confirmation_to">Recipient</string>
     <string name="assistant_confirmation_note">The message has not been sent. Approve to open a draft in the messaging app; review it and tap Send.</string>
     <string name="assistant_confirm_prepare">Approve &amp; open draft</string>
+    <string name="assistant_popup_title">RETROBIT // ASSISTANT</string>
+    <string name="assistant_popup_command">COMMAND</string>
+    <string name="assistant_popup_answer">ANSWER</string>
+    <string name="assistant_popup_listening">[ LISTENING ]</string>
+    <string name="assistant_popup_processing">[ PROCESSING ]</string>
+    <string name="assistant_popup_responding">[ RESPONDING ]</string>
+    <string name="assistant_popup_finished">[ SESSION COMPLETE ]</string>
+    <string name="assistant_popup_listening_hint">Speak a command…</string>
+    <string name="assistant_popup_processing_hint">Processing the command…</string>
+    <string name="assistant_popup_reply_waiting">Waiting for an answer…</string>
+    <string name="assistant_popup_autohide">RETROBIT OVERLAY · AUTO-HIDE AFTER 10S</string>
+    <string name="assistant_popup_close">Close assistant popup</string>
+    <string name="assistant_popup_avatar">Retrobit character</string>
 
     <string name="settings_title">Settings</string>
     <string name="settings_stt_title">Speech recognition engines</string>
@@ -171,7 +184,7 @@
     <string name="settings_epaper_mode">Light paper mode (e-paper)</string>
     <string name="settings_epaper_mode_note">Panel turns bright, like an e-reader in sunlight.</string>
     <string name="settings_overlay">Floating mic bubble</string>
-    <string name="settings_overlay_note">Appears only when a text field is focused. Tap for hands-free dictation; long-press for the assistant.</string>
+    <string name="settings_overlay_note">At a focused text field: tap to dictate, long-press for the assistant. This permission also shows the assistant popup during a session.</string>
     <string name="settings_save_history">Keep history on device</string>
     <string name="settings_clear_history">Clear history</string>
     <string name="settings_backup_title">Settings backup</string>
@@ -213,9 +226,9 @@
     <string name="notif_dictation_idle">Ready to record</string>
     <string name="notif_dictation_listening">Go ahead and speak…</string>
     <string name="notif_dictation_no_permission">Microphone permission required</string>
-    <string name="notif_channel_overlay">Retrobit bubble</string>
-    <string name="overlay_notif_title">Mic bubble is active</string>
-    <string name="overlay_notif_text">Bubble appears only at a focused text field; tap to dictate, long-press for the assistant.</string>
-    <string name="overlay_permission_needed">Grant \"Display over other apps\" to use the bubble.</string>
+    <string name="notif_channel_overlay">Retrobit overlay</string>
+    <string name="overlay_notif_title">Retrobit overlay is active</string>
+    <string name="overlay_notif_text">The dictation bubble and assistant popup appear when needed.</string>
+    <string name="overlay_permission_needed">Grant \"Display over other apps\" for the bubble and assistant popup.</string>
     <string name="overlay_processing">Still processing, one moment…</string>
 </resources>

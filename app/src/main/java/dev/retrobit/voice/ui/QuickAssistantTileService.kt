@@ -9,7 +9,7 @@ import dev.retrobit.voice.core.VoiceLog
 
 /**
  * Tile di panel Pengaturan Cepat: sekali tarik panel → tekan tile → asisten
- * langsung mendengarkan. Cara cepat mengakses tanpa meninggalkan aplikasi lain.
+ * langsung mendengarkan lewat popup overlay bila izin tersedia.
  */
 class QuickAssistantTileService : TileService() {
 
