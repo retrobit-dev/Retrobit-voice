@@ -94,11 +94,17 @@ class TextInsertAccessibilityService : AccessibilityService() {
         val node = root.findFocus(AccessibilityNodeInfo.FOCUS_INPUT) ?: return false
         if (!node.isEditable || node.isPassword) return false
 
-        val existing = runCatching { node.text?.toString() }.getOrNull() ?: return false
+        val rawExisting = runCatching { node.text?.toString().orEmpty() }.getOrElse { return false }
+        val existing = TextInsertionPlan.contentWithoutPlaceholder(
+            existing = rawExisting,
+            hintText = node.hintText?.toString(),
+            contentDescription = node.contentDescription?.toString(),
+        )
+        val placeholderWasExposedAsText = existing != rawExisting
         val insertion = TextInsertionPlan.insert(
             existing = existing,
-            selectionStart = node.textSelectionStart,
-            selectionEnd = node.textSelectionEnd,
+            selectionStart = if (placeholderWasExposedAsText) 0 else node.textSelectionStart,
+            selectionEnd = if (placeholderWasExposedAsText) 0 else node.textSelectionEnd,
             insertion = text,
         )
 

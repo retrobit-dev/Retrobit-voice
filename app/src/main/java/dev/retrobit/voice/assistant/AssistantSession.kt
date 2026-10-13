@@ -442,7 +442,7 @@ class AssistantSession(
         _state.value = _state.value.copy(partial = command, currentCommand = command)
     }
 
-    /** Voice command memakai endpointing lebih singkat daripada dikte umum. */
+    /** Voice command selesai setelah jeda yang dipilih, maksimal 3 detik. */
     private fun assistantSilenceTimeoutMs(settings: AppSettings): Long =
         settings.silenceTimeoutMs.toLong().coerceIn(MIN_ASSISTANT_SILENCE_TIMEOUT_MS, ASSISTANT_SILENCE_TIMEOUT_MS)
 
@@ -793,7 +793,7 @@ class AssistantSession(
         const val PENDING_MESSAGE_TTL_MS = 90_000L
         const val ASSISTANT_STT_TIMEOUT_MS = 20_000L
         const val MIN_ASSISTANT_SILENCE_TIMEOUT_MS = 400L
-        const val ASSISTANT_SILENCE_TIMEOUT_MS = 900L
+        const val ASSISTANT_SILENCE_TIMEOUT_MS = 3_000L
         const val DICTATION_START_TIMEOUT_MS = 5_000L
         const val SCREEN_CONTEXT_SOURCE_TAG = "konteks layar"
     }

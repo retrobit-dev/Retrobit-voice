@@ -73,14 +73,44 @@ class AssistantExecutor(
 
     private fun openApp(query: String): Outcome {
         val target = apps.resolve(query)
-            ?: return webSearch(query).let {
-                Outcome(true, "Aplikasi \"$query\" tidak ditemukan, jadi saya carikan di web.")
+        if (target != null) {
+            try {
+                context.startActivity(target.intent)
+                return Outcome(true, "Membuka ${target.label}.")
+            } catch (t: ActivityNotFoundException) {
+                VoiceLog.w("Launcher ${target.label} tidak terbuka; mencoba intent paket yang dikenal")
             }
-        return try {
-            context.startActivity(target.intent)
-            Outcome(true, "Membuka ${target.label}.")
-        } catch (t: ActivityNotFoundException) {
-            Outcome(false, "Tidak bisa membuka ${target.label}.")
+        }
+
+        // Cadangan eksplisit untuk WhatsApp bila label launcher tidak terbaca
+        // oleh PackageManager (mis. pembatasan visibilitas paket Android).
+        val knownPackage = knownMessagingApp(query)
+        if (knownPackage != null) {
+            val (packageName, label) = knownPackage
+            val launchIntent = context.packageManager.getLaunchIntentForPackage(packageName)
+            if (launchIntent != null) {
+                return try {
+                    context.startActivity(launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                    Outcome(true, "Membuka $label.")
+                } catch (t: Throwable) {
+                    Outcome(false, "Tidak bisa membuka $label.")
+                }
+            }
+        }
+
+        // Perintah "buka aplikasi" tidak boleh diam-diam berubah menjadi pencarian web.
+        return Outcome(false, "Aplikasi \"$query\" tidak ditemukan atau tidak dapat dibuka.")
+    }
+
+    private fun knownMessagingApp(query: String): Pair<String, String>? {
+        val normalized = query.lowercase()
+            .replace(Regex("[^a-z0-9 ]"), " ")
+            .replace(Regex("\\s+"), " ")
+            .trim()
+        return when (normalized) {
+            "whatsapp", "wa" -> "com.whatsapp" to "WhatsApp"
+            "whatsapp business", "wa business" -> "com.whatsapp.w4b" to "WhatsApp Business"
+            else -> null
         }
     }
 

@@ -25,7 +25,9 @@ object CommandParser {
         "retro", "bisa", "bisakah", "can you", "could you", "kumohon",
     )
 
-    private val openVerbs = listOf("buka", "bukakan", "jalankan", "open", "launch", "start", "run")
+    // "puka" adalah salah dengar STT yang umum untuk "buka". Alias ini hanya
+    // aktif di parser perintah asisten; teks dikte biasa tidak pernah diubah.
+    private val openVerbs = listOf("bukakan", "buka", "puka", "jalankan", "open", "launch", "start", "run")
     private val searchVerbs = listOf("cari", "carikan", "telusuri", "search", "google", "look up")
     private val callVerbs = listOf("telepon", "telpon", "panggil", "call", "phone", "dial", "hubungi")
     private val alarmVerbs = listOf("alarm", "set alarm", "bangunkan", "pasang alarm", "buat alarm", "setel alarm")
@@ -167,7 +169,7 @@ object CommandParser {
     }
 
     private fun cleanAppName(target: String): String = target
-        .removePrefix("aplikasi ").removePrefix("app ").removePrefix("the ")
+        .replace(Regex("(?i)^(?:aplikasi|app|the)\s+"), "")
         .trim()
 
     private fun extractLabel(text: String, verb: String): String =

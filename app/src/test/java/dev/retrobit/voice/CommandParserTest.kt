@@ -37,6 +37,20 @@ class CommandParserTest {
     }
 
     @Test
+    fun `koreksi salah dengar puka hanya pada perintah buka aplikasi`() {
+        val a = action("puka WhatsApp")
+        assertTrue("hasil: $a", a is AssistantAction.OpenApp)
+        assertEquals("WhatsApp", (a as AssistantAction.OpenApp).appQuery)
+    }
+
+    @Test
+    fun `menghapus kata aplikasi walau kapitalisasi hasil STT berbeda`() {
+        val a = action("Buka Aplikasi WhatsApp")
+        assertTrue("hasil: $a", a is AssistantAction.OpenApp)
+        assertEquals("WhatsApp", (a as AssistantAction.OpenApp).appQuery)
+    }
+
+    @Test
     fun `pencarian web`() {
         val a = action("cari resep rendang")
         assertTrue(a is AssistantAction.WebSearch)

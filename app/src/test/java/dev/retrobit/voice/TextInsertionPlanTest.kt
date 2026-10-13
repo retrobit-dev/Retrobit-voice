@@ -29,4 +29,25 @@ class TextInsertionPlanTest {
         assertEquals("existing dictated", result.text)
         assertEquals(result.text.length, result.cursor)
     }
+
+    @Test
+    fun `does not insert WhatsApp compose hint as existing text`() {
+        val existing = TextInsertionPlan.contentWithoutPlaceholder(
+            existing = "Ketik pesan",
+            hintText = "Ketik pesan",
+        )
+        val result = TextInsertionPlan.insert(existing, 0, 0, "Halo")
+
+        assertEquals("Halo", result.text)
+    }
+
+    @Test
+    fun `preserves actual typed content when it differs from the hint`() {
+        val existing = TextInsertionPlan.contentWithoutPlaceholder(
+            existing = "Pesan sebelumnya",
+            hintText = "Ketik pesan",
+        )
+
+        assertEquals("Pesan sebelumnya", existing)
+    }
 }
