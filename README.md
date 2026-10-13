@@ -130,7 +130,7 @@ cd Retrobit-voice
 python3 tools/verify_project.py  # pemeriksa konsistensi resource/manifest (tanpa Android SDK)
 ```
 
-CI GitHub Actions (`.github/workflows/build.yml`) otomatis menjalankan unit test, **Lint**, dan menghasilkan APK debug setiap push.
+CI GitHub Actions (`.github/workflows/build.yml`) menjalankan unit test, **Lint**, dan APK debug pada setiap pull request, push ke `main`, atau pemanggilan manual. Push feature branch yang sudah punya PR tidak membangun duplikat; build terbaru membatalkan run lama pada PR yang sama.
 Tag `v*` juga membangun APK rilis dan melampirkannya ke GitHub Release.
 
 > **Catatan sandbox pengembangan:** repositori ini bisa saja belum memuat `gradle/wrapper/gradle-wrapper.jar`.

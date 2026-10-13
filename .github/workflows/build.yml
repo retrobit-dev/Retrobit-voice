@@ -1,15 +1,21 @@
 name: Build APK
 
 # Semua pembangunan APK dilakukan di GitHub Actions.
-# - Setiap push/PR  : unit test + APK debug (tersedia sebagai artifact)
-# - Push ke main    : tambahan APK rilis ber-tanda tangan + Release "build-terbaru"
-# - Tag v*          : Release resmi dengan catatan rilis
+# - PR / push ke main / manual : unit test + APK debug (artifact)
+# - Push ke main                : tambahan APK rilis ber-tanda tangan + Release "build-terbaru"
+# - Tag v*                      : Release resmi dengan catatan rilis
+# Push feature branch tanpa PR tidak membangun duplikat; gunakan workflow_dispatch bila perlu.
 on:
   push:
-    branches: ["**"]
+    branches: ["main"]
     tags: ["v*"]
   pull_request:
   workflow_dispatch:
+
+# Batalkan build lama pada ref/PR yang sama saat commit baru datang.
+concurrency:
+  group: retrobit-build-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: write
