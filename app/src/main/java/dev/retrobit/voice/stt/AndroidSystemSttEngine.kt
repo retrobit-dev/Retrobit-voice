@@ -47,6 +47,7 @@ class AndroidSystemSttEngine(private val context: Context) : SttEngine {
         onLevel: (Float) -> Unit = {},
         preferOnDevice: Boolean = true,
         timeoutMs: Long = 20_000L,
+        silenceTimeoutMs: Long = 1500L,
     ): Transcript {
         if (!isAvailable()) throw SttUnavailableException("Pengenalan suara sistem tidak tersedia")
         val started = System.currentTimeMillis()
@@ -55,7 +56,7 @@ class AndroidSystemSttEngine(private val context: Context) : SttEngine {
         // atau pemantau kata kunci (lihat [RecognizerGate]).
         val (text, engineName) = RecognizerGate.withSession {
             withContext(Dispatchers.Main) {
-                listenOnMain(language, onPartial, onLevel, preferOnDevice, timeoutMs)
+                listenOnMain(language, onPartial, onLevel, preferOnDevice, timeoutMs, silenceTimeoutMs)
             }
         }
 
@@ -73,6 +74,7 @@ class AndroidSystemSttEngine(private val context: Context) : SttEngine {
         onLevel: (Float) -> Unit,
         preferOnDevice: Boolean,
         timeoutMs: Long,
+        silenceTimeoutMs: Long,
     ): Pair<String, String> {
         val useOnDevice = preferOnDevice &&
             Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
@@ -133,8 +135,9 @@ class AndroidSystemSttEngine(private val context: Context) : SttEngine {
                         putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
                         putExtra(RecognizerIntent.EXTRA_CALLING_PACKAGE, context.packageName)
                         putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
-                        putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 1500L)
-                        putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 1500L)
+                        val endpointingSilenceMs = silenceTimeoutMs.coerceIn(400L, 4_000L)
+                        putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, endpointingSilenceMs)
+                        putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, endpointingSilenceMs)
                     }
 
                     try {

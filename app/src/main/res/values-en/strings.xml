@@ -113,7 +113,7 @@
 
     <string name="settings_title">Settings</string>
     <string name="settings_stt_title">Speech recognition engines</string>
-    <string name="settings_stt_subtitle">Hybrid: try on-device first, cloud as a fallback.</string>
+    <string name="settings_stt_subtitle">Automatic: try on-device first, cloud as fallback. Voice commands use live recognition when available.</string>
     <string name="settings_engine_choice">Engine mode</string>
     <string name="engine_auto">Automatic (hybrid)</string>
     <string name="engine_on_device">Always on-device</string>
@@ -144,7 +144,7 @@
     <string name="trigger_hold">Press and hold</string>
     <string name="trigger_hands_free">Auto-stop on silence</string>
     <string name="trigger_hybrid">Both</string>
-    <string name="settings_silence_timeout">Silence before stopping</string>
+    <string name="settings_silence_timeout">Silence before stopping (shorter is faster but may cut pauses)</string>
     <string name="settings_volume_trigger">Volume buttons trigger dictation</string>
     <string name="settings_volume_trigger_note">Requires the accessibility service to be on.</string>
     <string name="settings_volume_trigger_ready_hold">Ready. Hold a volume button to record, release to finish — the volume stays unchanged.</string>

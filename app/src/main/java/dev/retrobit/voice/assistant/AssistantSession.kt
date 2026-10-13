@@ -10,11 +10,13 @@ import dev.retrobit.voice.core.AssistantTurn
 import dev.retrobit.voice.core.ToastHub
 import dev.retrobit.voice.core.VoiceLog
 import dev.retrobit.voice.data.AppSettings
+import dev.retrobit.voice.data.SttEngineChoice
 import dev.retrobit.voice.dictation.DictationController
 import dev.retrobit.voice.dictation.DictationService
 import dev.retrobit.voice.dictation.a11y.TextInsertAccessibilityService
 import dev.retrobit.voice.dictation.ime.RetrobitImeService
 import dev.retrobit.voice.stt.RecognizerGate
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -395,6 +397,53 @@ class AssistantSession(
         return TextInsertAccessibilityService.readActiveScreenContext()
     }
 
+    private suspend fun retryAssistantTextWithHybrid(settings: AppSettings, cause: Throwable): Result<String> {
+        if (settings.sttEngine != SttEngineChoice.AUTO) return Result.failure(cause)
+        VoiceLog.w("STT live asisten gagal; meminta ulangan lalu mencoba kaskade STT: ${cause.message}")
+        _state.value = _state.value.copy(partial = "", status = "Silakan ulangi perintah…")
+        if (settings.speakReplies) {
+            runCatching { graph.tts.speakAndWait("Silakan ulangi.", settings.assistantLanguage) }
+                .onFailure { VoiceLog.w("Prompt ulangan asisten gagal: ${it.message}") }
+        }
+        return graph.dictation.listenForText(settings)
+    }
+
+    /**
+     * Voice command memakai recognizer live bila tersedia, agar ucapan diproses
+     * sambil pengguna bicara. Mode AUTO hanya memakai jalur ini jika recognizer
+     * on-device tersedia; selain itu tetap gunakan kaskade STT yang dipilih.
+     */
+    private suspend fun listenForAssistantText(settings: AppSettings): Result<String> {
+        val liveAvailable = if (settings.sttEngine == SttEngineChoice.SYSTEM_LIVE ||
+            settings.sttEngine == SttEngineChoice.AUTO
+        ) graph.stt.systemAvailable() else false
+        val useLive = settings.sttEngine == SttEngineChoice.SYSTEM_LIVE ||
+            (settings.sttEngine == SttEngineChoice.AUTO && liveAvailable && graph.stt.onDeviceAvailable())
+        if (!useLive) return graph.dictation.listenForText(settings)
+        if (!liveAvailable) {
+            return Result.failure(IllegalStateException("Recognizer sistem tidak tersedia"))
+        }
+
+        return try {
+            val transcript = graph.stt.listenLive(
+                settings = settings,
+                onPartial = { partial -> _state.value = _state.value.copy(partial = partial) },
+                onLevel = {},
+                timeoutMs = ASSISTANT_STT_TIMEOUT_MS,
+                silenceTimeoutMs = settings.silenceTimeoutMs.toLong(),
+            )
+            if (transcript.text.isBlank()) {
+                retryAssistantTextWithHybrid(settings, IllegalStateException("Tidak ada ucapan yang terdengar"))
+            } else {
+                Result.success(transcript.text.trim())
+            }
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (t: Throwable) {
+            retryAssistantTextWithHybrid(settings, t)
+        }
+    }
+
     /** Dengarkan sekali, lalu proses (wake word, bubble assistant, atau tombol Bicara). */
     suspend fun listenAndHandle(
         speakReply: Boolean? = null,
@@ -430,7 +479,7 @@ class AssistantSession(
                 // TTS harus selesai dulu: jika STT dimulai bersamaan, prompt siap
                 // bisa masuk sebagai transkrip atau membuat SpeechRecognizer sibuk.
                 val spoken = runCatching {
-                    graph.tts.speakAndWait("Siap, silakan bicara.", settings.assistantLanguage)
+                    graph.tts.speakAndWait("Siap.", settings.assistantLanguage)
                 }.getOrElse {
                     VoiceLog.w("Prompt siap asisten gagal: ${it.message}")
                     false
@@ -445,7 +494,7 @@ class AssistantSession(
                 status = "Mendengarkan…",
                 error = null,
             )
-            val result = graph.dictation.listenForText(settings)
+            val result = listenForAssistantText(settings)
             _state.value = _state.value.copy(listening = false)
             result.onSuccess { text ->
                 if (text.isNotBlank()) handleText(text, speakReply)
@@ -504,7 +553,7 @@ class AssistantSession(
 
             if (settings.speakReplies) {
                 runCatching {
-                    graph.tts.speakAndWait("Siap, silakan mendikte.", settings.assistantLanguage)
+                    graph.tts.speakAndWait("Siap.", settings.assistantLanguage)
                 }.onFailure { VoiceLog.w("Prompt siap dikte gagal: ${it.message}") }
             }
 
@@ -658,6 +707,7 @@ class AssistantSession(
     private companion object {
         const val SCREEN_CAPTURE_TTL_MS = 30_000L
         const val PENDING_MESSAGE_TTL_MS = 90_000L
+        const val ASSISTANT_STT_TIMEOUT_MS = 20_000L
         const val DICTATION_START_TIMEOUT_MS = 5_000L
         const val SCREEN_CONTEXT_SOURCE_TAG = "konteks layar"
     }

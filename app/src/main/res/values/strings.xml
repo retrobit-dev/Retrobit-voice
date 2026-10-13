@@ -121,7 +121,7 @@
     <!-- ===== Pengaturan ===== -->
     <string name="settings_title">Pengaturan</string>
     <string name="settings_stt_title">Mesin pengenalan suara</string>
-    <string name="settings_stt_subtitle">Hybrid: coba di perangkat dulu, cloud sebagai cadangan.</string>
+    <string name="settings_stt_subtitle">Otomatis: coba di perangkat dulu, cloud sebagai cadangan. Perintah suara memakai pengenalan langsung bila tersedia.</string>
     <string name="settings_engine_choice">Mode mesin</string>
     <string name="engine_auto">Otomatis (hybrid)</string>
     <string name="engine_on_device">Selalu di perangkat</string>
@@ -152,7 +152,7 @@
     <string name="trigger_hold">Tekan dan tahan</string>
     <string name="trigger_hands_free">Otomatis saat berhenti bicara</string>
     <string name="trigger_hybrid">Bisa keduanya</string>
-    <string name="settings_silence_timeout">Jeda hening sebelum berhenti</string>
+    <string name="settings_silence_timeout">Jeda hening (lebih singkat = lebih cepat, bisa memotong jeda bicara)</string>
     <string name="settings_volume_trigger">Tombol volume memicu dikte</string>
     <string name="settings_volume_trigger_note">Perlu layanan aksesibilitas aktif.</string>
     <string name="settings_volume_trigger_ready_hold">Siap. Tahan tombol volume untuk merekam, lepas untuk selesai — volume tidak ikut berubah.</string>

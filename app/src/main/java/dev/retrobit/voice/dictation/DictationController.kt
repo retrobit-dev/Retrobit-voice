@@ -213,6 +213,7 @@ class DictationController(
                 onPartial = { partial -> _state.value = _state.value.copy(partial = partial) },
                 onLevel = { level -> _state.value = _state.value.copy(amplitude = level) },
                 timeoutMs = 20_000L,
+                silenceTimeoutMs = settings.silenceTimeoutMs.toLong(),
             )
             deliver(transcript.text, settings, engineLabel = transcript.engine, transcript = null)
         } catch (t: Throwable) {
