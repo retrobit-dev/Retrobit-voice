@@ -6,6 +6,7 @@ import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.compose.foundation.background
@@ -14,10 +15,13 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -52,6 +56,10 @@ import dev.retrobit.voice.ui.theme.RetrobitTheme
  * Kerangka tampilan: tekstur panel e-paper sebagai latar, isi layar di tengah,
  * dan bilah navigasi bawah bergaya tombol instrumen (bukan Material NavigationBar)
  * supaya seluruh antarmuka konsisten dengan tema cyberdeck monokrom.
+ *
+ * Latar digambar penuh sampai tepi layar (edge-to-edge), sedangkan isinya digeser
+ * masuk sebesar inset aman sehingga tidak tertutup status bar, navigasi bar, atau
+ * keyboard.
  */
 class MainActivity : ComponentActivity() {
 
@@ -72,6 +80,11 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // Edge-to-edge dipaksa oleh Android 15 untuk aplikasi targetSdk 35:
+        // jendela menggambar di belakang system bar, jadi inset-nya ditangani
+        // sendiri di bawah (dan juga di versi Android yang lebih lama, agar
+        // tampilannya seragam). Opsi opt-out sudah dimatikan di Android 16.
+        enableEdgeToEdge()
         dev.retrobit.voice.core.AppGraph.init(applicationContext)
         handleIntent(intent)
         requestNotificationPermissionIfNeeded()
@@ -83,7 +96,20 @@ class MainActivity : ComponentActivity() {
             RetrobitTheme(paperMode = paperMode) {
                 val textureColor = MaterialTheme.colorScheme.onBackground.copy(alpha = if (paperMode) 0.06f else 0.045f)
                 Surface(color = MaterialTheme.colorScheme.background, modifier = Modifier.fillMaxSize()) {
-                    Box(Modifier.fillMaxSize().epaperTexture(textureColor)) {
+                    // Urutannya penting: tekstur e-paper digambar lebih dulu supaya
+                    // tetap penuh sampai tepi layar (termasuk di belakang status &
+                    // navigasi bar), baru isinya digeser masuk sebesar inset aman.
+                    //
+                    // Insets ini juga mencakup keyboard. Sejak edge-to-edge aktif,
+                    // `windowSoftInputMode="adjustResize"` tidak lagi menyusutkan
+                    // jendela, jadi tanpa ini kolom isian bisa tertutup keyboard —
+                    // dan bilah tab bawah tertutup navigasi bar (3 tombol ≈ 48 dp).
+                    Box(
+                        Modifier
+                            .fillMaxSize()
+                            .epaperTexture(textureColor)
+                            .windowInsetsPadding(WindowInsets.safeDrawing),
+                    ) {
                         MainScaffold(
                             vm = vm,
                             startOnAssistant = startOnAssistantTab.value,

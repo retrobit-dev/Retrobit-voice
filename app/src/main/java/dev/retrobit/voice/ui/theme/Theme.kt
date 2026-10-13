@@ -192,7 +192,11 @@ fun RetrobitTheme(
     val activity = LocalContext.current as? Activity
     SideEffect {
         activity?.window?.let { window ->
-            WindowCompat.getInsetsController(window, window.decorView).isAppearanceLightStatusBars = paperMode
+            val controller = WindowCompat.getInsetsController(window, window.decorView)
+            controller.isAppearanceLightStatusBars = paperMode
+            // Bilah navigasi juga transparan karena edge-to-edge, jadi ikonnya
+            // harus dibalik agar tetap terbaca di mode kertas terang.
+            controller.isAppearanceLightNavigationBars = paperMode
         }
     }
     MaterialTheme(colorScheme = scheme, typography = deckTypography(), shapes = DeckShapes, content = content)

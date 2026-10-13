@@ -12,8 +12,12 @@
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.VIBRATE" />
-    <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES"
-        tools:ignore="QueryAllPackagesPermission" />
+    <!--
+      Package visibility TIDAK memakai QUERY_ALL_PACKAGES.
+      Kebijakan Play melarangnya bila kebutuhan bisa dipenuhi deklarasi terarah,
+      dan kebutuhan kita memang terarah: hanya aplikasi yang punya launcher
+      (untuk perintah "buka WhatsApp") — lihat blok <queries> di bawah.
+    -->
 
     <!-- Perintah asisten -->
     <uses-permission android:name="android.permission.CALL_PHONE" />

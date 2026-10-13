@@ -189,6 +189,37 @@ Catatan: `MainActivity` tidak memakai `Scaffold`/`NavigationBar` Material, melai
 lengkungan, dan warna Material — sekaligus menghindari ketergantungan pada
 `NavigationBarItem` yang sulit dibuat monokrom.
 
+### Edge-to-edge & inset (jangan dihapus)
+
+Sejak `targetSdk = 35`, Android 15 **memaksa** tampilan edge-to-edge: jendela
+menggambar di belakang status bar dan navigasi bar. Konsekuensinya, inset harus
+ditangani sendiri — berbeda dengan komponen Material 3 yang menyuntiknya otomatis,
+sedangkan `DeckNavBar` adalah `Row` biasa.
+
+Penanganannya sengaja terkumpul di satu tempat, `MainActivity.onCreate()`:
+
+```kotlin
+enableEdgeToEdge()
+
+Box(
+    Modifier
+        .fillMaxSize()
+        .epaperTexture(textureColor)                        // latar: tetap penuh sampai tepi
+        .windowInsetsPadding(WindowInsets.safeDrawing),     // isi: digeser masuk
+) { MainScaffold(...) }
+```
+
+Urutan modifier-nya penting: tekstur digambar oleh modifier yang lebih luar,
+sehingga latar tetap penuh sampai tepi layar sementara isinya masuk sebesar inset.
+`WindowInsets.safeDrawing` dipilih (bukan `systemBars`) karena juga mencakup IME —
+sejak edge-to-edge aktif, `windowSoftInputMode="adjustResize"` tidak lagi
+menyusutkan jendela, jadi tanpa itu kolom isian tertutup keyboard.
+
+Ikon bilah status/navigasi mengikuti mode tema lewat `isAppearanceLightStatusBars`
+dan `isAppearanceLightNavigationBars` di `RetrobitTheme`. Opsi opt-out
+(`windowOptOutEdgeToEdgeEnforcement`) sudah dimatikan di Android 16, jadi jangan
+dijadikan jalan pintas.
+
 ## 7. Peta berkas
 
 | Berkas | Tanggung jawab |
