@@ -181,10 +181,21 @@ jobs:
             echo "### ❌ Build gagal"
             echo
             echo '```text'
-            grep -n "^e: \| error: \|FAILED\|Execution failed\|Caused by" build.log 2>/dev/null | head -n 60 || true
+            grep -n "^e: \| error: \|Error: \|FAILED\|Execution failed\|Caused by" build.log 2>/dev/null | head -n 60 || true
             echo
             echo "--- 80 baris terakhir ---"
             tail -n 80 build.log 2>/dev/null || echo "(build.log tidak ada)"
             echo '```'
+
+            # Temuan Lint lengkap. Tanpa ini, gerbang Lint hanya memberi tahu bahwa
+            # build gagal — daftar temuannya tersembunyi di berkas laporan artefak.
+            if [ -f app/build/reports/lint-results-debug.txt ]; then
+              echo
+              echo "### 🔎 Temuan Lint"
+              echo
+              echo '```text'
+              grep -nE "Error:|Warning:" app/build/reports/lint-results-debug.txt | head -n 80 || true
+              echo '```'
+            fi
           } > /tmp/failure-comment.md
           gh pr comment ${{ github.event.pull_request.number }} --body-file /tmp/failure-comment.md || true
