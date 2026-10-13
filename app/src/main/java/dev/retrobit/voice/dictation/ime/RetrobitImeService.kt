@@ -154,6 +154,7 @@ class RetrobitImeService : InputMethodService() {
         if (active?.get() === this) activeTextField = false
         // Jangan hentikan dikte yang sedang berjalan: pengguna bisa memindah fokus
         // dan tetap ingin teksnya disisipkan ke kolom baru.
+    }
 
     override fun onEvaluateFullscreenMode(): Boolean = false
 
