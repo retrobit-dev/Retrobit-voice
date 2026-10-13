@@ -219,9 +219,7 @@ fun SettingsScreen(vm: AppViewModel, modifier: Modifier = Modifier) {
                     !current.volumeKeyTriggerEnabled -> str(R.string.settings_volume_trigger_note)
                     !accessibilityActive -> str(R.string.settings_volume_trigger_needs_a11y)
                     current.volumeKeyAssistantEnabled -> str(R.string.settings_volume_trigger_split)
-                    current.dictationTrigger == DictationTrigger.HOLD_TO_TALK ->
-                        str(R.string.settings_volume_trigger_ready_hold)
-                    else -> str(R.string.settings_volume_trigger_ready_toggle)
+                    else -> str(R.string.settings_volume_trigger_ready_hold)
                 },
                 checked = current.volumeKeyTriggerEnabled,
                 onChange = { value -> vm.update { it.copy(volumeKeyTriggerEnabled = value) } },

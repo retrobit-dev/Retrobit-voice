@@ -43,7 +43,7 @@ Tabel ini juga berguna saat mengisi Play Console (Data safety) atau menjelaskan 
 
 ### Dua setelan yang perlu diketahui
 
-- **Pemicu volume asisten** dapat aktif bersamaan dengan pemicu volume dikte. Volume Atas dicadangkan untuk asisten (tahan sekitar 0,7 detik); jika pemicu dikte juga aktif, Volume Bawah tetap menjalankan fungsi dikte lama. Keduanya memerlukan layanan aksesibilitas.
+- **Pintasan tombol volume** dapat aktif bersamaan: tahan Volume Atas sekitar 0,7 detik untuk asisten/voice command; tahan Volume Bawah untuk mulai dikte dan lepas untuk selesai. Ketukan singkat tetap mengatur volume. Masing-masing pintasan memerlukan layanan aksesibilitas dan dapat diaktifkan terpisah di Pengaturan.
 - **Wake word kontekstual** memilih mode dari fokus saat frasa terdeteksi: kolom teks yang sedang fokus berarti mulai dikte; di luar mode mengetik berarti dengarkan perintah asisten.
 - **Konteks layar** mati secara bawaan. Dengan opt-in aktif, snapshot sementara dibuat saat sesi asisten dimulai dan hanya dikirim ke LLM yang dipilih bila perintah secara eksplisit meminta membaca/membalas teks layar. Snapshot tidak ditulis ke riwayat; jika opt-in mati, layar tidak dibaca.
 

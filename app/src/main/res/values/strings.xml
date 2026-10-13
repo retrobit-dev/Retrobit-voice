@@ -166,16 +166,16 @@
     <string name="trigger_hands_free">Otomatis saat berhenti bicara</string>
     <string name="trigger_hybrid">Bisa keduanya</string>
     <string name="settings_silence_timeout">Jeda hening (lebih singkat = lebih cepat, bisa memotong jeda bicara)</string>
-    <string name="settings_volume_trigger">Tombol volume memicu dikte</string>
-    <string name="settings_volume_trigger_note">Perlu layanan aksesibilitas aktif.</string>
-    <string name="settings_volume_trigger_ready_hold">Siap. Tahan tombol volume untuk merekam, lepas untuk selesai — volume tidak ikut berubah.</string>
-    <string name="settings_volume_trigger_ready_toggle">Siap. Tekan sekali untuk mulai/berhenti — volume tetap berubah seperti biasa.</string>
+    <string name="settings_volume_trigger">Tahan Volume Bawah untuk dikte</string>
+    <string name="settings_volume_trigger_note">Perlu aksesibilitas. Tahan Volume Bawah sekitar 0,7 detik untuk mulai dikte; lepas untuk selesai. Ketukan singkat tetap mengatur volume.</string>
+    <string name="settings_volume_trigger_ready_hold">Siap. Tahan Volume Bawah 0,7 detik untuk merekam, lepas untuk selesai. Ketukan singkat tetap mengatur volume.</string>
+    <string name="settings_volume_trigger_ready_toggle">Ketukan singkat tetap mengatur volume; tahan Volume Bawah 0,7 detik untuk mulai dikte, lepas untuk selesai.</string>
     <string name="settings_volume_trigger_needs_a11y">Aktifkan layanan aksesibilitas Retrobit dulu agar tombol volume bisa dibaca.</string>
-    <string name="settings_volume_trigger_split">Volume Atas membuka asisten saat ditahan; Volume Bawah tetap memicu dikte.</string>
+    <string name="settings_volume_trigger_split">Tahan Volume Atas untuk asisten dan Volume Bawah untuk dikte; ketukan singkat tetap mengubah volume.</string>
     <string name="settings_volume_assistant">Tahan Volume Atas untuk asisten</string>
-    <string name="settings_volume_assistant_note">Perlu aksesibilitas. Saat aktif, Volume Atas dicadangkan untuk asisten: tahan sekitar 0,7 detik untuk membuka sesi. Volume Bawah tetap mengatur volume, atau memicu dikte jika pemicu dikte volume aktif.</string>
-    <string name="settings_volume_assistant_ready">Siap. Volume Atas menjadi pintasan asisten (bukan pengatur volume); tahan sekitar 0,7 detik. Volume Bawah tetap mengatur volume atau memicu dikte.</string>
-    <string name="settings_volume_assistant_ready_split">Siap. Tahan Volume Atas untuk asisten; Volume Bawah tetap memicu dikte.</string>
+    <string name="settings_volume_assistant_note">Perlu aksesibilitas. Tahan Volume Atas sekitar 0,7 detik untuk asisten. Ketukan singkat tetap mengatur volume; Volume Bawah tetap mengatur volume atau mulai dikte jika diaktifkan.</string>
+    <string name="settings_volume_assistant_ready">Siap. Tahan Volume Atas 0,7 detik untuk asisten; ketukan singkat menaikkan volume. Volume Bawah tetap mengatur volume atau memicu dikte.</string>
+    <string name="settings_volume_assistant_ready_split">Siap. Tahan Volume Atas untuk asisten dan Volume Bawah untuk dikte; ketukan singkat tetap mengubah volume.</string>
     <string name="settings_assistant_title">Asisten</string>
     <string name="settings_assistant_subtitle">Tanpa AI daring, asisten tetap menjalankan puluhan perintah lewat aturan lokal.</string>
     <string name="llm_off">Nonaktif</string>

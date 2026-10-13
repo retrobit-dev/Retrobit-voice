@@ -27,7 +27,7 @@ Dirancang **offline-first**: dikte dan puluhan perintah tetap jalan tanpa intern
   3. pesan diagnostik jelas kalau keduanya gagal.
 - **Pembersihan teks dua tingkat** — aturan lokal (buang "eee/emm/anu", perbaiki tanda baca, huruf besar) atau LLM untuk hasil yang lebih natural.
 - **Auto-stop saat berhenti bicara** — detektor aktivitas suara (VAD) dengan noise floor adaptif.
-- **Pemicu tombol volume** — saat pintasan asisten aktif, Volume Atas dicadangkan untuk asisten (tahan sekitar 0,7 detik); Volume Bawah tetap bisa memicu dikte lama (tahan = rekam, lepas = selesai; atau ketuk untuk toggle). Keduanya butuh aksesibilitas.
+- **Pintasan tombol volume** — tahan Volume Atas sekitar 0,7 detik untuk asisten/voice command; tahan Volume Bawah untuk mulai dikte dan lepas untuk selesai. Ketukan singkat tetap menaikkan/menurunkan volume. Masing-masing pintasan dapat diaktifkan di Pengaturan dan memerlukan aksesibilitas.
 - **Wake word kontekstual** — saat kolom teks fokus, wake word memulai dikte dan menyisipkan teks di kursor; di luar mode mengetik, wake word membuka sesi perintah asisten.
 - Pemicu tile **Pengaturan Cepat** Android.
 

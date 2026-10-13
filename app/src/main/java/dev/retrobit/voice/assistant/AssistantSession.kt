@@ -429,8 +429,22 @@ class AssistantSession(
             runCatching { graph.tts.speakAndWait("Silakan ulangi.", settings.assistantLanguage) }
                 .onFailure { VoiceLog.w("Prompt ulangan asisten gagal: ${it.message}") }
         }
-        return graph.dictation.listenForText(settings)
+        return graph.dictation.listenForText(
+            settings = settings,
+            silenceTimeoutMs = assistantSilenceTimeoutMs(settings),
+            onPartial = ::updateAssistantPartial,
+        )
     }
+
+    private fun updateAssistantPartial(partial: String) {
+        val command = partial.trim()
+        if (command.isBlank()) return
+        _state.value = _state.value.copy(partial = command, currentCommand = command)
+    }
+
+    /** Voice command memakai endpointing lebih singkat daripada dikte umum. */
+    private fun assistantSilenceTimeoutMs(settings: AppSettings): Long =
+        settings.silenceTimeoutMs.toLong().coerceIn(MIN_ASSISTANT_SILENCE_TIMEOUT_MS, ASSISTANT_SILENCE_TIMEOUT_MS)
 
     /**
      * Voice command memakai recognizer live bila tersedia, agar ucapan diproses
@@ -443,7 +457,13 @@ class AssistantSession(
         ) graph.stt.systemAvailable() else false
         val useLive = settings.sttEngine == SttEngineChoice.SYSTEM_LIVE ||
             (settings.sttEngine == SttEngineChoice.AUTO && liveAvailable && graph.stt.onDeviceAvailable())
-        if (!useLive) return graph.dictation.listenForText(settings)
+        if (!useLive) {
+            return graph.dictation.listenForText(
+                settings = settings,
+                silenceTimeoutMs = assistantSilenceTimeoutMs(settings),
+                onPartial = ::updateAssistantPartial,
+            )
+        }
         if (!liveAvailable) {
             return Result.failure(IllegalStateException("Recognizer sistem tidak tersedia"))
         }
@@ -451,10 +471,10 @@ class AssistantSession(
         return try {
             val transcript = graph.stt.listenLive(
                 settings = settings,
-                onPartial = { partial -> _state.value = _state.value.copy(partial = partial, currentCommand = partial) },
+                onPartial = ::updateAssistantPartial,
                 onLevel = {},
                 timeoutMs = ASSISTANT_STT_TIMEOUT_MS,
-                silenceTimeoutMs = settings.silenceTimeoutMs.toLong(),
+                silenceTimeoutMs = assistantSilenceTimeoutMs(settings),
             )
             if (transcript.text.isBlank()) {
                 retryAssistantTextWithHybrid(settings, IllegalStateException("Tidak ada ucapan yang terdengar"))
@@ -471,7 +491,7 @@ class AssistantSession(
     /** Dengarkan sekali, lalu proses (wake word, bubble assistant, atau tombol Bicara). */
     suspend fun listenAndHandle(
         speakReply: Boolean? = null,
-        announceReady: Boolean = true,
+        announceReady: Boolean = false,
     ) {
         if (_state.value.listening || _state.value.thinking) return
         if (!graph.dictation.hasMicrophonePermission()) {
@@ -521,12 +541,28 @@ class AssistantSession(
                 error = null,
             )
             val result = listenForAssistantText(settings)
-            _state.value = _state.value.copy(listening = false)
             result.onSuccess { text ->
-                if (text.isNotBlank()) handleText(text, speakReply)
-                else {
+                val recognizedCommand = text.trim()
+                if (recognizedCommand.isNotBlank()) {
+                    // Publikasikan hasil final sebelum parse/aksi berjalan, agar popup
+                    // menampilkan perintah meski mesin STT tidak mengirim partial.
+                    _state.value = _state.value.copy(
+                        listening = false,
+                        partial = recognizedCommand,
+                        currentCommand = recognizedCommand,
+                        currentReply = "",
+                        status = "Memproses…",
+                        error = null,
+                    )
+                    handleText(recognizedCommand, speakReply)
+                } else {
                     pendingScreenCapture = null
-                    _state.value = _state.value.copy(thinking = false, status = "", error = "Tidak mendengar apa pun")
+                    _state.value = _state.value.copy(
+                        listening = false,
+                        thinking = false,
+                        status = "",
+                        error = "Tidak mendengar apa pun",
+                    )
                 }
             }.onFailure { error ->
                 pendingScreenCapture = null
@@ -633,7 +669,7 @@ class AssistantSession(
                             scope.launch { startDictationFromWakeWord() }
                         } else {
                             _state.value = _state.value.copy(status = "Kata kunci terdeteksi: \"$heard\"")
-                            scope.launch { listenAndHandle(announceReady = true) }
+                            scope.launch { listenAndHandle(announceReady = false) }
                         }
                     },
                     onStateChange = { status -> _state.value = _state.value.copy(status = status) },
@@ -690,8 +726,10 @@ class AssistantSession(
             OverlayBubbleService.hasPermission(context) && graph.dictation.hasMicrophonePermission()
         if (canListenOverCurrentApp) {
             scope.launch {
+                // Capture konteks layar opt-in sebelum overlay muncul; lewati prompt
+                // suara agar recognizer segera siap menerima perintah.
                 capturePendingScreenContext(captureScreenContext)
-                listenAndHandle(announceReady = true)
+                listenAndHandle(announceReady = false)
             }
             return
         }
@@ -754,6 +792,8 @@ class AssistantSession(
         const val SCREEN_CAPTURE_TTL_MS = 30_000L
         const val PENDING_MESSAGE_TTL_MS = 90_000L
         const val ASSISTANT_STT_TIMEOUT_MS = 20_000L
+        const val MIN_ASSISTANT_SILENCE_TIMEOUT_MS = 400L
+        const val ASSISTANT_SILENCE_TIMEOUT_MS = 900L
         const val DICTATION_START_TIMEOUT_MS = 5_000L
         const val SCREEN_CONTEXT_SOURCE_TAG = "konteks layar"
     }

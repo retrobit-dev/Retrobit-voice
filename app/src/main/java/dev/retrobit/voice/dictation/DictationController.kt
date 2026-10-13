@@ -168,10 +168,11 @@ class DictationController(
             }
         }
 
-        // Bubble dan wake word di mode mengetik selalu hands-free: setelah ada
-        // ucapan, diam selama timeout yang dipilih akan menghentikan rekaman.
-        val autoStop = settings.dictationTrigger != DictationTrigger.HOLD_TO_TALK ||
-            _state.value.source == Source.OVERLAY || _state.value.source == Source.WAKE_WORD
+        // Bubble/wake-word tetap hands-free; pemicu tombol volume harus bertahan
+        // sampai Volume Bawah dilepas, apa pun mode dikte umum yang dipilih.
+        val source = _state.value.source
+        val autoStop = source == Source.OVERLAY || source == Source.WAKE_WORD ||
+            (source != Source.VOLUME && settings.dictationTrigger != DictationTrigger.HOLD_TO_TALK)
         val timeout = settings.silenceTimeoutMs.toLong()
 
         while (!finishRequested && !cancelled) {
@@ -355,21 +356,35 @@ class DictationController(
     }
 
     /** Dengarkan sekali lalu kembalikan teks (dipakai asisten & wake word). */
-    suspend fun listenForText(settings: AppSettings): Result<String> {
+    suspend fun listenForText(
+        settings: AppSettings,
+        silenceTimeoutMs: Long = settings.silenceTimeoutMs.toLong(),
+        onPartial: (String) -> Unit = {},
+    ): Result<String> {
         if (!hasMicrophonePermission()) return Result.failure(IllegalStateException("Izin mikrofon belum diberikan"))
         if (_state.value.isBusy) return Result.failure(IllegalStateException("Dikte sedang berjalan"))
 
+        val silenceWindowMs = silenceTimeoutMs.coerceIn(400L, 4_000L)
         var heard = ""
         val job = scope.launch {
             if (settings.sttEngine == SttEngineChoice.SYSTEM_LIVE) {
-                val t = graph.stt.listenLive(settings, { p -> heard = p }, { })
-                heard = t.text
+                val transcript = graph.stt.listenLive(
+                    settings = settings,
+                    onPartial = { partial ->
+                        heard = partial
+                        onPartial(partial)
+                    },
+                    onLevel = {},
+                    silenceTimeoutMs = silenceWindowMs,
+                )
+                heard = transcript.text
+                onPartial(heard)
             } else {
                 if (!recorder.start(recordingsDir, prefix = "asisten")) return@launch
                 while (recorder.isRunning) {
                     delay(100)
                     if (recorder.vad.hasSpeech &&
-                        recorder.vad.silenceDurationMs(System.currentTimeMillis()) > settings.silenceTimeoutMs
+                        recorder.vad.silenceDurationMs(System.currentTimeMillis()) > silenceWindowMs
                     ) {
                         break
                     }
@@ -381,8 +396,9 @@ class DictationController(
                     return@launch
                 }
                 try {
-                    val transcript = graph.stt.transcribe(rec, settings)
+                    val transcript = graph.stt.transcribe(rec, settings, onPartial = onPartial)
                     heard = transcript.text
+                    onPartial(heard)
                 } finally {
                     rec.wavFile.delete()
                 }
