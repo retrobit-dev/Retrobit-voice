@@ -15,6 +15,7 @@ import dev.retrobit.voice.data.encode
 import dev.retrobit.voice.data.toSettings
 import dev.retrobit.voice.data.toSnapshot
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -39,7 +40,8 @@ class SettingsExportTest {
         autoCapitalize = false,
         insertMethod = InsertMethod.ACCESSIBILITY,
         dictationTrigger = DictationTrigger.HANDS_FREE,
-        volumeKeyTriggerEnabled = true,
+        volumeKeyTriggerEnabled = false,
+        volumeKeyAssistantEnabled = true,
         silenceTimeoutMs = 2500,
         keepScreenOnWhileDictating = true,
         llmProvider = LlmProvider.OLLAMA,
@@ -49,6 +51,7 @@ class SettingsExportTest {
         wakeWordEnabled = true,
         wakeWordPhrase = "halo retro",
         confirmBeforeActions = false,
+        screenContextEnabled = true,
         speakReplies = false,
         assistantLanguage = "en-US",
         overlayBubbleEnabled = true,
@@ -65,6 +68,20 @@ class SettingsExportTest {
         // Perbandingan objek utuh: kalau ada field baru di AppSettings yang lupa
         // ditambahkan ke SettingsSnapshot, uji ini gagal.
         assertEquals(custom, restored)
+    }
+
+    @Test
+    fun `pemicu asisten dan konteks layar opt in mati secara bawaan`() {
+        val defaults = AppSettings()
+
+        assertFalse(defaults.volumeKeyAssistantEnabled)
+        assertFalse(defaults.screenContextEnabled)
+
+        val legacy = decodeSettingsSnapshot(
+            """{"app":"${SettingsSnapshotFormat.APP_ID}","schema":1}""",
+        ).toSettings(defaults)
+        assertFalse(legacy.volumeKeyAssistantEnabled)
+        assertFalse(legacy.screenContextEnabled)
     }
 
     @Test

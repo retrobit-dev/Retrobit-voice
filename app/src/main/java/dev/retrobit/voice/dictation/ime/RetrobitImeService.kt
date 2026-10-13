@@ -3,6 +3,7 @@ package dev.retrobit.voice.dictation.ime
 import android.content.Intent
 import android.inputmethodservice.InputMethodService
 import android.view.View
+import android.text.InputType
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputConnection
 import android.widget.ImageButton
@@ -144,21 +145,25 @@ class RetrobitImeService : InputMethodService() {
     override fun onStartInputView(info: EditorInfo?, restarting: Boolean) {
         super.onStartInputView(info, restarting)
         active = WeakReference(this)
+        activeTextField = isNonPasswordTextEditor(currentInputEditorInfo)
         statusView?.text = getString(R.string.ime_hint)
     }
 
     override fun onFinishInput() {
         super.onFinishInput()
+        if (active?.get() === this) activeTextField = false
         // Jangan hentikan dikte yang sedang berjalan: pengguna bisa memindah fokus
-        // dan tetap ingin teksnya ditempel di kolom baru.
-    }
+        // dan tetap ingin teksnya disisipkan ke kolom baru.
 
     override fun onEvaluateFullscreenMode(): Boolean = false
 
     override fun onDestroy() {
         stateJob?.cancel()
         scope.cancel()
-        if (active?.get() === this) active = null
+        if (active?.get() === this) {
+            active = null
+            activeTextField = false
+        }
         super.onDestroy()
     }
 
@@ -166,10 +171,32 @@ class RetrobitImeService : InputMethodService() {
         @Volatile
         private var active: WeakReference<RetrobitImeService>? = null
 
+        @Volatile
+        private var activeTextField = false
+
         fun activeService(): RetrobitImeService? = active?.get()
 
         fun currentConnection(): InputConnection? = active?.get()?.currentInputConnection
 
         fun hasActiveConnection(): Boolean = currentConnection() != null
+
+        /** Cached on the IME main thread; password fields never select dictation mode. */
+        fun hasActiveTextField(): Boolean = activeTextField
+
+        private fun isNonPasswordTextEditor(editorInfo: EditorInfo?): Boolean {
+            val inputType = editorInfo?.inputType ?: return false
+            val inputClass = inputType and InputType.TYPE_MASK_CLASS
+            val variation = inputType and InputType.TYPE_MASK_VARIATION
+            val password = when (inputClass) {
+                InputType.TYPE_CLASS_TEXT -> variation in setOf(
+                    InputType.TYPE_TEXT_VARIATION_PASSWORD,
+                    InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD,
+                    InputType.TYPE_TEXT_VARIATION_WEB_PASSWORD,
+                )
+                InputType.TYPE_CLASS_NUMBER -> variation == InputType.TYPE_NUMBER_VARIATION_PASSWORD
+                else -> false
+            }
+            return inputClass != InputType.TYPE_NULL && !password
+        }
     }
 }

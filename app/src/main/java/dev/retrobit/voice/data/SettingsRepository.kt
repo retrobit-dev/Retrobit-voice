@@ -28,7 +28,7 @@ enum class LlmProvider { OFF, OPENAI, GEMINI, OLLAMA }
 enum class CleanupMode { OFF, LOCAL, AI }
 
 /** Cara menempelkan teks ke aplikasi tujuan. */
-enum class InsertMethod { AUTO, IME, ACCESSIBILITY, CLIPBOARD }
+enum class InsertMethod { AUTO, IME, ACCESSIBILITY }
 
 /** Cara memicu dikte. */
 enum class DictationTrigger { HOLD_TO_TALK, HANDS_FREE, HYBRID }
@@ -52,6 +52,8 @@ data class AppSettings(
      * karena hanya jalur itu yang bisa membaca peristiwa tombol volume.
      */
     val volumeKeyTriggerEnabled: Boolean = false,
+    /** Tombol volume ditahan untuk membuka sesi perintah suara asisten. */
+    val volumeKeyAssistantEnabled: Boolean = false,
     val silenceTimeoutMs: Int = 1600,
     val keepScreenOnWhileDictating: Boolean = false,
 
@@ -63,6 +65,8 @@ data class AppSettings(
     val wakeWordEnabled: Boolean = false,
     val wakeWordPhrase: String = "hai retro",
     val confirmBeforeActions: Boolean = true,
+    /** Baca teks layar satu kali saat pengguna meminta asisten (bawaan: mati). */
+    val screenContextEnabled: Boolean = false,
     val speakReplies: Boolean = true,
     val assistantLanguage: String = "id-ID",
 
@@ -98,6 +102,7 @@ class SettingsRepository(private val context: Context) {
         val insertMethod = stringPreferencesKey("insert_method")
         val dictationTrigger = stringPreferencesKey("dictation_trigger")
         val volumeKeyTrigger = booleanPreferencesKey("volume_key_trigger")
+        val volumeKeyAssistant = booleanPreferencesKey("volume_key_assistant")
         val silenceTimeoutMs = intPreferencesKey("silence_timeout_ms")
         val keepScreenOn = booleanPreferencesKey("keep_screen_on")
 
@@ -108,6 +113,7 @@ class SettingsRepository(private val context: Context) {
         val wakeWordEnabled = booleanPreferencesKey("wake_word_enabled")
         val wakeWordPhrase = stringPreferencesKey("wake_word_phrase")
         val confirmBeforeActions = booleanPreferencesKey("confirm_actions")
+        val screenContext = booleanPreferencesKey("screen_context_enabled")
         val speakReplies = booleanPreferencesKey("speak_replies")
         val assistantLanguage = stringPreferencesKey("assistant_language")
 
@@ -136,6 +142,7 @@ class SettingsRepository(private val context: Context) {
             prefs[K.insertMethod] = updated.insertMethod.name
             prefs[K.dictationTrigger] = updated.dictationTrigger.name
             prefs[K.volumeKeyTrigger] = updated.volumeKeyTriggerEnabled
+            prefs[K.volumeKeyAssistant] = updated.volumeKeyAssistantEnabled
             prefs[K.silenceTimeoutMs] = updated.silenceTimeoutMs
             prefs[K.keepScreenOn] = updated.keepScreenOnWhileDictating
 
@@ -146,6 +153,7 @@ class SettingsRepository(private val context: Context) {
             prefs[K.wakeWordEnabled] = updated.wakeWordEnabled
             prefs[K.wakeWordPhrase] = updated.wakeWordPhrase
             prefs[K.confirmBeforeActions] = updated.confirmBeforeActions
+            prefs[K.screenContext] = updated.screenContextEnabled
             prefs[K.speakReplies] = updated.speakReplies
             prefs[K.assistantLanguage] = updated.assistantLanguage
 
@@ -175,6 +183,7 @@ class SettingsRepository(private val context: Context) {
             insertMethod = enumOr(this[K.insertMethod], defaults.insertMethod),
             dictationTrigger = enumOr(this[K.dictationTrigger], defaults.dictationTrigger),
             volumeKeyTriggerEnabled = this[K.volumeKeyTrigger] ?: defaults.volumeKeyTriggerEnabled,
+            volumeKeyAssistantEnabled = this[K.volumeKeyAssistant] ?: defaults.volumeKeyAssistantEnabled,
             silenceTimeoutMs = this[K.silenceTimeoutMs] ?: defaults.silenceTimeoutMs,
             keepScreenOnWhileDictating = this[K.keepScreenOn] ?: defaults.keepScreenOnWhileDictating,
             llmProvider = enumOr(this[K.llmProvider], defaults.llmProvider),
@@ -184,6 +193,7 @@ class SettingsRepository(private val context: Context) {
             wakeWordEnabled = this[K.wakeWordEnabled] ?: defaults.wakeWordEnabled,
             wakeWordPhrase = this[K.wakeWordPhrase] ?: defaults.wakeWordPhrase,
             confirmBeforeActions = this[K.confirmBeforeActions] ?: defaults.confirmBeforeActions,
+            screenContextEnabled = this[K.screenContext] ?: defaults.screenContextEnabled,
             speakReplies = this[K.speakReplies] ?: defaults.speakReplies,
             assistantLanguage = this[K.assistantLanguage] ?: defaults.assistantLanguage,
             overlayBubbleEnabled = this[K.overlayBubble] ?: defaults.overlayBubbleEnabled,

@@ -7,7 +7,7 @@ import android.os.Build
 import dev.retrobit.voice.core.ToastHub
 import dev.retrobit.voice.core.VoiceLog
 
-/** Utilitas papan klip — jalur terakhir yang selalu berhasil di Android mana pun. */
+/** Utilitas salin yang eksplisit untuk tombol Salin/diagnostik; bukan fallback penyisipan dikte. */
 object ClipboardHelper {
 
     fun copy(context: Context, text: String, toast: String? = "Teks disalin — tempel di mana saja"): Boolean {

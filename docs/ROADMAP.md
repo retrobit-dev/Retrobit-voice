@@ -1,7 +1,6 @@
 # Rencana pengembangan (roadmap)
 
-Rilis 0.1.0 adalah fondasi yang sudah **berfungsi penuh**: dikte hybrid, penempelan tiga jalur,
-asisten perintah offline + LLM, bubble, tile, dan integrasi asisten bawaan.
+Rilis 0.1.0 adalah fondasi yang sudah **berfungsi penuh**: dikte hybrid, penyisipan teks langsung lewat IME/aksesibilitas, asisten offline + LLM, bubble fokus-kontekstual, tile, dan integrasi asisten bawaan.
 
 Di bawah ini urutan prioritas berikutnya. Setiap item ditulis dengan **berkas yang perlu disentuh**,
 supaya bisa langsung dikerjakan.
@@ -25,8 +24,7 @@ supaya bisa langsung dikerjakan.
 | Item | Kenapa | Sentuh |
 | --- | --- | --- |
 | Perintah berantai ("buka Maps lalu cari SPBU terdekat") | Mendekati kualitas asisten besar | `CommandParser` (pemisah klausa) + `AssistantBrain` |
-| Konteks layar (aplikasi apa yang terbuka) untuk perintah ambigu | "Balas chat ini" butuh tahu konteks | `AssistantExecutor` + `UsageStatsManager` (izin opsional, didokumentasikan) |
-| Aksesori: baca notifikasi, jawab WhatsApp otomatis (dengan konfirmasi) | Fitur yang paling sering diminta pengguna Android | `TextInsertAccessibilityService` diperluas; wajib ada konfirmasi eksplisit |
+| Integrasi pengiriman pesan yang lebih langsung melalui API resmi (bila tersedia) | Mengurangi perpindahan ke aplikasi tujuan tanpa menghilangkan konfirmasi | `AssistantExecutor`; tetap wajib ada konfirmasi eksplisit dan review pengguna |
 | Percakapan multi-giliran dengan memori lebih panjang | "Kirim ke yang tadi" | `AssistantSession` (`turns` → ringkasan berkala) |
 | Suara TTS yang bisa dipilih + kecepatan | Kenyamanan | `TtsSpeaker` (setVoice/setSpeechRate) |
 

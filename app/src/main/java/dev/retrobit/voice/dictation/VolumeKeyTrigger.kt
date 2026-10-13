@@ -1,6 +1,8 @@
 package dev.retrobit.voice.dictation
 
 import android.content.Context
+import android.os.Handler
+import android.os.Looper
 import android.os.SystemClock
 import android.view.KeyEvent
 import dev.retrobit.voice.R
@@ -101,7 +103,24 @@ object VolumeKeyTrigger {
     @Volatile
     private var enabled = false
 
+    @Volatile
+    private var assistantEnabled = false
+
+    @Volatile
+    private var assistantKeyDown = false
+
+    @Volatile
+    private var assistantTriggered = false
+
     private var observerStarted = false
+    private val mainHandler = Handler(Looper.getMainLooper())
+    private var assistantContext: Context? = null
+    private val assistantHoldRunnable = Runnable {
+        if (assistantKeyDown && !assistantTriggered && assistantEnabled) {
+            assistantTriggered = true
+            assistantContext?.let(::startAssistant)
+        }
+    }
 
     /** Dipanggil layanan aksesibilitas saat tersambung. Aman dipanggil berkali-kali. */
     fun attach() = startObserver()
@@ -114,6 +133,11 @@ object VolumeKeyTrigger {
         if (event == null) return false
         val isVolume = event.keyCode == KeyEvent.KEYCODE_VOLUME_UP || event.keyCode == KeyEvent.KEYCODE_VOLUME_DOWN
         if (!isVolume) return false
+        // Pisahkan tombol agar fitur dikte lama tetap bisa dipakai bersamaan:
+        // Volume Atas tahan = asisten; Volume Bawah = pemicu dikte yang ada.
+        if (assistantEnabled && event.keyCode == KeyEvent.KEYCODE_VOLUME_UP) {
+            return onAssistantKeyEvent(context, event)
+        }
         if (!enabled) {
             logic.reset()
             return false
@@ -133,6 +157,51 @@ object VolumeKeyTrigger {
         }
     }
 
+    /** Tahan Volume Atas selama 700 ms untuk membuka sesi asisten. */
+    private fun onAssistantKeyEvent(context: Context, event: KeyEvent): Boolean {
+        when (event.action) {
+            KeyEvent.ACTION_DOWN -> {
+                if (event.repeatCount == 0) {
+                    assistantContext = context.applicationContext
+                    assistantKeyDown = true
+                    assistantTriggered = false
+                    mainHandler.removeCallbacks(assistantHoldRunnable)
+                    mainHandler.postDelayed(assistantHoldRunnable, ASSISTANT_HOLD_MS)
+                }
+                // Volume Atas menjadi kontrol asisten dan tidak mengubah volume; kode
+                // tombol lain tetap tersedia bagi pemicu dikte atau sistem.
+                return true
+            }
+
+            KeyEvent.ACTION_UP -> {
+                assistantKeyDown = false
+                mainHandler.removeCallbacks(assistantHoldRunnable)
+                assistantContext = null
+                return true
+            }
+
+            else -> return true
+        }
+    }
+
+    private fun startAssistant(context: Context) {
+        val graph = runCatching { AppGraph.require }.getOrNull() ?: return
+        if (!graph.dictation.hasMicrophonePermission()) {
+            ToastHub.show(context, context.getString(R.string.toast_volume_needs_mic), long = true)
+            return
+        }
+        if (graph.dictation.state.value.isBusy || graph.assistant.state.value.listening || graph.assistant.state.value.thinking) {
+            ToastHub.show(context, context.getString(R.string.toast_volume_assistant_busy))
+            return
+        }
+        runCatching {
+            graph.assistant.openAssistantUi(autoListen = true, captureScreenContext = true)
+        }.onFailure { error ->
+            VoiceLog.e("Tombol volume gagal membuka asisten", error)
+            ToastHub.show(context, context.getString(R.string.toast_volume_start_failed), long = true)
+        }
+    }
+
     private fun startObserver() {
         synchronized(this) {
             if (observerStarted) return
@@ -146,9 +215,18 @@ object VolumeKeyTrigger {
             }
             graph.settings.flow.collect { settings ->
                 logic.applyMode(settings.dictationTrigger == DictationTrigger.HOLD_TO_TALK)
-                val nowEnabled = settings.volumeKeyTriggerEnabled
-                if (enabled && !nowEnabled) logic.reset()
-                enabled = nowEnabled
+                val nowAssistantEnabled = settings.volumeKeyAssistantEnabled
+                if (assistantEnabled && !nowAssistantEnabled) {
+                    assistantKeyDown = false
+                    mainHandler.removeCallbacks(assistantHoldRunnable)
+                }
+                assistantEnabled = nowAssistantEnabled
+
+                // Bila keduanya aktif, Volume Atas khusus asisten dan Volume Bawah
+                // tetap memakai pemicu dikte yang sudah ada.
+                val nowDictationEnabled = settings.volumeKeyTriggerEnabled
+                if (enabled && !nowDictationEnabled) logic.reset()
+                enabled = nowDictationEnabled
             }
         }
     }
@@ -196,4 +274,6 @@ object VolumeKeyTrigger {
                 ToastHub.show(context, context.getString(R.string.toast_volume_start_failed), long = true)
             }
     }
+
+    private const val ASSISTANT_HOLD_MS = 700L
 }

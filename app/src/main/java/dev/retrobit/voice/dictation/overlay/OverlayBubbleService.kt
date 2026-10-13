@@ -6,7 +6,9 @@ import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
+import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.Paint
 import android.graphics.PixelFormat
 import android.graphics.drawable.GradientDrawable
 import android.net.Uri
@@ -28,27 +30,29 @@ import dev.retrobit.voice.core.ToastHub
 import dev.retrobit.voice.core.VoiceLog
 import dev.retrobit.voice.dictation.DictationController
 import dev.retrobit.voice.dictation.DictationService
+import dev.retrobit.voice.dictation.a11y.TextInsertAccessibilityService
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 
 /**
  * Bubble mikrofon melayang (opsional, butuh izin "tampil di atas aplikasi lain").
  *
- * Ini pengalaman yang paling mirip Wispr Flow: bubble tersedia di aplikasi apa
- * pun, sekali tekan langsung merekam, dan teksnya ditempel ke kolom yang aktif
- * (lewat keyboard Retrobit atau layanan aksesibilitas).
- *
- * Ketuk = mulai/selesai dikte · Tekan lama = buka asisten.
+ * Bubble hanya tampak saat layanan aksesibilitas mendeteksi kolom teks yang
+ * sedang fokus. Ketuk untuk mulai dikte hands-free; gelombang mengikuti input
+ * mikrofon dan rekaman berhenti setelah jeda. Teks disisipkan langsung pada kursor.
+ * Tekan lama membuka asisten.
  */
 class OverlayBubbleService : Service() {
 
     private lateinit var windowManager: WindowManager
     private var bubbleView: View? = null
     private var bubbleIcon: ImageView? = null
+    private var waveformView: MicWaveformView? = null
     private var params: WindowManager.LayoutParams? = null
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private var stateJob: Job? = null
@@ -102,6 +106,7 @@ class OverlayBubbleService : Service() {
         }
         // Gaya e-paper: persegi (tanpa lengkung), dasar kertas gelap, garis tinta tipis.
         container.background = paneDrawable(fill = PANEL, stroke = LINE_STRONG, strokeWidth = 1)
+        container.visibility = View.GONE
         val icon = ImageView(this).apply {
             setImageResource(R.drawable.ic_mic)
             setColorFilter(Color.parseColor("#E9E9E4"))
@@ -109,6 +114,13 @@ class OverlayBubbleService : Service() {
         }
         container.addView(icon)
         bubbleIcon = icon
+
+        val waveform = MicWaveformView(this).apply {
+            layoutParams = FrameLayout.LayoutParams(dp(34), dp(30), Gravity.CENTER)
+            visibility = View.GONE
+        }
+        container.addView(waveform)
+        waveformView = waveform
 
         val layoutParams = WindowManager.LayoutParams(
             size,
@@ -147,7 +159,7 @@ class OverlayBubbleService : Service() {
                 moved = false
                 longPressRunnable = Runnable {
                     if (!moved) {
-                        AppGraph.require.assistant.openAssistantUi(autoListen = true)
+                        AppGraph.require.assistant.openAssistantUi(autoListen = true, captureScreenContext = true)
                     }
                 }.also { handler.postDelayed(it, 700) }
             }
@@ -175,6 +187,12 @@ class OverlayBubbleService : Service() {
 
     private fun toggleDictation() {
         val graph = AppGraph.require
+        if (!TextInsertAccessibilityService.hasFocusedTextField() &&
+            graph.dictation.state.value.phase != DictationController.Phase.LISTENING
+        ) {
+            ToastHub.show(this, getString(R.string.overlay_need_text_focus))
+            return
+        }
         when (graph.dictation.state.value.phase) {
             DictationController.Phase.LISTENING -> DictationService.stop(this)
             DictationController.Phase.TRANSCRIBING, DictationController.Phase.CLEANING, DictationController.Phase.INSERTING ->
@@ -189,20 +207,29 @@ class OverlayBubbleService : Service() {
     private fun observeState() {
         stateJob?.cancel()
         stateJob = scope.launch {
-            AppGraph.require.dictation.state.collect { state ->
-                // Monokrom: keadaan dibedakan lewat isi/garis, bukan warna.
-                val (fill, stroke, width) = when (state.phase) {
-                    DictationController.Phase.LISTENING -> Triple(INK, INK, 2)        // kotak penuh = merekam
-                    DictationController.Phase.TRANSCRIBING, DictationController.Phase.CLEANING,
-                    DictationController.Phase.INSERTING -> Triple(PANEL_DIM, INK, 2)  // abu = memproses
-                    DictationController.Phase.DONE -> Triple(PANEL, INK, 2)           // garis tegas = selesai
-                    DictationController.Phase.ERROR -> Triple(PANEL, LINE_STRONG, 1)  // garis samar = galat
-                    DictationController.Phase.IDLE -> Triple(PANEL, LINE_STRONG, 1)
+            combine(
+                AppGraph.require.dictation.state,
+                TextInsertAccessibilityService.focusedTextField,
+            ) { state, textFieldFocused -> state to textFieldFocused }
+                .collect { (state, textFieldFocused) ->
+                    // Bubble tidak tersedia di beranda atau kolom yang tidak fokus.
+                    bubbleView?.visibility = if (textFieldFocused) View.VISIBLE else View.GONE
+
+                    // Monokrom: keadaan dibedakan lewat isi/garis, bukan warna.
+                    val recording = state.phase == DictationController.Phase.LISTENING
+                    val (fill, stroke, width) = when (state.phase) {
+                        DictationController.Phase.LISTENING -> Triple(INK, INK, 2)
+                        DictationController.Phase.TRANSCRIBING, DictationController.Phase.CLEANING,
+                        DictationController.Phase.INSERTING -> Triple(PANEL_DIM, INK, 2)
+                        DictationController.Phase.DONE -> Triple(PANEL, INK, 2)
+                        DictationController.Phase.ERROR -> Triple(PANEL, LINE_STRONG, 1)
+                        DictationController.Phase.IDLE -> Triple(PANEL, LINE_STRONG, 1)
+                    }
+                    bubbleView?.background = paneDrawable(fill, stroke, width)
+                    bubbleIcon?.visibility = if (recording) View.GONE else View.VISIBLE
+                    waveformView?.visibility = if (recording) View.VISIBLE else View.GONE
+                    waveformView?.setLevel(state.amplitude, if (fill == INK) PANEL else INK)
                 }
-                bubbleView?.background = paneDrawable(fill, stroke, width)
-                // Ikon ikut ter-inversi supaya tetap kontras di kotak yang penuh tinta.
-                bubbleIcon?.setColorFilter(if (fill == INK) PANEL else INK)
-            }
         }
     }
 
@@ -223,6 +250,8 @@ class OverlayBubbleService : Service() {
         scope.cancel()
         bubbleView?.let { runCatching { windowManager.removeView(it) } }
         bubbleView = null
+        bubbleIcon = null
+        waveformView = null
         super.onDestroy()
     }
 
@@ -234,6 +263,44 @@ class OverlayBubbleService : Service() {
         cornerRadius = 0f
         setColor(fill)
         setStroke(dp(strokeWidth), stroke)
+    }
+
+    /** Gelombang mini di dalam bubble; tinggi batang mengikuti level mikrofon. */
+    private class MicWaveformView(context: Context) : View(context) {
+        private val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.FILL }
+        private var level = 0f
+        private val shape = floatArrayOf(0.25f, 0.48f, 0.78f, 1f, 0.7f, 0.45f, 0.28f)
+
+        fun setLevel(value: Float, color: Int) {
+            level = value.coerceIn(0f, 1f)
+            paint.color = color
+            contentDescription = "Gelombang mikrofon, level ${(level * 100).toInt()} persen"
+            invalidate()
+        }
+
+        override fun onDraw(canvas: Canvas) {
+            super.onDraw(canvas)
+            val count = shape.size
+            val gap = width * 0.075f
+            val barWidth = ((width - gap * (count - 1)) / count).coerceAtLeast(1f)
+            val center = height / 2f
+            val maxHeight = height * 0.82f
+            val minHeight = height * 0.16f
+            shape.forEachIndexed { index, weight ->
+                val response = (0.08f + level * (0.25f + weight * 0.72f)).coerceAtMost(1f)
+                val barHeight = minHeight + (maxHeight - minHeight) * response
+                val left = index * (barWidth + gap)
+                canvas.drawRoundRect(
+                    left,
+                    center - barHeight / 2f,
+                    left + barWidth,
+                    center + barHeight / 2f,
+                    barWidth / 2f,
+                    barWidth / 2f,
+                    paint,
+                )
+            }
+        }
     }
 
     companion object {

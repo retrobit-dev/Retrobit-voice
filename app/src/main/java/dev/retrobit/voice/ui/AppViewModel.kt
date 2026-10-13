@@ -103,6 +103,14 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch { graph.assistant.listenAndHandle() }
     }
 
+    fun confirmPendingAssistantMessage() {
+        viewModelScope.launch { graph.assistant.confirmPendingMessage() }
+    }
+
+    fun cancelPendingAssistantMessage() {
+        viewModelScope.launch { graph.assistant.cancelPendingMessage() }
+    }
+
     fun clearAssistantHistory() {
         graph.assistant.clearHistory()
         viewModelScope.launch { graph.settings.clearHistory() }

@@ -32,7 +32,7 @@ class QuickAssistantTileService : TileService() {
             updateTile()
         }
         try {
-            AppGraph.require.assistant.openAssistantUi(autoListen = true)
+            AppGraph.require.assistant.openAssistantUi(autoListen = true, captureScreenContext = true)
         } catch (t: Throwable) {
             VoiceLog.e("Tile gagal membuka asisten", t)
         }

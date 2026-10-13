@@ -34,24 +34,30 @@ Tabel ini juga berguna saat mengisi Play Console (Data safety) atau menjelaskan 
 | Integrasi | Cara mengaktifkan | Apa yang dilakukan aplikasi |
 | --- | --- | --- |
 | **Input Method (IME)** | Pengaturan → Sistem → Bahasa & masukan → Keyboard → aktifkan "Retrobit Voice (Dikte)", lalu pilih sebagai keyboard aktif | Menyediakan bar mikrofon; teks hasil dikte dikirim via `InputConnection.commitText()` ke kolom yang sedang difokuskan |
-| **AccessibilityService** | Pengaturan → Aksesibilitas → "Retrobit Voice — tempel otomatis" | Hanya bertindak saat dipanggil: menyalin teks ke klip lalu mengirim `ACTION_PASTE`/`ACTION_SET_TEXT` ke node yang difokuskan. Tidak ada pemantauan layar serta tidak ada pengumpulan data |
+| **AccessibilityService** | Pengaturan → Aksesibilitas → "Retrobit Voice — sisip otomatis" | Mendeteksi kolom teks fokus, menyisipkan langsung melalui `ACTION_SET_TEXT`/pemulihan caret, dan membaca tombol volume bila diaktifkan. Snapshot teks layar hanya tersedia dengan opt-in terpisah dan permintaan kontekstual; password serta kolom edit dikecualikan |
 | **VoiceInteractionService** (asisten bawaan) | Pengaturan → Aplikasi → Asisten digital → Retrobit Voice | Membuka layar asisten dan langsung mendengarkan saat tombol Home ditekan lama |
-| **System Alert Window** (bubble) | Pengaturan → Aplikasi → Retrobit → Tampil di atas aplikasi lain | Menampilkan satu bubble melayang yang bisa digeser |
+| **System Alert Window** (bubble) | Pengaturan → Aplikasi → Retrobit → Tampil di atas aplikasi lain | Menampilkan bubble yang bisa digeser, hanya saat kolom teks aktif; gelombang menampilkan level mic saat dikte |
 | **RecognitionService** | Tidak pernah dipilih otomatis — tidak punya `intent-filter` agar tidak muncul di pemilih recognizer sistem | Diperlukan sebagai referensi `recognitionService` pada `VoiceInteractionService`; implementasinya minimal dan melaporkan error yang jelas |
 | **Quick Settings Tile** | Ditarik dari panel Pengaturan Cepat | Sekali tekan → asisten mendengarkan |
 | **Pengecualian optimasi baterai** | Tindakan pengguna terhadap aplikasi (opsional) | Agar rekaman & kata kunci tidak terputus saat layar mati |
+
+### Dua setelan yang perlu diketahui
+
+- **Pemicu volume asisten** dapat aktif bersamaan dengan pemicu volume dikte. Volume Atas dicadangkan untuk asisten (tahan sekitar 0,7 detik); jika pemicu dikte juga aktif, Volume Bawah tetap menjalankan fungsi dikte lama. Keduanya memerlukan layanan aksesibilitas.
+- **Wake word kontekstual** memilih mode dari fokus saat frasa terdeteksi: kolom teks yang sedang fokus berarti mulai dikte; di luar mode mengetik berarti dengarkan perintah asisten.
+- **Konteks layar** mati secara bawaan. Dengan opt-in aktif, snapshot sementara dibuat saat sesi asisten dimulai dan hanya dikirim ke LLM yang dipilih bila perintah secara eksplisit meminta membaca/membalas teks layar. Snapshot tidak ditulis ke riwayat; jika opt-in mati, layar tidak dibaca.
 
 ## Apa yang **tidak** dilakukan aplikasi ini
 
 - ❌ Tidak ada analytics, crash reporting pihak ketiga, atau iklan.
 - ❌ Tidak ada pengiriman audio/teks ke server proyek ini (server semacam itu tidak ada).
-- ❌ Tidak membaca isi layar, kata sandi, atau pesan masuk lewat layanan aksesibilitas.
-- ❌ Tidak memulai panggilan atau mengirim pesan tanpa membuka aplikasi terkait.
+- ❌ Tidak memindai layar di latar belakang. Pembacaan snapshot hanya terjadi dengan opt-in dan perintah kontekstual; password dan kolom edit dikecualikan.
+- ❌ Tidak mengirim pesan otomatis. Setelah persetujuan, aplikasi tujuan dibuka dengan draf yang perlu ditinjau dan dikirim oleh pengguna.
 - ❌ Tidak berjalan di latar belakang tanpa jejak: setiap perekaman memunculkan notifikasi.
 
 ## Kalau ingin memeriksa sendiri
 
 1. **Log aktivitas:** tab Pengaturan → Diagnostik → *Perbarui*. Berisi jejak mesin mana yang dipakai.
-2. **Papan klip:** jalur penempelan cadangan selalu terlihat di layar Dikte ("Ditempel lewat: papan klip").
+2. **Penyisipan langsung:** layar Dikte menampilkan jalur IME/aksesibilitas yang berhasil. Tombol Salin adalah tindakan terpisah yang sengaja dipilih pengguna; tidak ada fallback clipboard otomatis.
 3. **Jaringan:** nyalakan mode pesawat, pilih mesin "Di perangkat" — dikte tetap jalan, membuktikan tidak ada panggilan jaringan.
 4. **Riwayat:** matikan "Simpan riwayat di perangkat" lalu periksa bahwa berkas `dictation_history.jsonl` tidak bertambah.

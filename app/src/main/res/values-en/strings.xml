@@ -2,8 +2,8 @@
 <resources>
     <string name="app_name">Retrobit Voice</string>
     <string name="ime_name">Retrobit Voice (Dictation)</string>
-    <string name="a11y_service_label">Retrobit Voice — auto paste</string>
-    <string name="a11y_service_description">Retrobit uses this service to paste dictation results into the focused field and to read the volume buttons as a dictation trigger. It does not read screen content and does not send data anywhere.</string>
+    <string name="a11y_service_label">Retrobit Voice — direct insertion</string>
+    <string name="a11y_service_description">Retrobit uses this service to detect focused text fields, insert dictation directly, and read volume buttons when a trigger is enabled. With screen-context opt-in, a snapshot is captured when an assistant session starts and is sent to your selected LLM only if your command asks to read or reply to screen content; it is not stored in history.</string>
     <string name="tile_assistant">Retrobit</string>
 
     <string name="tab_home">Home</string>
@@ -27,7 +27,7 @@
 
     <string name="home_tagline">Dictate at the speed of speech, plus an assistant that understands real commands — all in one app.</string>
     <string name="home_engine_title">Ready engines</string>
-    <string name="home_insert_channels">Paste routes</string>
+    <string name="home_insert_channels">Insertion routes</string>
     <string name="home_current_config">Active configuration</string>
     <string name="home_quick_title">Try dictation now</string>
     <string name="home_start_dictation">Start dictation</string>
@@ -46,10 +46,10 @@
     <string name="setup_mic_subtitle">Required to record your voice.</string>
     <string name="setup_ime_title">Retrobit keyboard</string>
     <string name="setup_ime_subtitle">The best way to dictate in any app.</string>
-    <string name="setup_a11y_title">Auto paste (accessibility)</string>
-    <string name="setup_a11y_subtitle">Without it, text only lands in the clipboard.</string>
+    <string name="setup_a11y_title">Direct insertion (accessibility)</string>
+    <string name="setup_a11y_subtitle">Required to detect a focused field, insert text directly, and read volume buttons.</string>
     <string name="setup_overlay_title">Floating bubble</string>
-    <string name="setup_overlay_subtitle">A mic button always available on screen.</string>
+    <string name="setup_overlay_subtitle">The bubble appears only while a text field is focused.</string>
     <string name="setup_assistant_title">Set as default assistant</string>
     <string name="setup_assistant_subtitle">Long-press Home to summon Retrobit.</string>
     <string name="setup_notif_title">Notification permission</string>
@@ -64,6 +64,10 @@
     <string name="toast_contacts_denied">Without contacts, say the number out loud instead.</string>
     <string name="toast_volume_needs_mic">Microphone permission is missing — the volume buttons cannot start dictation yet.</string>
     <string name="toast_volume_start_failed">Could not start dictation from the volume button. Open the Retrobit app once, then try again.</string>
+    <string name="toast_volume_assistant_busy">The assistant or dictation is already running. Wait for it to finish.</string>
+    <string name="toast_wake_dictation_needs_mic">Microphone permission is missing. Open Retrobit and grant it before using the wake word for dictation.</string>
+    <string name="toast_wake_dictation_failed">Wake word detected, but dictation could not start. Try again from the Retrobit app.</string>
+    <string name="overlay_need_text_focus">Focus a text field and place the cursor to use the dictation bubble.</string>
     <string name="toast_export_done">Settings exported to the chosen file.</string>
     <string name="toast_export_failed">Could not write the backup file.</string>
     <string name="toast_import_done">Settings restored: %1$s</string>
@@ -102,6 +106,10 @@
     <string name="assistant_examples">Examples: \"open WhatsApp\", \"call Mom\", \"set alarm 5 am\", \"timer 10 minutes\", \"turn on flashlight\", \"note pay the bill\", \"search for rendang recipe\".</string>
     <string name="assistant_settings_title">Quick assistant settings</string>
     <string name="assistant_clear_history">Clear conversation history</string>
+    <string name="assistant_confirmation_title">Confirm message draft</string>
+    <string name="assistant_confirmation_to">Recipient</string>
+    <string name="assistant_confirmation_note">The message has not been sent. Approve to open a draft in the messaging app; review it and tap Send.</string>
+    <string name="assistant_confirm_prepare">Approve &amp; open draft</string>
 
     <string name="settings_title">Settings</string>
     <string name="settings_stt_title">Speech recognition engines</string>
@@ -131,7 +139,7 @@
     <string name="insert_auto">Automatic</string>
     <string name="insert_ime">Retrobit keyboard</string>
     <string name="insert_a11y">Accessibility service</string>
-    <string name="insert_clipboard">Clipboard only</string>
+    <string name="settings_insert_direct_note">Text is inserted directly at the cursor. If no text field is focused or no direct route is available, Retrobit does not use the clipboard automatically.</string>
     <string name="settings_trigger">How recording stops</string>
     <string name="trigger_hold">Press and hold</string>
     <string name="trigger_hands_free">Auto-stop on silence</string>
@@ -142,19 +150,28 @@
     <string name="settings_volume_trigger_ready_hold">Ready. Hold a volume button to record, release to finish — the volume stays unchanged.</string>
     <string name="settings_volume_trigger_ready_toggle">Ready. Press once to start/stop — the volume still changes as usual.</string>
     <string name="settings_volume_trigger_needs_a11y">Turn on the Retrobit accessibility service first so the volume buttons can be read.</string>
+    <string name="settings_volume_trigger_split">Hold Volume Up for the assistant; Volume Down remains the dictation trigger.</string>
+    <string name="settings_volume_assistant">Hold Volume Up for the assistant</string>
+    <string name="settings_volume_assistant_note">Requires accessibility. When enabled, Volume Up is reserved for the assistant: hold it for about 0.7 seconds to open a session. Volume Down still adjusts volume, or triggers dictation if enabled.</string>
+    <string name="settings_volume_assistant_ready">Ready. Volume Up is now an assistant shortcut (not a volume control); hold for about 0.7 seconds. Volume Down still adjusts volume or triggers dictation.</string>
+    <string name="settings_volume_assistant_ready_split">Ready. Hold Volume Up for the assistant; Volume Down remains the dictation trigger.</string>
     <string name="settings_assistant_title">Assistant</string>
     <string name="settings_assistant_subtitle">Even without online AI, dozens of commands work through local rules.</string>
     <string name="llm_off">Off</string>
     <string name="settings_speak_replies">Speak replies aloud</string>
+    <string name="settings_screen_context">Allow screen context (opt in)</string>
+    <string name="settings_screen_context_note">Off by default. When enabled, a snapshot is captured as an assistant session starts, but sent to your selected LLM only if your command asks to read or reply to screen content; it is not saved in history.</string>
+    <string name="settings_screen_context_needs_a11y">Enable the accessibility service to read a screen snapshot on request. Passwords and text being edited are excluded.</string>
+    <string name="settings_screen_context_enabled_note">Opt-in is on: one snapshot is captured when an assistant session starts and forwarded to your selected LLM only for screen-related requests. Passwords/editable fields are excluded; it is not saved in history.</string>
     <string name="settings_wake_word">Wake word</string>
-    <string name="settings_wake_word_note">Continuous listening costs extra battery.</string>
+    <string name="settings_wake_word_note">With Retrobit accessibility or keyboard active, a focused non-password text field routes the wake word to dictation; outside typing mode, the assistant listens for a command. Continuous listening costs extra battery.</string>
     <string name="settings_wake_word_phrase">Wake phrase</string>
     <string name="settings_data_title">Appearance &amp; data</string>
     <string name="settings_display_title">Display mode</string>
     <string name="settings_epaper_mode">Light paper mode (e-paper)</string>
     <string name="settings_epaper_mode_note">Panel turns bright, like an e-reader in sunlight.</string>
     <string name="settings_overlay">Floating mic bubble</string>
-    <string name="settings_overlay_note">Tap to dictate, long-press for the assistant.</string>
+    <string name="settings_overlay_note">Appears only when a text field is focused. Tap for hands-free dictation; long-press for the assistant.</string>
     <string name="settings_save_history">Keep history on device</string>
     <string name="settings_clear_history">Clear history</string>
     <string name="settings_backup_title">Settings backup</string>
@@ -174,9 +191,9 @@
     <string name="guide_step1_title">Choose the Retrobit keyboard</string>
     <string name="guide_step1_body">Open the keyboard picker and choose \"Retrobit Voice\". You can switch back anytime with the keyboard button in the Retrobit bar.</string>
     <string name="guide_step2_title">Enable the accessibility service</string>
-    <string name="guide_step2_body">Find \"Retrobit Voice — auto paste\" in the installed services list and enable it. This is what lets text paste itself without the keyboard.</string>
+    <string name="guide_step2_body">Find \"Retrobit Voice — direct insertion\" in the installed services list and enable it. It detects focused fields and inserts dictation directly; screen reading stays off until you opt in under Settings.</string>
     <string name="guide_step3_title">Allow the floating bubble</string>
-    <string name="guide_step3_body">Enable \"Display over other apps\" so the mic button is always reachable.</string>
+    <string name="guide_step3_body">Enable \"Display over other apps\". The bubble is visible only while a text field is focused.</string>
     <string name="guide_step4_title">Set as default assistant (optional)</string>
     <string name="guide_step4_body">Then a long-press of Home opens Retrobit and starts listening.</string>
     <string name="guide_step5_title">Battery care</string>
@@ -186,6 +203,7 @@
     <string name="guide_tip_offline">On-device mode works with no internet at all — great for private notes.</string>
     <string name="guide_tip_privacy">Audio is deleted right after transcription when you use an on-device engine.</string>
     <string name="guide_tip_llm">Online assistant features activate only with your own API key.</string>
+    <string name="guide_tip_screen_context">Screen context is off by default; a snapshot is read only after opt-in and your request, and is not saved in history.</string>
     <string name="guide_open_settings">Open app settings</string>
     <string name="guide_refresh_status">Refresh engine status</string>
 
@@ -197,7 +215,7 @@
     <string name="notif_dictation_no_permission">Microphone permission required</string>
     <string name="notif_channel_overlay">Retrobit bubble</string>
     <string name="overlay_notif_title">Mic bubble is active</string>
-    <string name="overlay_notif_text">Tap the bubble to dictate, long-press for the assistant.</string>
+    <string name="overlay_notif_text">Bubble appears only at a focused text field; tap to dictate, long-press for the assistant.</string>
     <string name="overlay_permission_needed">Grant \"Display over other apps\" to use the bubble.</string>
     <string name="overlay_processing">Still processing, one moment…</string>
 </resources>

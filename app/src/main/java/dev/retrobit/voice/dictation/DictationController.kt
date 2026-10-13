@@ -31,7 +31,7 @@ import java.io.File
  * keyboard Retrobit, bubble melayang, tile Pengaturan Cepat, layar utama,
  * dan sesi asisten.
  *
- * Alur: rekam → transkripsi (hybrid) → rapikan (lokal/LLM) → tempel → riwayat.
+ * Alur: rekam → transkripsi (hybrid) → rapikan (lokal/LLM) → sisipkan langsung → riwayat.
  */
 class DictationController(
     private val context: Context,
@@ -40,7 +40,7 @@ class DictationController(
 
     enum class Phase { IDLE, LISTENING, TRANSCRIBING, CLEANING, INSERTING, DONE, ERROR }
 
-    enum class Source { MANUAL, IME, OVERLAY, TILE, ASSISTANT, VOLUME }
+    enum class Source { MANUAL, IME, OVERLAY, WAKE_WORD, TILE, ASSISTANT, VOLUME }
 
     data class UiState(
         val phase: Phase = Phase.IDLE,
@@ -168,7 +168,10 @@ class DictationController(
             }
         }
 
-        val autoStop = settings.dictationTrigger != DictationTrigger.HOLD_TO_TALK
+        // Bubble dan wake word di mode mengetik selalu hands-free: setelah ada
+        // ucapan, diam selama timeout yang dipilih akan menghentikan rekaman.
+        val autoStop = settings.dictationTrigger != DictationTrigger.HOLD_TO_TALK ||
+            _state.value.source == Source.OVERLAY || _state.value.source == Source.WAKE_WORD
         val timeout = settings.silenceTimeoutMs.toLong()
 
         while (!finishRequested && !cancelled) {
@@ -272,19 +275,32 @@ class DictationController(
         // 3. Tempel (kecuali kalau sumbernya asisten — asisten memakai teksnya sendiri)
         _state.value = _state.value.copy(
             phase = Phase.INSERTING,
-            stage = "Menempelkan teks…",
+            stage = "Menyisipkan teks…",
             finalText = cleaned,
             engine = engineLabel,
         )
 
-        if (_state.value.source != Source.ASSISTANT) {
+        val source = _state.value.source
+        if (source != Source.ASSISTANT && source != Source.MANUAL) {
             val result = graph.textInserter.insert(cleaned)
+            if (!result.success) {
+                _state.value = _state.value.copy(
+                    phase = Phase.ERROR,
+                    error = result.message,
+                    insertChannel = result.channel.label,
+                    stage = "",
+                    amplitude = 0f,
+                )
+                return
+            }
             _state.value = _state.value.copy(
                 insertChannel = result.channel.label,
                 stage = result.message,
             )
         }
 
+        // Mode manual menampilkan hasil di Retrobit; tombol Salin di layar hasil
+        // tetap tersedia sebagai tindakan eksplisit, bukan fallback penempelan.
         _state.value = _state.value.copy(phase = Phase.DONE, stage = "", amplitude = 0f)
     }
 

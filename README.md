@@ -18,24 +18,25 @@ Dirancang **offline-first**: dikte dan puluhan perintah tetap jalan tanpa intern
 ## Fitur utama
 
 ### Dikte (Wispr Flow style)
-- **Keyboard Retrobit** — IME khusus dengan tombol mikrofon; hasil bicara langsung masuk ke kolom yang aktif.
-- **Bubble melayang** — tombol mikrofon selalu tersedia di atas aplikasi lain (ketuk = dikte, tekan lama = asisten).
-- **Tempel otomatis lewat aksesibilitas** — teks menempel sendiri tanpa perlu membuka keyboard. Kalau tidak diaktifkan, teks otomatis disalin ke papan klip.
+- **Keyboard Retrobit** — IME khusus dengan tombol mikrofon; hasil bicara langsung masuk di posisi kursor.
+- **Bubble melayang kontekstual** — hanya muncul saat kolom teks fokus (ketuk = dikte hands-free dengan waveform dan auto-stop hening, tekan lama = asisten).
+- **Sisipkan langsung lewat aksesibilitas** — bubble memasukkan hasil ke kursor tanpa clipboard. Jika jalur langsung tidak tersedia, Retrobit melaporkan kegagalan alih-alih menyalin diam-diam.
 - **Mesin STT hybrid** — satu rekaman dicoba berurutan:
   1. **on-device** (Google recognizer, Android 12+, privat & gratis),
   2. **cloud** (OpenAI / Groq / Deepgram) kalau langkah pertama gagal,
   3. pesan diagnostik jelas kalau keduanya gagal.
 - **Pembersihan teks dua tingkat** — aturan lokal (buang "eee/emm/anu", perbaiki tanda baca, huruf besar) atau LLM untuk hasil yang lebih natural.
 - **Auto-stop saat berhenti bicara** — detektor aktivitas suara (VAD) dengan noise floor adaptif.
-- **Pemicu tombol volume** — tahan tombol volume untuk merekam (lepas = selesai, volume tidak ikut berubah)
-  atau, di mode auto-stop, tekan sekali untuk mulai/berhenti. Butuh layanan aksesibilitas karena hanya
-  jalur itu yang bisa membaca peristiwa tombol volume.
+- **Pemicu tombol volume** — saat pintasan asisten aktif, Volume Atas dicadangkan untuk asisten (tahan sekitar 0,7 detik); Volume Bawah tetap bisa memicu dikte lama (tahan = rekam, lepas = selesai; atau ketuk untuk toggle). Keduanya butuh aksesibilitas.
+- **Wake word kontekstual** — saat kolom teks fokus, wake word memulai dikte dan menyisipkan teks di kursor; di luar mode mengetik, wake word membuka sesi perintah asisten.
 - Pemicu tile **Pengaturan Cepat** Android.
 
 ### Asisten (Google Assistant style)
 - **Kaskade cerdas**: aturan lokal → LLM (opsional) → fallback pencarian web. Artinya asisten tetap berguna tanpa API key.
-- Perintah yang dikenali secara offline: buka aplikasi, cari di web/YouTube/Maps/Tokopedia, telepon kontak atau nomor, alarm, timer, kirim pesan WhatsApp/SMS, catatan, senter, volume, dan buka panel pengaturan sistem.
-- **Bisa dipilih sebagai asisten digital bawaan** (`VoiceInteractionService`) — tekan lama tombol Home langsung mendengarkan.
+- Perintah yang dikenali secara offline: buka aplikasi, cari di web/YouTube/Maps/Tokopedia, telepon kontak atau nomor, alarm, timer, pesan, catatan, senter, volume, dan panel pengaturan.
+- **Konteks layar opt-in** — snapshot teks layar hanya dipakai saat pengguna meminta membaca/membalas chat. Teks dikecualikan dari riwayat dan hanya dikirim ke LLM terpilih untuk permintaan kontekstual.
+- **Kirim pesan selalu perlu konfirmasi eksplisit** — setelah setuju, Retrobit membuka draf WhatsApp; pengguna memeriksa dan menekan Kirim di WhatsApp.
+- **Bisa dipilih sebagai asisten digital bawaan** (`VoiceInteractionService`) — tekan lama tombol Home langsung mendengarkan dan mengucapkan prompt siap.
 - **Kata kunci panggilan** opsional ("hai retro"), dengan catatan baterai yang jujur di pengaturan.
 - Jawaban dibacakan dengan TTS bawaan Android.
 
@@ -43,7 +44,8 @@ Dirancang **offline-first**: dikte dan puluhan perintah tetap jalan tanpa intern
 - API key disimpan **terenkripsi** dengan Android Keystore.
 - Audio **dihapus segera** setelah transkripsi.
 - Riwayat hanya tersimpan di perangkat, bisa dimatikan sekali sentuh — tidak ada server milik proyek ini.
-- Tidak ada analytics, tidak ada iklan, tidak ada pengiriman data diam-diam.
+- Akses konteks layar **mati secara bawaan**; bila diaktifkan, snapshot hanya diteruskan ke LLM pilihan saat perintah meminta membaca/membalas layar, dan tidak disimpan di riwayat.
+- Tidak ada analytics, tidak ada iklan, tidak ada pengiriman data diam-diam. Pesan tidak pernah dikirim tanpa konfirmasi dan tap Kirim di aplikasi tujuan.
 
 ---
 
@@ -82,8 +84,8 @@ Anda ──►│ Keyboard / │ ───────────────�
                                                                                    │ pembersihan
                                             ┌──────────────┐   penempelan   ┌─────▼───────┐
                                             │ WhatsApp,    │ ◄──────────────│ Teks rapi   │
-                                            │ Gmail, dll.  │  IME / a11y /  └─────────────┘
-                                            └──────────────┘  clipboard
+                                            │ Gmail, dll.  │  IME / a11y    └─────────────┘
+                                            └──────────────┘  langsung
 ```
 
 ---
@@ -141,8 +143,8 @@ Tag `v*` juga membangun APK rilis dan melampirkannya ke GitHub Release.
 
 1. **Pilih keyboard Retrobit** — Pengaturan → Sistem → Bahasa & masukan → Keyboard → aktifkan & pilih "Retrobit Voice (Dikte)".
    (Tombol keyboard di bar Retrobit membuka pemilih keyboard, bisa balik kapan saja.)
-2. **Aktifkan layanan aksesibilitas** "Retrobit Voice — tempel otomatis" (menu Aksesibilitas). Ini yang membuat teks menempel sendiri, sekaligus membuka opsi pemicu lewat tombol volume di Pengaturan.
-3. **Izinkan bubble melayang** — "Tampil di atas aplikasi lain".
+2. **Aktifkan layanan aksesibilitas** "Retrobit Voice — sisip otomatis" (menu Aksesibilitas). Layanan ini mendeteksi kolom teks fokus, menyisipkan dikte langsung, dan menyediakan pemicu volume. Pembacaan konteks layar tetap opt-in terpisah.
+3. **Izinkan bubble melayang** — "Tampil di atas aplikasi lain". Bubble hanya muncul saat kolom teks mendapat fokus.
 4. **Opsional: jadikan asisten bawaan** — Pengaturan → Aplikasi → Asisten digital → Retrobit Voice.
 5. **Matikan optimasi baterai** untuk Retrobit supaya rekaman & kata kunci tidak terputus.
 

@@ -119,6 +119,40 @@ fun AssistantScreen(
             }
         }
 
+        state.pendingMessage?.let { message ->
+            Panel(title = str(R.string.assistant_confirmation_title), code = "SEND") {
+                Text(
+                    text = str(R.string.assistant_confirmation_to) + ": " + message.contactName,
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                Text(
+                    text = message.body,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+                Text(
+                    text = str(R.string.assistant_confirmation_note),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    BracketButton(
+                        text = str(R.string.action_cancel),
+                        onClick = { vm.cancelPendingAssistantMessage() },
+                        enabled = !state.thinking && !state.listening,
+                        modifier = Modifier.weight(1f),
+                    )
+                    BracketButton(
+                        text = str(R.string.assistant_confirm_prepare),
+                        onClick = { vm.confirmPendingAssistantMessage() },
+                        enabled = !state.thinking && !state.listening,
+                        filled = true,
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+            }
+        }
+
         SettingTextField(
             label = str(R.string.assistant_input_label),
             value = input,
@@ -133,7 +167,7 @@ fun AssistantScreen(
                     vm.sendToAssistant(input)
                     input = ""
                 },
-                enabled = input.isNotBlank(),
+                enabled = input.isNotBlank() && !state.thinking && !state.listening,
                 filled = true,
                 modifier = Modifier.weight(1f),
             )

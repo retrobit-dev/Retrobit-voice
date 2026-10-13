@@ -3,8 +3,8 @@
     <!-- ===== Identitas ===== -->
     <string name="app_name">Retrobit Voice</string>
     <string name="ime_name">Retrobit Voice (Dikte)</string>
-    <string name="a11y_service_label">Retrobit Voice — tempel otomatis</string>
-    <string name="a11y_service_description">Retrobit memakai layanan ini untuk menempelkan hasil dikte ke kolom yang sedang aktif dan untuk membaca tombol volume sebagai pemicu dikte. Layanan ini tidak membaca isi layar dan tidak mengirim data ke mana pun.</string>
+    <string name="a11y_service_label">Retrobit Voice — sisip otomatis</string>
+    <string name="a11y_service_description">Retrobit memakai layanan ini untuk mendeteksi fokus kolom teks, menyisipkan dikte langsung, dan membaca tombol volume jika pemicu diaktifkan. Dengan opt-in konteks layar, snapshot dibuat saat sesi asisten dimulai dan hanya dikirim ke LLM pilihan jika perintah Anda meminta membaca atau membalas layar; snapshot tidak disimpan di riwayat.</string>
     <string name="tile_assistant">Retrobit</string>
 
     <!-- ===== Navigasi ===== -->
@@ -31,7 +31,7 @@
     <!-- ===== Beranda ===== -->
     <string name="home_tagline">Dikte secepat bicara, plus asisten yang paham perintah Bahasa Indonesia — semuanya di satu aplikasi.</string>
     <string name="home_engine_title">Mesin yang siap dipakai</string>
-    <string name="home_insert_channels">Jalur penempelan</string>
+    <string name="home_insert_channels">Jalur penyisipan</string>
     <string name="home_current_config">Konfigurasi aktif</string>
     <string name="home_quick_title">Coba dikte sekarang</string>
     <string name="home_start_dictation">Mulai dikte</string>
@@ -50,10 +50,10 @@
     <string name="setup_mic_subtitle">Wajib untuk merekam suara Anda.</string>
     <string name="setup_ime_title">Keyboard Retrobit</string>
     <string name="setup_ime_subtitle">Cara terbaik memakai dikte di aplikasi apa pun.</string>
-    <string name="setup_a11y_title">Tempel otomatis (aksesibilitas)</string>
-    <string name="setup_a11y_subtitle">Tanpa ini, teks disalin ke papan klip saja.</string>
+    <string name="setup_a11y_title">Sisip otomatis (aksesibilitas)</string>
+    <string name="setup_a11y_subtitle">Diperlukan untuk mendeteksi kolom yang fokus, menyisipkan teks langsung, dan membaca tombol volume.</string>
     <string name="setup_overlay_title">Bubble melayang</string>
-    <string name="setup_overlay_subtitle">Tombol mikrofon selalu tersedia di layar.</string>
+    <string name="setup_overlay_subtitle">Bubble hanya muncul saat kolom teks mendapat fokus.</string>
     <string name="setup_assistant_title">Jadikan asisten bawaan</string>
     <string name="setup_assistant_subtitle">Tekan lama tombol Home untuk memanggil Retrobit.</string>
     <string name="setup_notif_title">Izin notifikasi</string>
@@ -68,6 +68,10 @@
     <string name="toast_contacts_denied">Tanpa izin kontak, sebutkan nomor secara langsung.</string>
     <string name="toast_volume_needs_mic">Izin mikrofon belum diberikan — tombol volume belum bisa memulai dikte.</string>
     <string name="toast_volume_start_failed">Tidak bisa memulai dikte dari tombol volume. Buka aplikasi Retrobit sekali, lalu coba lagi.</string>
+    <string name="toast_volume_assistant_busy">Asisten atau dikte sedang berjalan. Tunggu sampai sesi selesai.</string>
+    <string name="toast_wake_dictation_needs_mic">Izin mikrofon belum diberikan. Buka Retrobit untuk mengaktifkannya sebelum memakai wake word untuk dikte.</string>
+    <string name="toast_wake_dictation_failed">Wake word terdeteksi, tetapi dikte tidak dapat dimulai. Coba lagi dari aplikasi Retrobit.</string>
+    <string name="overlay_need_text_focus">Buka kolom teks lalu letakkan kursor agar bubble dikte tersedia.</string>
     <string name="toast_export_done">Setelan diekspor ke berkas yang dipilih.</string>
     <string name="toast_export_failed">Gagal menulis berkas cadangan.</string>
     <string name="toast_import_done">Setelan dipulihkan: %1$s</string>
@@ -88,7 +92,7 @@
     <string name="dictation_history_title">Riwayat dikte</string>
     <string name="dictation_history_empty">Riwayat masih kosong.</string>
     <string name="label_engine">Mesin</string>
-    <string name="label_inserted_via">Ditempel lewat</string>
+    <string name="label_inserted_via">Disisipkan lewat</string>
     <string name="label_available_channels">Tersedia</string>
     <string name="label_llm">Otak AI</string>
 
@@ -97,7 +101,7 @@
     <string name="ime_mic_start">Mulai dikte</string>
     <string name="ime_mic_stop">Hentikan dikte</string>
     <string name="ime_need_permission">Beri izin mikrofon di aplikasi Retrobit</string>
-    <string name="ime_done">Teks ditempel</string>
+    <string name="ime_done">Teks disisipkan</string>
     <string name="ime_repasted">Teks ditempel ulang</string>
 
     <!-- ===== Asisten ===== -->
@@ -109,6 +113,10 @@
     <string name="assistant_examples">Contoh: \"buka WhatsApp\", \"telepon Ibu\", \"alarm jam 5 pagi\", \"timer 10 menit\", \"nyalakan senter\", \"catat besok bayar listrik\", \"cari resep rendang\".</string>
     <string name="assistant_settings_title">Pengaturan cepat asisten</string>
     <string name="assistant_clear_history">Bersihkan riwayat percakapan</string>
+    <string name="assistant_confirmation_title">Konfirmasi draf pesan</string>
+    <string name="assistant_confirmation_to">Penerima</string>
+    <string name="assistant_confirmation_note">Pesan belum dikirim. Setujui untuk membuka draf di aplikasi pesan; periksa kembali lalu tekan Kirim.</string>
+    <string name="assistant_confirm_prepare">Setuju &amp; buka draf</string>
 
     <!-- ===== Pengaturan ===== -->
     <string name="settings_title">Pengaturan</string>
@@ -139,7 +147,7 @@
     <string name="insert_auto">Otomatis</string>
     <string name="insert_ime">Keyboard Retrobit</string>
     <string name="insert_a11y">Layanan aksesibilitas</string>
-    <string name="insert_clipboard">Papan klip saja</string>
+    <string name="settings_insert_direct_note">Hasil disisipkan langsung pada posisi kursor. Jika tidak ada kolom fokus atau jalur langsung, Retrobit tidak memakai papan klip otomatis.</string>
     <string name="settings_trigger">Cara berhenti merekam</string>
     <string name="trigger_hold">Tekan dan tahan</string>
     <string name="trigger_hands_free">Otomatis saat berhenti bicara</string>
@@ -150,19 +158,28 @@
     <string name="settings_volume_trigger_ready_hold">Siap. Tahan tombol volume untuk merekam, lepas untuk selesai — volume tidak ikut berubah.</string>
     <string name="settings_volume_trigger_ready_toggle">Siap. Tekan sekali untuk mulai/berhenti — volume tetap berubah seperti biasa.</string>
     <string name="settings_volume_trigger_needs_a11y">Aktifkan layanan aksesibilitas Retrobit dulu agar tombol volume bisa dibaca.</string>
+    <string name="settings_volume_trigger_split">Volume Atas membuka asisten saat ditahan; Volume Bawah tetap memicu dikte.</string>
+    <string name="settings_volume_assistant">Tahan Volume Atas untuk asisten</string>
+    <string name="settings_volume_assistant_note">Perlu aksesibilitas. Saat aktif, Volume Atas dicadangkan untuk asisten: tahan sekitar 0,7 detik untuk membuka sesi. Volume Bawah tetap mengatur volume, atau memicu dikte jika pemicu dikte volume aktif.</string>
+    <string name="settings_volume_assistant_ready">Siap. Volume Atas menjadi pintasan asisten (bukan pengatur volume); tahan sekitar 0,7 detik. Volume Bawah tetap mengatur volume atau memicu dikte.</string>
+    <string name="settings_volume_assistant_ready_split">Siap. Tahan Volume Atas untuk asisten; Volume Bawah tetap memicu dikte.</string>
     <string name="settings_assistant_title">Asisten</string>
     <string name="settings_assistant_subtitle">Tanpa AI daring, asisten tetap menjalankan puluhan perintah lewat aturan lokal.</string>
     <string name="llm_off">Nonaktif</string>
     <string name="settings_speak_replies">Bacakan jawaban</string>
+    <string name="settings_screen_context">Izinkan konteks layar (opt-in)</string>
+    <string name="settings_screen_context_note">Mati secara bawaan. Jika aktif, snapshot dibuat saat sesi asisten dimulai, tetapi hanya dikirim ke LLM pilihan bila perintah Anda meminta membaca atau membalas layar; snapshot tidak disimpan di riwayat.</string>
+    <string name="settings_screen_context_needs_a11y">Aktifkan layanan aksesibilitas untuk membaca snapshot layar atas permintaan. Kata sandi dan kolom yang sedang diketik dikecualikan.</string>
+    <string name="settings_screen_context_enabled_note">Opt-in aktif: snapshot satu kali saat sesi asisten dimulai; hanya diteruskan ke LLM pilihan untuk permintaan yang merujuk teks layar. Kata sandi dan kolom edit dikecualikan; tidak disimpan di riwayat.</string>
     <string name="settings_wake_word">Kata kunci panggilan</string>
-    <string name="settings_wake_word_note">Mendengarkan terus-menerus menambah pemakaian baterai.</string>
+    <string name="settings_wake_word_note">Dengan aksesibilitas atau keyboard Retrobit aktif, kolom teks biasa (bukan kata sandi) yang fokus membuat wake word memulai dikte; di luar mode mengetik, asisten mendengarkan perintah. Mendengarkan terus-menerus menambah baterai.</string>
     <string name="settings_wake_word_phrase">Frasa kata kunci</string>
     <string name="settings_data_title">Tampilan &amp; data</string>
     <string name="settings_display_title">Mode tampilan</string>
     <string name="settings_epaper_mode">Mode kertas terang (e-paper)</string>
     <string name="settings_epaper_mode_note">Panel jadi terang seperti e-reader di bawah matahari.</string>
     <string name="settings_overlay">Bubble mikrofon melayang</string>
-    <string name="settings_overlay_note">Ketuk untuk dikte, tekan lama untuk asisten.</string>
+    <string name="settings_overlay_note">Muncul hanya ketika kolom teks fokus. Ketuk untuk dikte hands-free; tekan lama untuk asisten.</string>
     <string name="settings_save_history">Simpan riwayat di perangkat</string>
     <string name="settings_clear_history">Bersihkan riwayat</string>
     <string name="settings_backup_title">Cadangan setelan</string>
@@ -183,9 +200,9 @@
     <string name="guide_step1_title">Pilih keyboard Retrobit</string>
     <string name="guide_step1_body">Buka pemilih keyboard lalu pilih \"Retrobit Voice\". Anda bisa kembali ke keyboard lama kapan pun lewat tombol keyboard di bar Retrobit.</string>
     <string name="guide_step2_title">Aktifkan layanan aksesibilitas</string>
-    <string name="guide_step2_body">Cari \"Retrobit Voice — tempel otomatis\" di daftar layanan terpasang lalu aktifkan. Ini yang membuat teks menempel sendiri tanpa membuka keyboard.</string>
+    <string name="guide_step2_body">Cari \"Retrobit Voice — sisip otomatis\" di daftar layanan terpasang lalu aktifkan. Layanan ini mendeteksi kolom yang fokus dan menyisipkan dikte langsung; pembacaan teks layar tetap mati sampai Anda mengaktifkan opt-in di Pengaturan.</string>
     <string name="guide_step3_title">Izinkan bubble melayang</string>
-    <string name="guide_step3_body">Aktifkan \"Tampil di atas aplikasi lain\" agar tombol mikrofon selalu bisa dipanggil.</string>
+    <string name="guide_step3_body">Aktifkan \"Tampil di atas aplikasi lain\". Bubble hanya terlihat saat kolom teks mendapat fokus.</string>
     <string name="guide_step4_title">Jadikan asisten bawaan (opsional)</string>
     <string name="guide_step4_body">Dengan ini, tekan lama tombol Home langsung membuka Retrobit dan mulai mendengarkan.</string>
     <string name="guide_step5_title">Rawat daya baterai</string>
@@ -195,6 +212,7 @@
     <string name="guide_tip_offline">Mode on-device bekerja tanpa internet sama sekali — cocok untuk catatan pribadi.</string>
     <string name="guide_tip_privacy">Audio dihapus segera setelah transkripsi bila Anda memakai mesin on-device.</string>
     <string name="guide_tip_llm">Asisten daring hanya aktif kalau Anda memasukkan API key Anda sendiri.</string>
+    <string name="guide_tip_screen_context">Konteks layar mati secara bawaan; snapshot hanya dibaca setelah opt-in dan permintaan Anda, lalu tidak disimpan di riwayat.</string>
     <string name="guide_open_settings">Buka pengaturan aplikasi</string>
     <string name="guide_refresh_status">Perbarui status mesin</string>
 
@@ -207,7 +225,7 @@
     <string name="notif_dictation_no_permission">Izin mikrofon diperlukan</string>
     <string name="notif_channel_overlay">Bubble Retrobit</string>
     <string name="overlay_notif_title">Bubble mikrofon aktif</string>
-    <string name="overlay_notif_text">Ketuk bubble untuk dikte, tekan lama untuk asisten.</string>
+    <string name="overlay_notif_text">Bubble hanya muncul pada kolom teks fokus; ketuk untuk dikte, tekan lama untuk asisten.</string>
     <string name="overlay_permission_needed">Berikan izin \"Tampil di atas aplikasi lain\" untuk memakai bubble.</string>
     <string name="overlay_processing">Masih memproses, tunggu sebentar…</string>
 </resources>

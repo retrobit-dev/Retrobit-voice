@@ -73,7 +73,7 @@ class RetrobitVoiceSession(context: Context) : VoiceInteractionSession(context) 
     override fun onShow(args: Bundle?, showFlags: Int) {
         super.onShow(args, showFlags)
         try {
-            AppGraph.require.assistant.openAssistantUi(autoListen = true)
+            AppGraph.require.assistant.openAssistantUi(autoListen = true, captureScreenContext = true)
         } catch (t: Throwable) {
             VoiceLog.e("Gagal membuka sesi asisten", t)
         }

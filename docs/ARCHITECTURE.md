@@ -55,13 +55,16 @@ DictationController.start(source)
         │       (bisa dipaksa lewat Pengaturan)
         │  4. pembersihan teks: OFF / LOCAL / AI(LLM, fallback lokal)
         │  5. TextInserter.insert()
-        │       IME → AccessibilityService → Clipboard
+        │       IME.commitText() → AccessibilityService.ACTION_SET_TEXT + restore caret
+        │       (tanpa fallback clipboard; jalur manual hanya menampilkan hasil)
         │  6. HistoryStore (opsional, di perangkat saja)
         ▼
 UiState (phase, stage, partial, finalText, engine, insertChannel, error)
         │
         └──► dibaca oleh layar, bar IME, bubble, dan notifikasi
 ```
+
+`OverlayBubbleService` menggabungkan status fokus dari aksesibilitas dengan status dikte: bubble disembunyikan di luar kolom teks yang fokus. Saat merekam, waveform kecil mengikuti amplitudo mikrofon; sumber `OVERLAY` auto-stop setelah hening walau pemicu global memakai mode tahan.
 
 ### Mengapa merekam sendiri, bukan menyerahkan mikrofon ke SpeechRecognizer?
 
@@ -83,9 +86,9 @@ turun ke cloud atau ke mode siaran langsung `AndroidSystemSttEngine`.
 
 ```
 kalimat pengguna (suara via DictationController.listenForText, atau teks)
-        │
+        │   + snapshot layar satu-kali hanya bila opt-in aktif dan permintaan kontekstual
         ▼
-AssistantBrain.understand(text, settings, history)
+AssistantBrain.understand(text, settings, history, screenContext)
         │
         ├─ 1. CommandParser (offline, regex + NumberWords)
         │       cocok & confidence ≥ 0.85 → langsung dieksekusi
@@ -97,19 +100,24 @@ AssistantBrain.understand(text, settings, history)
         └─ 3. Fallback → WebSearch + kalimat penjelas (tidak pernah buntu)
         │
         ▼
-AssistantExecutor.execute(action, settings)      AssistantSession
-        │  Intent resmi Android:                  · TTS jawaban
-        │  open_app  : MAIN/LAUNCHER + AppResolver · riwayat percakapan
-        │  call/dial : ACTION_DIAL / ACTION_CALL   · status untuk UI
-        │  alarm     : AlarmClock.ACTION_SET_ALARM
-        │  timer     : AlarmClock.ACTION_SET_TIMER
-        │  message   : wa.me → smsto: → ACTION_SEND
-        │  torch     : CameraManager.setTorchMode
-        │  volume    : AudioManager (absolut/relatif)
-        │  settings  : Settings.ACTION_* per panel
-        │  note      : HistoryStore.appendNote
-        ▼
-Outcome(success, message) → reply final → dibacakan + dikirim ke UI
+AssistantSession (menjaga konfirmasi)                    TTS
+        │                                                   │
+        ├─ send_message → pending card + prompt ya/tidak ──┤ (menunggu selesai)
+        │   hanya affirmative eksplisit / tap konfirmasi     │
+        ▼                                                   │
+AssistantExecutor.execute(action, settings)                 │
+        │  Intent resmi Android:                            │
+        │  open_app  : MAIN/LAUNCHER + AppResolver          │
+        │  call/dial : ACTION_DIAL / ACTION_CALL            │
+        │  alarm     : AlarmClock.ACTION_SET_ALARM           │
+        │  timer     : AlarmClock.ACTION_SET_TIMER           │
+        │  message   : buka draf wa.me / SMS; pengguna tap Send
+        │  torch     : CameraManager.setTorchMode             │
+        │  volume    : AudioManager (absolut/relatif)         │
+        │  settings  : Settings.ACTION_* per panel            │
+        │  note      : HistoryStore.appendNote                │
+        ▼                                                   │
+Outcome(success, message) → jawaban + status UI ◄───────────┘
 ```
 
 ### Keputusan desain yang penting
@@ -133,24 +141,25 @@ Outcome(success, message) → reply final → dibacakan + dikirim ke UI
 4. **Kata kunci panggilan memakai recognizer, bukan model KWS khusus.**
    Jujur soal trade-off: ini hemat pengembangan tetapi lebih boros baterai.
    Karena itu fitur ini **mati secara bawaan** dan diberi peringatan di Pengaturan.
-   Titik ganti ke model khusus hanyalah `WakeWordListener` — seluruh kode lain
-   hanya bergantung pada callback `onWake`.
+   `WakeWordIntentRouter` memilih aksi berdasarkan fokus input saat kata kunci
+   terdengar: kolom teks aktif → dikte hands-free; di luar mode mengetik → sesi
+   perintah asisten. Titik ganti ke model khusus hanyalah `WakeWordListener` —
+   seluruh kode lain hanya bergantung pada callback `onWake`.
 
 ---
 
-## 4. Penempelan teks: tiga jalur, satu API
+## 4. Penyisipan teks: dua jalur langsung, tanpa clipboard
 
 `TextInserter` mencoba jalur sesuai `InsertMethod` (bawaan: `AUTO`):
 
 | Urutan | Jalur | Syarat | Hasil |
 | --- | --- | --- | --- |
 | 1 | `RetrobitImeService` → `InputConnection.commitText()` | Keyboard Retrobit aktif | Teks masuk tepat di kursor |
-| 2 | `TextInsertAccessibilityService` | Layanan aksesibilitas diaktifkan | Salin ke klip lalu `ACTION_PASTE` ke kolom fokus |
-| 3 | Papan klip | Selalu | Teks siap ditempel manual + pemberitahuan |
+| 2 | `TextInsertAccessibilityService` → `ACTION_SET_TEXT` + `ACTION_SET_SELECTION` | Layanan aksesibilitas aktif dan kolom dapat diedit | Teks disisipkan pada seleksi/kursor dan posisi caret dipulihkan |
 
-Layanan aksesibilitas sengaja **tidak membaca isi layar**: `onAccessibilityEvent` kosong,
-tidak ada paket yang dimonitor (`android:accessibilityEventTypes` hanya fokus & jendela,
-tanpa pengumpulan teks masukan). Aplikasi hanya bertindak saat dipanggil.
+Jika jalur langsung gagal, status menjadi error; teks tidak disalin otomatis ke clipboard. Mode Dikte di aplikasi menampilkan hasil dan tombol Salin tetap merupakan tindakan manual pengguna.
+
+Layanan aksesibilitas memakai event untuk mendeteksi fokus kolom dan tombol volume. Pembacaan isi jendela hanya dilakukan melalui snapshot terbatas satu-kali, bila opt-in konteks layar aktif dan pengguna meminta membaca/membalas layar. Snapshot mengecualikan node password/editable, tidak dicatat di riwayat, dan diperlakukan sebagai data tidak tepercaya oleh prompt LLM.
 
 ---
 
@@ -160,7 +169,8 @@ tanpa pengumpulan teks masukan). Aplikasi hanya bertindak saat dipanggil.
 | --- | --- | --- |
 | Preferensi | `DataStore` (`retrobit_settings`) | Semua opsi mesin, bahasa, pemicu |
 | API key | DataStore, **terenkripsi AES-GCM** dengan kunci di Android Keystore | Kalau Keystore tidak tersedia (mis. unit test) → ditandai `plain:` dan UI memperingatkan |
-| Riwayat dikte & percakapan | JSONL di penyimpanan internal aplikasi | Maksimal 200 entri, bisa dihapus/dimatikan |
+| Riwayat dikte & percakapan | JSONL di penyimpanan internal aplikasi | Maksimal 200 entri, bisa dihapus/dimatikan; snapshot layar tidak dicatat |
+| Snapshot layar | Memori sesi sementara | Opt-in mati secara bawaan; hanya diteruskan ke LLM untuk permintaan baca/balas layar, lalu dibuang |
 | Audio rekaman | `cacheDir/rekaman/*.wav` | Dihapus setelah transkripsi (berhasil maupun gagal) |
 
 Tidak ada telemetri, tidak ada server milik proyek. Setiap byte yang keluar dari perangkat

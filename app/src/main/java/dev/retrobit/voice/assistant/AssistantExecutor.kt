@@ -200,6 +200,9 @@ class AssistantExecutor(
     }
 
     private fun sendMessage(action: AssistantAction.SendMessage): Outcome {
+        if (action.body.isBlank()) {
+            return Outcome(false, "Isi pesan masih kosong; tidak ada draf yang dibuka")
+        }
         var number: String? = null
         var display = action.contactName
         if (contacts.hasPermission()) {
@@ -219,7 +222,7 @@ class AssistantExecutor(
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             if (wa.resolveActivity(context.packageManager) != null) {
                 context.startActivity(wa)
-                return Outcome(true, "Pesan WhatsApp untuk $display sudah disiapkan. Tekan kirim untuk mengirim.")
+                return Outcome(true, "Draf WhatsApp untuk $display sudah dibuka. Periksa pesannya lalu tekan Kirim di WhatsApp untuk mengirim.")
             }
             // 2) SMS bawaan
             val sms = Intent(Intent.ACTION_SENDTO, Uri.parse("smsto:$number")).apply {
@@ -228,7 +231,7 @@ class AssistantExecutor(
             }
             return try {
                 context.startActivity(sms)
-                Outcome(true, "Pesan SMS untuk $display sudah disiapkan.")
+                Outcome(true, "Draf SMS untuk $display sudah dibuka. Periksa pesannya lalu tekan Kirim di aplikasi pesan.")
             } catch (t: Throwable) {
                 Outcome(false, "Tidak ada aplikasi pesan yang bisa dipakai")
             }

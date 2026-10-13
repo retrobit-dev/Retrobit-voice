@@ -52,6 +52,7 @@ fun SettingsScreen(vm: AppViewModel, modifier: Modifier = Modifier) {
     val settings by vm.settings.collectAsStateWithLifecycle()
     val current = settings ?: AppSettings()
     val context = LocalContext.current
+    val accessibilityActive = DeviceState.isAccessibilityEnabled(context) || TextInsertAccessibilityService.isConnected()
     var log by remember { mutableStateOf("") }
     var deviceCheck by remember { mutableStateOf("") }
 
@@ -191,10 +192,14 @@ fun SettingsScreen(vm: AppViewModel, modifier: Modifier = Modifier) {
                     InsertMethod.AUTO to str(R.string.insert_auto),
                     InsertMethod.IME to str(R.string.insert_ime),
                     InsertMethod.ACCESSIBILITY to str(R.string.insert_a11y),
-                    InsertMethod.CLIPBOARD to str(R.string.insert_clipboard),
                 ),
                 selected = current.insertMethod,
                 onSelect = { value -> vm.update { it.copy(insertMethod = value) } },
+            )
+            Text(
+                text = str(R.string.settings_insert_direct_note),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             Text(str(R.string.settings_trigger), style = MaterialTheme.typography.bodyMedium)
             PillsColumn(
@@ -208,18 +213,29 @@ fun SettingsScreen(vm: AppViewModel, modifier: Modifier = Modifier) {
             )
             // Pemicu lewat tombol volume: hanya bisa dibaca dari layanan aksesibilitas,
             // jadi status layanan itu ditampilkan apa adanya di sini.
-            val accessibilityActive = DeviceState.isAccessibilityEnabled(context) || TextInsertAccessibilityService.isConnected()
             SwitchRow(
                 title = str(R.string.settings_volume_trigger),
                 subtitle = when {
                     !current.volumeKeyTriggerEnabled -> str(R.string.settings_volume_trigger_note)
                     !accessibilityActive -> str(R.string.settings_volume_trigger_needs_a11y)
+                    current.volumeKeyAssistantEnabled -> str(R.string.settings_volume_trigger_split)
                     current.dictationTrigger == DictationTrigger.HOLD_TO_TALK ->
                         str(R.string.settings_volume_trigger_ready_hold)
                     else -> str(R.string.settings_volume_trigger_ready_toggle)
                 },
                 checked = current.volumeKeyTriggerEnabled,
                 onChange = { value -> vm.update { it.copy(volumeKeyTriggerEnabled = value) } },
+            )
+            SwitchRow(
+                title = str(R.string.settings_volume_assistant),
+                subtitle = when {
+                    !current.volumeKeyAssistantEnabled -> str(R.string.settings_volume_assistant_note)
+                    !accessibilityActive -> str(R.string.settings_volume_trigger_needs_a11y)
+                    current.volumeKeyTriggerEnabled -> str(R.string.settings_volume_assistant_ready_split)
+                    else -> str(R.string.settings_volume_assistant_ready)
+                },
+                checked = current.volumeKeyAssistantEnabled,
+                onChange = { value -> vm.update { it.copy(volumeKeyAssistantEnabled = value) } },
             )
             Text(
                 text = str(R.string.settings_silence_timeout) + ": " + current.silenceTimeoutMs + " MS",
@@ -281,6 +297,16 @@ fun SettingsScreen(vm: AppViewModel, modifier: Modifier = Modifier) {
                 title = str(R.string.settings_speak_replies),
                 checked = current.speakReplies,
                 onChange = { value -> vm.update { it.copy(speakReplies = value) } },
+            )
+            SwitchRow(
+                title = str(R.string.settings_screen_context),
+                subtitle = when {
+                    !current.screenContextEnabled -> str(R.string.settings_screen_context_note)
+                    !accessibilityActive -> str(R.string.settings_screen_context_needs_a11y)
+                    else -> str(R.string.settings_screen_context_enabled_note)
+                },
+                checked = current.screenContextEnabled,
+                onChange = { value -> vm.update { it.copy(screenContextEnabled = value) } },
             )
             SwitchRow(
                 title = str(R.string.settings_wake_word),
