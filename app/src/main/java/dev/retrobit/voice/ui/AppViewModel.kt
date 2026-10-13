@@ -2,17 +2,29 @@ package dev.retrobit.voice.ui
 
 import android.app.Application
 import android.content.Intent
+import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import dev.retrobit.voice.BuildConfig
+import dev.retrobit.voice.R
 import dev.retrobit.voice.core.AppGraph
+import dev.retrobit.voice.core.VoiceLog
 import dev.retrobit.voice.data.AppSettings
+import dev.retrobit.voice.data.InvalidSnapshotException
+import dev.retrobit.voice.data.decodeSettingsSnapshot
+import dev.retrobit.voice.data.describe
+import dev.retrobit.voice.data.encode
+import dev.retrobit.voice.data.toSettings
+import dev.retrobit.voice.data.toSnapshot
 import dev.retrobit.voice.dictation.DictationController
 import dev.retrobit.voice.dictation.DictationService
 import dev.retrobit.voice.dictation.overlay.OverlayBubbleService
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * Satu ViewModel untuk seluruh aplikasi. Aplikasi ini cukup kecil sehingga
@@ -110,6 +122,61 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     fun stopOverlayBubble() {
         OverlayBubbleService.stop(getApplication())
         update { it.copy(overlayBubbleEnabled = false) }
+    }
+
+    // ---------------- Cadangan setelan ----------------
+
+    /**
+     * Tulis setelan aktif ke berkas yang dipilih pengguna (lewat SAF).
+     *
+     * Terutama berguna untuk memindahkan API key: kunci Android Keystore ikut
+     * terhapus saat aplikasi di-uninstall, jadi berkas inilah satu-satunya cara
+     * memulihkan setelan tanpa mengetik ulang dari awal.
+     */
+    fun exportSettingsTo(uri: Uri) {
+        viewModelScope.launch {
+            val app = getApplication<Application>()
+            val hasil = runCatching {
+                val current = graph.settings.current()
+                withContext(Dispatchers.IO) {
+                    val text = current.toSnapshot(versionName = BuildConfig.VERSION_NAME).encode()
+                    val out = app.contentResolver.openOutputStream(uri, "wt")
+                        ?: error("Tidak bisa membuka berkas tujuan")
+                    out.use { it.write(text.toByteArray(Charsets.UTF_8)) }
+                }
+            }
+            hasil.exceptionOrNull()?.let { VoiceLog.e("Ekspor setelan gagal", it) }
+            _toast.value = app.getString(
+                if (hasil.isSuccess) R.string.toast_export_done else R.string.toast_export_failed,
+            )
+        }
+    }
+
+    /** Baca berkas cadangan lalu terapkan isinya ke setelan aktif. */
+    fun importSettingsFrom(uri: Uri) {
+        viewModelScope.launch {
+            val app = getApplication<Application>()
+            val hasil = runCatching {
+                val text = withContext(Dispatchers.IO) {
+                    val input = app.contentResolver.openInputStream(uri)
+                        ?: error("Tidak bisa membuka berkas cadangan")
+                    input.use { String(it.readBytes(), Charsets.UTF_8) }
+                }
+                val snapshot = decodeSettingsSnapshot(text)
+                // update() menulis ulang lewat SecretStore, jadi API key dari berkas
+                // otomatis dienkripsi lagi — bukan disimpan mentah.
+                graph.settings.update { current -> snapshot.toSettings(current) }
+                app.getString(R.string.toast_import_done, snapshot.describe())
+            }
+            hasil.exceptionOrNull()?.let { VoiceLog.e("Impor setelan gagal", it) }
+            _toast.value = hasil.getOrElse { t ->
+                if (t is InvalidSnapshotException) {
+                    t.message ?: app.getString(R.string.toast_import_invalid)
+                } else {
+                    app.getString(R.string.toast_import_failed)
+                }
+            }
+        }
     }
 
     // ---------------- Diagnostik ----------------

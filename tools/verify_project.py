@@ -10,6 +10,8 @@ menangkap kesalahan yang paling sering terjadi SEBELUM build di Android Studio:
   3. Referensi @string/@drawable/@xml/@color/@mipmap/@style di dalam XML
   4. Keseimbangan kurung kurawal & tanda kutip pada berkas Kotlin
   5. Kunci string yang ada di values/ tetapi belum diterjemahkan di values-en/
+  6. Keputusan arsitektur yang mudah terulang tanpa sengaja: penanganan inset
+     edge-to-edge (wajib sejak targetSdk 35) dan larangan QUERY_ALL_PACKAGES
 
 Jalankan: python3 tools/verify_project.py
 """
@@ -152,10 +154,49 @@ missing_en = sorted(set(strings_id) - set(strings_en))
 if missing_en:
     warnings.append(f"values-en/ belum memuat {len(missing_en)} kunci: {', '.join(missing_en[:10])}")
 
+# ---------- 7. Penjaga keputusan arsitektur ----------
+# Kesalahan di bagian ini tidak menggagalkan kompilasi, jadi tanpa pemeriksaan
+# seperti ini ia hanya terlihat di perangkat (atau saat review Play).
+all_kotlin = "\n".join(kotlin_sources.values())
+build_gradle = read(ROOT / "app/build.gradle.kts")
+target_match = re.search(r"targetSdk\s*=\s*(\d+)", build_gradle)
+target_sdk = int(target_match.group(1)) if target_match else None
+
+# 7a. Android 15 memaksa tampilan edge-to-edge begitu targetSdk >= 35: jendela
+# menggambar di belakang system bar, jadi inset harus ditangani sendiri.
+# Lihat docs/ARCHITECTURE.md bagian "Edge-to-edge & inset".
+if target_sdk is not None and target_sdk >= 35:
+    if "enableEdgeToEdge()" not in all_kotlin:
+        errors.append("targetSdk >= 35 tetapi enableEdgeToEdge() tidak dipanggil")
+    if "windowInsetsPadding" not in all_kotlin and "safeDrawing" not in all_kotlin:
+        errors.append(
+            "targetSdk >= 35 tetapi tidak ada padding inset "
+            "(windowInsetsPadding / WindowInsets.safeDrawing) — konten bisa tertutup "
+            "navigasi bar atau keyboard",
+        )
+
+# 7b. Opt-out edge-to-edge sudah dimatikan di Android 16, jadi memakainya hanya
+# memberi rasa aman yang salah.
+for path in sorted(list(RES.rglob("*.xml")) + [MANIFEST] + list(kotlin_files)):
+    if "windowOptOutEdgeToEdgeEnforcement" in read(path):
+        errors.append(
+            f"{path.relative_to(ROOT)}: memakai windowOptOutEdgeToEdgeEnforcement "
+            "(sudah dimatikan di Android 16)",
+        )
+
+# 7c. QUERY_ALL_PACKAGES dibatasi kebijakan Play; blok <queries> yang terarah
+# sudah cukup untuk mencari aplikasi peluncur.
+if re.search(r"<uses-permission[^>]*android\.permission\.QUERY_ALL_PACKAGES", manifest_text):
+    errors.append(
+        "AndroidManifest.xml: QUERY_ALL_PACKAGES dideklarasikan lagi "
+        "(dibatasi kebijakan Play, blok <queries> sudah cukup)",
+    )
+
 # ---------- Laporan ----------
 print(f"Berkas Kotlin diperiksa : {len(kotlin_files)}")
 print(f"String (id/en)          : {len(strings_id)}/{len(strings_en)}")
 print(f"Drawable/layout/xml/id  : {len(drawables)}/{len(layouts)}/{len(xmls)}/{len(layout_ids)}")
+print(f"targetSdk               : {target_sdk if target_sdk is not None else 'tidak ditemukan'}")
 print()
 
 for warning in warnings:

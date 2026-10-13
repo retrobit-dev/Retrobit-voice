@@ -68,6 +68,11 @@
     <string name="toast_contacts_denied">Tanpa izin kontak, sebutkan nomor secara langsung.</string>
     <string name="toast_volume_needs_mic">Izin mikrofon belum diberikan — tombol volume belum bisa memulai dikte.</string>
     <string name="toast_volume_start_failed">Tidak bisa memulai dikte dari tombol volume. Buka aplikasi Retrobit sekali, lalu coba lagi.</string>
+    <string name="toast_export_done">Setelan diekspor ke berkas yang dipilih.</string>
+    <string name="toast_export_failed">Gagal menulis berkas cadangan.</string>
+    <string name="toast_import_done">Setelan dipulihkan: %1$s</string>
+    <string name="toast_import_failed">Gagal membaca berkas cadangan.</string>
+    <string name="toast_import_invalid">Berkas cadangan tidak dikenali.</string>
 
     <!-- ===== Dikte ===== -->
     <string name="dictation_idle">Siap mendengarkan</string>
@@ -160,6 +165,10 @@
     <string name="settings_overlay_note">Ketuk untuk dikte, tekan lama untuk asisten.</string>
     <string name="settings_save_history">Simpan riwayat di perangkat</string>
     <string name="settings_clear_history">Bersihkan riwayat</string>
+    <string name="settings_backup_title">Cadangan setelan</string>
+    <string name="settings_export">Ekspor</string>
+    <string name="settings_import">Impor</string>
+    <string name="settings_backup_note">Berkas JSON memuat API key dalam bentuk teks biasa — simpan di tempat aman. Berguna untuk memulihkan setelan setelah aplikasi di-uninstall, karena kunci penyimpanan ikut terhapus.</string>
     <string name="settings_battery">Izinkan berjalan di latar belakang</string>
     <string name="settings_diagnostics">Diagnostik</string>
     <string name="settings_check_engine">Cek mesin</string>

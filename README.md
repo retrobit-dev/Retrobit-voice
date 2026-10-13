@@ -97,15 +97,23 @@ Anda ──►│ Keyboard / │ ───────────────�
 3. Unduh:
    - **`app-release.apk`** (±1,5 MB) — versi rilis, sudah diminifikasi & ditandatangani. **Pakai ini.**
    - `app-debug.apk` (±10 MB) — versi debug, untuk melaporkan masalah dengan log lengkap.
-4. Buka berkas di ponsel → izinkan "Instal dari sumber tidak dikenal" bila diminta.
+4. **Uninstall versi lama lebih dulu**, lalu buka berkas di ponsel → izinkan "Instal dari sumber tidak dikenal" bila diminta.
 
 Release dibuat otomatis oleh CI setiap kali `main` diperbarui, jadi tidak perlu login untuk mengunduh.
 
 **Alternatif (butuh login GitHub):** tab **Actions** → workflow **Build APK** → **Artifacts**.
 
-> APK rilis untuk versi resmi dibuat lewat tag `v*` dan ditandatangani dengan keystore dari
-> GitHub Secrets (`KEYSTORE_PATH`, `KEYSTORE_PASSWORD`, `KEY_ALIAS`, `KEY_PASSWORD`).
-> Kalau secret belum diisi, CI memakai kunci uji — cukup untuk dipasang, tidak untuk Play Store.
+> ⚠️ **Setiap build ditandatangani kunci sekali pakai.** Repositori ini tidak menyimpan keystore
+> permanen, jadi tanda tangan APK berbeda di tiap build dan Android **menolak** pemasangan yang
+> menimpa versi lama (`INSTALL_FAILED_UPDATE_INCOMPATIBLE`) — uninstall selalu diperlukan.
+>
+> Karena uninstall juga menghapus setelan, riwayat, dan API key (kunci penyimpanan ikut terhapus),
+> jalankan **Pengaturan → Cadangan setelan → Ekspor** sebelum mengganti versi, lalu **Impor**
+> setelah versi baru terpasang. Berkas cadangan memuat API key dalam bentuk teks biasa — simpan
+> di tempat aman.
+>
+> Konsekuensi lain dari keputusan ini: jalur **Play Store tertutup** selama tidak ada keystore
+> tetap, karena unggahan ke Play wajib ditandatangani kunci yang Anda simpan sendiri.
 
 ## Cara build
 
@@ -115,10 +123,12 @@ Butuh **Android Studio Ladybug (2024.2)** atau lebih baru, JDK 17, dan Android S
 git clone https://github.com/retrobit-dev/Retrobit-voice.git
 cd Retrobit-voice
 ./gradlew assembleDebug          # APK: app/build/outputs/apk/debug/
-./gradlew testDebugUnitTest      # uji parser & pembersih teks (JVM, tanpa emulator)
+./gradlew testDebugUnitTest      # uji parser, pembersih teks, cadangan setelan (JVM, tanpa emulator)
+./gradlew lintDebug              # temuan bertingkat error menggagalkan build
+python3 tools/verify_project.py  # pemeriksa konsistensi resource/manifest (tanpa Android SDK)
 ```
 
-CI GitHub Actions (`.github/workflows/build.yml`) otomatis menjalankan unit test dan menghasilkan APK debug setiap push.
+CI GitHub Actions (`.github/workflows/build.yml`) otomatis menjalankan unit test, **Lint**, dan menghasilkan APK debug setiap push.
 Tag `v*` juga membangun APK rilis dan melampirkannya ke GitHub Release.
 
 > **Catatan sandbox pengembangan:** repositori ini bisa saja belum memuat `gradle/wrapper/gradle-wrapper.jar`.
