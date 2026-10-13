@@ -1,5 +1,7 @@
 package dev.retrobit.voice.ui.screens
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -28,12 +30,14 @@ import dev.retrobit.voice.data.DictationTrigger
 import dev.retrobit.voice.data.InsertMethod
 import dev.retrobit.voice.data.LlmProvider
 import dev.retrobit.voice.data.SettingsRepository
+import dev.retrobit.voice.data.SettingsSnapshotFormat
 import dev.retrobit.voice.data.SttEngineChoice
 import dev.retrobit.voice.dictation.a11y.TextInsertAccessibilityService
 import dev.retrobit.voice.dictation.insert.ClipboardHelper
 import dev.retrobit.voice.ui.AppViewModel
 import dev.retrobit.voice.ui.DeviceState
 import dev.retrobit.voice.ui.components.BracketButton
+import dev.retrobit.voice.ui.components.Divider8
 import dev.retrobit.voice.ui.components.LabeledValue
 import dev.retrobit.voice.ui.components.Panel
 import dev.retrobit.voice.ui.components.PillsColumn
@@ -50,6 +54,18 @@ fun SettingsScreen(vm: AppViewModel, modifier: Modifier = Modifier) {
     val context = LocalContext.current
     var log by remember { mutableStateOf("") }
     var deviceCheck by remember { mutableStateOf("") }
+
+    // Pemilih berkas sistem (SAF): aplikasi tidak perlu izin penyimpanan.
+    val exportLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("application/json"),
+    ) { uri -> if (uri != null) vm.exportSettingsTo(uri) }
+
+    // Sengaja menerima semua tipe berkas: sebagian pengelola berkas melaporkan
+    // .json sebagai application/octet-stream sehingga berkasnya jadi tak terlihat.
+    // Isi berkas tetap divalidasi saat dibaca.
+    val importLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument(),
+    ) { uri -> if (uri != null) vm.importSettingsFrom(uri) }
 
     Column(
         modifier
@@ -304,6 +320,28 @@ fun SettingsScreen(vm: AppViewModel, modifier: Modifier = Modifier) {
                     onClick = { context.startActivity(DeviceState.batterySettingsIntent()) },
                 )
             }
+
+            Divider8()
+            Text(
+                text = str(R.string.settings_backup_title),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                BracketButton(
+                    text = str(R.string.settings_export),
+                    onClick = { exportLauncher.launch(SettingsSnapshotFormat.SUGGESTED_FILE_NAME) },
+                )
+                BracketButton(
+                    text = str(R.string.settings_import),
+                    onClick = { importLauncher.launch(arrayOf("*/*")) },
+                )
+            }
+            Text(
+                text = str(R.string.settings_backup_note),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
 
         // ---------- Diagnostik ----------

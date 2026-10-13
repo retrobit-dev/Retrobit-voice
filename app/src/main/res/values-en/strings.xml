@@ -64,6 +64,11 @@
     <string name="toast_contacts_denied">Without contacts, say the number out loud instead.</string>
     <string name="toast_volume_needs_mic">Microphone permission is missing — the volume buttons cannot start dictation yet.</string>
     <string name="toast_volume_start_failed">Could not start dictation from the volume button. Open the Retrobit app once, then try again.</string>
+    <string name="toast_export_done">Settings exported to the chosen file.</string>
+    <string name="toast_export_failed">Could not write the backup file.</string>
+    <string name="toast_import_done">Settings restored: %1$s</string>
+    <string name="toast_import_failed">Could not read the backup file.</string>
+    <string name="toast_import_invalid">Backup file not recognised.</string>
 
     <string name="dictation_idle">Ready to listen</string>
     <string name="dictation_listening">Listening…</string>
@@ -152,6 +157,10 @@
     <string name="settings_overlay_note">Tap to dictate, long-press for the assistant.</string>
     <string name="settings_save_history">Keep history on device</string>
     <string name="settings_clear_history">Clear history</string>
+    <string name="settings_backup_title">Settings backup</string>
+    <string name="settings_export">Export</string>
+    <string name="settings_import">Import</string>
+    <string name="settings_backup_note">The JSON file holds your API keys in plain text — keep it somewhere safe. Useful for restoring settings after the app is uninstalled, because the storage key is wiped too.</string>
     <string name="settings_battery">Allow background running</string>
     <string name="settings_diagnostics">Diagnostics</string>
     <string name="settings_check_engine">Check engines</string>
