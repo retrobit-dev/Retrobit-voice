@@ -1,6 +1,7 @@
 package dev.retrobit.voice.ai
 
 import dev.retrobit.voice.core.VoiceLog
+import dev.retrobit.voice.data.ApiKeys
 import dev.retrobit.voice.data.AppSettings
 import dev.retrobit.voice.data.LlmProvider
 import dev.retrobit.voice.data.SettingsRepository
@@ -96,7 +97,8 @@ class LlmClient {
         val builder = Request.Builder()
             .url("$base/v1/chat/completions")
             .post(payload.toRequestBody("application/json".toMediaType()))
-        if (settings.llmApiKey.isNotBlank()) builder.addHeader("Authorization", "Bearer ${settings.llmApiKey}")
+        val llmKey = ApiKeys.sanitize(settings.llmApiKey)
+        if (llmKey.isNotBlank()) builder.addHeader("Authorization", "Bearer $llmKey")
 
         return Http.execute(builder.build()) { response ->
             val body = response.body?.string().orEmpty()
@@ -145,7 +147,7 @@ class LlmClient {
 
         val request = Request.Builder()
             .url("$base/v1beta/models/$model:generateContent")
-            .addHeader("x-goog-api-key", settings.llmApiKey)
+            .addHeader("x-goog-api-key", ApiKeys.sanitize(settings.llmApiKey))
             .post(payload.toString().toRequestBody("application/json".toMediaType()))
             .build()
 

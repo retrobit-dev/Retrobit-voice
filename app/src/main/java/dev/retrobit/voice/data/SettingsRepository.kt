@@ -126,7 +126,7 @@ class SettingsRepository(private val context: Context) {
             val updated = transform(prefs.toSettings())
             prefs[K.sttEngine] = updated.sttEngine.name
             prefs[K.cloudSttProvider] = updated.cloudSttProvider.name
-            prefs[K.cloudSttApiKey] = SecretStore.encrypt(updated.cloudSttApiKey)
+            prefs[K.cloudSttApiKey] = SecretStore.encrypt(ApiKeys.sanitize(updated.cloudSttApiKey))
             prefs[K.cloudSttBaseUrl] = updated.cloudSttBaseUrl
             prefs[K.cloudSttModel] = updated.cloudSttModel
             prefs[K.dictationLanguage] = updated.dictationLanguage
@@ -140,7 +140,7 @@ class SettingsRepository(private val context: Context) {
             prefs[K.keepScreenOn] = updated.keepScreenOnWhileDictating
 
             prefs[K.llmProvider] = updated.llmProvider.name
-            prefs[K.llmApiKey] = SecretStore.encrypt(updated.llmApiKey)
+            prefs[K.llmApiKey] = SecretStore.encrypt(ApiKeys.sanitize(updated.llmApiKey))
             prefs[K.llmBaseUrl] = updated.llmBaseUrl
             prefs[K.llmModel] = updated.llmModel
             prefs[K.wakeWordEnabled] = updated.wakeWordEnabled
@@ -165,7 +165,7 @@ class SettingsRepository(private val context: Context) {
         return AppSettings(
             sttEngine = enumOr(this[K.sttEngine], defaults.sttEngine),
             cloudSttProvider = enumOr(this[K.cloudSttProvider], defaults.cloudSttProvider),
-            cloudSttApiKey = SecretStore.decrypt(this[K.cloudSttApiKey]),
+            cloudSttApiKey = ApiKeys.sanitize(SecretStore.decrypt(this[K.cloudSttApiKey])),
             cloudSttBaseUrl = this[K.cloudSttBaseUrl] ?: defaults.cloudSttBaseUrl,
             cloudSttModel = this[K.cloudSttModel] ?: defaults.cloudSttModel,
             dictationLanguage = this[K.dictationLanguage] ?: defaults.dictationLanguage,
@@ -178,7 +178,7 @@ class SettingsRepository(private val context: Context) {
             silenceTimeoutMs = this[K.silenceTimeoutMs] ?: defaults.silenceTimeoutMs,
             keepScreenOnWhileDictating = this[K.keepScreenOn] ?: defaults.keepScreenOnWhileDictating,
             llmProvider = enumOr(this[K.llmProvider], defaults.llmProvider),
-            llmApiKey = SecretStore.decrypt(this[K.llmApiKey]),
+            llmApiKey = ApiKeys.sanitize(SecretStore.decrypt(this[K.llmApiKey])),
             llmBaseUrl = this[K.llmBaseUrl] ?: defaults.llmBaseUrl,
             llmModel = this[K.llmModel] ?: defaults.llmModel,
             wakeWordEnabled = this[K.wakeWordEnabled] ?: defaults.wakeWordEnabled,

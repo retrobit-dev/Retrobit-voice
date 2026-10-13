@@ -13,6 +13,7 @@ import dev.retrobit.voice.data.CleanupMode
 import dev.retrobit.voice.data.DictationTrigger
 import dev.retrobit.voice.data.SttEngineChoice
 import dev.retrobit.voice.text.LocalTextCleaner
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -96,13 +97,21 @@ class DictationController(
         _state.value = UiState(phase = Phase.LISTENING, source = source, stage = "Mendengarkan…")
 
         captureJob = scope.launch {
-            val settings = graph.settings.current()
+            var wakeWordPaused = false
             try {
+                // Lepas loop SpeechRecognizer wake-word sebelum AudioRecord
+                // mengambil mikrofon. Menunggu sampai cleanup selesai mencegah
+                // dua klien Android berebut mic/recognizer secara bersamaan.
+                wakeWordPaused = true
+                graph.assistant.pauseWakeWordForDictation()
+                val settings = graph.settings.current()
                 if (settings.sttEngine == SttEngineChoice.SYSTEM_LIVE) {
                     runLiveSystemSession(settings)
                 } else {
                     runRecorderSession(settings)
                 }
+            } catch (cancelled: CancellationException) {
+                throw cancelled
             } catch (t: Throwable) {
                 VoiceLog.e("Dikte gagal", t)
                 _state.value = _state.value.copy(
@@ -110,6 +119,8 @@ class DictationController(
                     error = t.message ?: t.javaClass.simpleName,
                     stage = "",
                 )
+            } finally {
+                if (wakeWordPaused) graph.assistant.resumeWakeWordAfterDictation()
             }
         }
         return true

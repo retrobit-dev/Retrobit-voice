@@ -6,6 +6,7 @@ import dev.retrobit.voice.core.AppGraph
 import dev.retrobit.voice.core.AssistantTurn
 import dev.retrobit.voice.core.VoiceLog
 import dev.retrobit.voice.data.AppSettings
+import dev.retrobit.voice.stt.RecognizerGate
 import dev.retrobit.voice.MainActivity
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -45,7 +46,13 @@ class AssistantSession(
     private val turns = MutableStateFlow<List<AssistantTurn>>(emptyList())
     val history: StateFlow<List<AssistantTurn>> = turns.asStateFlow()
 
+    private val wakeWordLock = Any()
+
+    @Volatile
     private var wakeWordListener: WakeWordListener? = null
+
+    @Volatile
+    private var wakeWordPausedForDictation = false
 
     /** Proses satu kalimat: pahami → jalankan → jawab. */
     suspend fun handleText(text: String, speakReply: Boolean? = null): AssistantTurn {
@@ -94,7 +101,10 @@ class AssistantSession(
     suspend fun listenAndHandle(speakReply: Boolean? = null) {
         val settings = graph.settings.current()
         _state.value = _state.value.copy(listening = true, partial = "", status = "Mendengarkan…", error = null)
+        var wakeWordPaused = false
         try {
+            pauseWakeWordForDictation()
+            wakeWordPaused = true
             val result = graph.dictation.listenForText(settings)
             _state.value = _state.value.copy(listening = false)
             result.onSuccess { text ->
@@ -111,6 +121,8 @@ class AssistantSession(
         } catch (t: Throwable) {
             VoiceLog.e("Sesi asisten gagal", t)
             _state.value = _state.value.copy(listening = false, error = t.message)
+        } finally {
+            if (wakeWordPaused) resumeWakeWordAfterDictation()
         }
     }
 
@@ -121,24 +133,51 @@ class AssistantSession(
                 stopWakeWord()
                 return@launch
             }
-            if (wakeWordListener != null) return@launch
-            wakeWordListener = WakeWordListener(
-                context = context,
-                phrase = settings.wakeWordPhrase,
-                onWake = { heard ->
-                    _state.value = _state.value.copy(status = "Kata kunci terdeteksi: \"$heard\"")
-                    scope.launch { listenAndHandle() }
-                },
-                onStateChange = { status -> _state.value = _state.value.copy(status = status) },
-            ).also {
-                it.start(scope, settings.assistantLanguage, preferOnDevice = true)
+            synchronized(wakeWordLock) {
+                if (wakeWordPausedForDictation || wakeWordListener != null) return@synchronized
+                val listener = WakeWordListener(
+                    context = context,
+                    phrase = settings.wakeWordPhrase,
+                    onWake = { heard ->
+                        _state.value = _state.value.copy(status = "Kata kunci terdeteksi: \"$heard\"")
+                        scope.launch { listenAndHandle() }
+                    },
+                    onStateChange = { status -> _state.value = _state.value.copy(status = status) },
+                    // Mengalah terhadap dikte dan sesi asisten yang sedang berjalan:
+                    // dua sesi recognizer sekaligus saling ditolak (ERROR_RECOGNIZER_BUSY).
+                    isYielded = {
+                        graph.dictation.state.value.isBusy || _state.value.listening
+                    },
+                )
+                wakeWordListener = listener
+                listener.start(scope, settings.assistantLanguage, preferOnDevice = true)
             }
         }
     }
 
+    /** Hentikan wake-word dan tunggu sampai sesi recognizer terlepas. */
+    suspend fun pauseWakeWordForDictation() {
+        wakeWordPausedForDictation = true
+        val listener = synchronized(wakeWordLock) {
+            wakeWordListener.also { wakeWordListener = null }
+        }
+        listener?.stopAndJoin()
+        // Tunggu juga bila sesi SpeechRecognizer lain di aplikasi masih sedang
+        // membersihkan diri (mis. penghentian asisten bertepatan dengan dikte).
+        RecognizerGate.withSession { }
+    }
+
+    /** Sambung kembali wake-word setelah dikte/asisten selesai, bila masih aktif di Pengaturan. */
+    fun resumeWakeWordAfterDictation() {
+        wakeWordPausedForDictation = false
+        startWakeWordIfEnabled()
+    }
+
     fun stopWakeWord() {
-        wakeWordListener?.stop()
-        wakeWordListener = null
+        val listener = synchronized(wakeWordLock) {
+            wakeWordListener.also { wakeWordListener = null }
+        }
+        listener?.stop()
     }
 
     /** Buka layar asisten dari luar (bubble, tile, wake word). */
