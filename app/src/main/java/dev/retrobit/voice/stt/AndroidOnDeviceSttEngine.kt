@@ -66,6 +66,14 @@ class AndroidOnDeviceSttEngine(private val context: Context) : SttEngine {
         language: String,
         onPartial: (String) -> Unit,
     ): String {
+        // Penjaga versi ini sengaja diulang di sini, bukan hanya di transcribe().
+        // createOnDeviceSpeechRecognizer() baru ada sejak API 31; pemanggil memang
+        // sudah memastikan API 33+, tetapi penjaga di fungsi lain tidak terlihat oleh
+        // lint (dan oleh pembaca kode) — perangkat lama akan crash NoSuchMethodError,
+        // bukan error yang bisa dijelaskan ke pengguna.
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) {
+            throw SttUnavailableException("Pembuatan recognizer on-device butuh Android 12+ (API 31)")
+        }
         val recognizer = SpeechRecognizer.createOnDeviceSpeechRecognizer(context)
             ?: throw SttUnavailableException("Recognizer on-device gagal dibuat")
 

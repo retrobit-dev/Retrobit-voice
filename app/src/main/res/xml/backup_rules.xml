@@ -1,5 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+  Auto Backup (API 30 ke bawah). Sengaja HANYA SharedPreferences yang disertakan:
+  - setelan aplikasi ada di DataStore (files/datastore), jadi tidak ikut tercadang;
+  - API key tidak dicadangkan dengan sengaja — ciphertext-nya terikat kunci Android
+    Keystore per perangkat sehingga tidak berguna setelah dipulihkan;
+  - rekaman dikte ada di cacheDir ("rekaman"), dan cache memang tidak pernah
+    diikutkan Android, jadi tidak perlu <exclude>.
+-->
 <full-backup-content>
     <include domain="sharedpref" path="." />
-    <exclude domain="file" path="rekaman/" />
 </full-backup-content>

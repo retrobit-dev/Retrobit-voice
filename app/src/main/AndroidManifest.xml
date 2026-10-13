@@ -25,6 +25,13 @@
     <uses-permission android:name="android.permission.READ_CONTACTS" />
 
     <uses-feature android:name="android.hardware.microphone" android:required="true" />
+    <!--
+      Aplikasi menyebut CALL_PHONE, tetapi panggilan dikirim sebagai Intent resmi
+      (ACTION_DIAL/ACTION_CALL) ke aplikasi telepon. Tanpa deklarasi ini, Play
+      menganggap aplikasi butuh perangkat telefoni dan menyaringnya dari tablet
+      serta Chromebook — semua fitur lain tetap berjalan tanpa telefoni.
+    -->
+    <uses-feature android:name="android.hardware.telephony" android:required="false" />
 
     <!-- Agar bisa menemukan app yang akan dibuka perintah asisten -->
     <queries>
