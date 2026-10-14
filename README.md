@@ -103,7 +103,7 @@ Anda ──►│ Keyboard / │ ───────────────�
 
 Release dibuat otomatis oleh CI setiap kali `main` diperbarui, jadi tidak perlu login untuk mengunduh.
 
-**Alternatif (butuh login GitHub):** tab **Actions** → workflow **Build APK** → **Artifacts**.
+**Alternatif (butuh login GitHub):** tab **Actions** → workflow **Build APK** → pilih run terbaru → **Artifacts**. Pada pull request tersedia juga artifact `retrobit-voice-release` untuk kandidat rilis yang sudah ditandatangani dan diverifikasi.
 
 > ⚠️ **Setiap build ditandatangani kunci sekali pakai.** Repositori ini tidak menyimpan keystore
 > permanen, jadi tanda tangan APK berbeda di tiap build dan Android **menolak** pemasangan yang
@@ -127,11 +127,13 @@ cd Retrobit-voice
 ./gradlew assembleDebug          # APK: app/build/outputs/apk/debug/
 ./gradlew testDebugUnitTest      # uji parser, pembersih teks, cadangan setelan (JVM, tanpa emulator)
 ./gradlew lintDebug              # temuan bertingkat error menggagalkan build
+./gradlew assembleRelease        # perlu KEYSTORE_PATH + password/alias untuk APK rilis bertanda tangan
 python3 tools/verify_project.py  # pemeriksa konsistensi resource/manifest (tanpa Android SDK)
 ```
 
-CI GitHub Actions (`.github/workflows/build.yml`) menjalankan unit test, **Lint**, dan APK debug pada setiap pull request, push ke `main`, atau pemanggilan manual. Push feature branch yang sudah punya PR tidak membangun duplikat; build terbaru membatalkan run lama pada PR yang sama.
-Tag `v*` juga membangun APK rilis dan melampirkannya ke GitHub Release.
+`assembleRelease` lokal tanpa `KEYSTORE_PATH` menghasilkan APK unsigned yang Android biasanya tolak. Gunakan kandidat rilis bertanda tangan dari artifact CI, atau siapkan keystore Anda sendiri untuk build lokal.
+
+CI GitHub Actions (`.github/workflows/build.yml`) menjalankan unit test, **Lint**, APK debug, dan kandidat APK rilis bertanda tangan pada setiap pull request. Artifact rilis diverifikasi dengan `apksigner`; build resmi di `main`/tag juga mengunggah APK rilis. Push feature branch yang sudah punya PR tidak membangun duplikat; build terbaru membatalkan run lama pada PR yang sama.
 
 > **Catatan sandbox pengembangan:** repositori ini bisa saja belum memuat `gradle/wrapper/gradle-wrapper.jar`.
 > Kalau `./gradlew` menolak jalan, jalankan `gradle wrapper --gradle-version 8.9` sekali (atau buka proyek di
