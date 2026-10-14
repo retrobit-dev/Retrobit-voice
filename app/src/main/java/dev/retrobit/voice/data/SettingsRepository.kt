@@ -5,6 +5,7 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.floatPreferencesKey
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
@@ -68,6 +69,10 @@ data class AppSettings(
     /** Baca teks layar satu kali saat pengguna meminta asisten (bawaan: mati). */
     val screenContextEnabled: Boolean = false,
     val speakReplies: Boolean = true,
+    /** Nama voice dari mesin TTS Android; kosong memakai suara bawaan untuk bahasa. */
+    val ttsVoiceName: String = "",
+    val ttsPitch: Float = 1f,
+    val ttsSpeechRate: Float = 1f,
     val assistantLanguage: String = "id-ID",
 
     // --- Tampilan & data ---
@@ -115,6 +120,9 @@ class SettingsRepository(private val context: Context) {
         val confirmBeforeActions = booleanPreferencesKey("confirm_actions")
         val screenContext = booleanPreferencesKey("screen_context_enabled")
         val speakReplies = booleanPreferencesKey("speak_replies")
+        val ttsVoiceName = stringPreferencesKey("tts_voice_name")
+        val ttsPitch = floatPreferencesKey("tts_pitch")
+        val ttsSpeechRate = floatPreferencesKey("tts_speech_rate")
         val assistantLanguage = stringPreferencesKey("assistant_language")
 
         val overlayBubble = booleanPreferencesKey("overlay_bubble")
@@ -155,6 +163,9 @@ class SettingsRepository(private val context: Context) {
             prefs[K.confirmBeforeActions] = updated.confirmBeforeActions
             prefs[K.screenContext] = updated.screenContextEnabled
             prefs[K.speakReplies] = updated.speakReplies
+            prefs[K.ttsVoiceName] = updated.ttsVoiceName
+            prefs[K.ttsPitch] = updated.ttsPitch.coerceIn(0.6f, 1.6f)
+            prefs[K.ttsSpeechRate] = updated.ttsSpeechRate.coerceIn(0.6f, 1.6f)
             prefs[K.assistantLanguage] = updated.assistantLanguage
 
             prefs[K.overlayBubble] = updated.overlayBubbleEnabled
@@ -195,6 +206,9 @@ class SettingsRepository(private val context: Context) {
             confirmBeforeActions = this[K.confirmBeforeActions] ?: defaults.confirmBeforeActions,
             screenContextEnabled = this[K.screenContext] ?: defaults.screenContextEnabled,
             speakReplies = this[K.speakReplies] ?: defaults.speakReplies,
+            ttsVoiceName = this[K.ttsVoiceName] ?: defaults.ttsVoiceName,
+            ttsPitch = (this[K.ttsPitch] ?: defaults.ttsPitch).coerceIn(0.6f, 1.6f),
+            ttsSpeechRate = (this[K.ttsSpeechRate] ?: defaults.ttsSpeechRate).coerceIn(0.6f, 1.6f),
             assistantLanguage = this[K.assistantLanguage] ?: defaults.assistantLanguage,
             overlayBubbleEnabled = this[K.overlayBubble] ?: defaults.overlayBubbleEnabled,
             saveHistory = this[K.saveHistory] ?: defaults.saveHistory,

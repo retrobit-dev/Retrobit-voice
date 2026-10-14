@@ -178,6 +178,16 @@
     <string name="settings_assistant_subtitle">Tanpa AI daring, asisten tetap menjalankan puluhan perintah lewat aturan lokal.</string>
     <string name="llm_off">Nonaktif</string>
     <string name="settings_speak_replies">Bacakan jawaban</string>
+    <string name="settings_tts_voice">Suara jawaban</string>
+    <string name="settings_tts_voice_note">Pilihan suara bergantung pada mesin TTS Android dan paket suara yang terpasang. Label gender/gaya, termasuk suara anak atau robot, hanya tersedia jika disediakan mesin; coba sesuaikan tinggi nada dan kecepatan.</string>
+    <string name="settings_tts_voice_default">Suara bawaan sistem</string>
+    <string name="settings_tts_offline">offline</string>
+    <string name="settings_tts_network">online</string>
+    <string name="settings_tts_preview">▶ PRATINJAU SUARA</string>
+    <string name="settings_tts_preview_started">Pratinjau suara diputar.</string>
+    <string name="settings_tts_preview_unavailable">Mesin TTS belum siap atau tidak dapat memutar pratinjau.</string>
+    <string name="settings_tts_pitch">Tinggi nada</string>
+    <string name="settings_tts_rate">Kecepatan bicara</string>
     <string name="settings_screen_context">Izinkan konteks layar (opt-in)</string>
     <string name="settings_screen_context_note">Mati secara bawaan. Jika aktif, snapshot dibuat saat sesi asisten dimulai, tetapi hanya dikirim ke LLM pilihan bila perintah Anda meminta membaca atau membalas layar; snapshot tidak disimpan di riwayat.</string>
     <string name="settings_screen_context_needs_a11y">Aktifkan layanan aksesibilitas untuk membaca snapshot layar atas permintaan. Kata sandi dan kolom yang sedang diketik dikecualikan.</string>

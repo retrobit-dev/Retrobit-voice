@@ -3,26 +3,32 @@ package dev.retrobit.voice.ui.screens
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.retrobit.voice.R
+import dev.retrobit.voice.assistant.TtsSpeaker
 import dev.retrobit.voice.data.AppSettings
 import dev.retrobit.voice.data.CleanupMode
 import dev.retrobit.voice.data.CloudSttProvider
@@ -45,6 +51,7 @@ import dev.retrobit.voice.ui.components.SettingTextField
 import dev.retrobit.voice.ui.components.SwitchRow
 import dev.retrobit.voice.ui.components.TerminalHeader
 import dev.retrobit.voice.ui.components.str
+import kotlin.math.roundToInt
 
 /** Pengaturan: kumpulan panel konfigurasi bernomor, gaya menu servis perangkat. */
 @Composable
@@ -55,6 +62,15 @@ fun SettingsScreen(vm: AppViewModel, modifier: Modifier = Modifier) {
     val accessibilityActive = DeviceState.isAccessibilityEnabled(context) || TextInsertAccessibilityService.isConnected()
     var log by remember { mutableStateOf("") }
     var deviceCheck by remember { mutableStateOf("") }
+    var ttsVoices by remember { mutableStateOf(emptyList<TtsSpeaker.VoiceOption>()) }
+    var ttsVoiceMenuExpanded by remember { mutableStateOf(false) }
+    var ttsPreviewStatus by remember { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(current.assistantLanguage) {
+        ttsVoices = runCatching {
+            vm.appGraph().tts.availableVoices(current.assistantLanguage)
+        }.getOrDefault(emptyList())
+    }
 
     // Pemilih berkas sistem (SAF): aplikasi tidak perlu izin penyimpanan.
     val exportLauncher = rememberLauncherForActivityResult(
@@ -296,6 +312,115 @@ fun SettingsScreen(vm: AppViewModel, modifier: Modifier = Modifier) {
                 checked = current.speakReplies,
                 onChange = { value -> vm.update { it.copy(speakReplies = value) } },
             )
+
+            Text(str(R.string.settings_tts_voice), style = MaterialTheme.typography.bodyMedium)
+            Text(
+                str(R.string.settings_tts_voice_note),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            val defaultVoiceLabel = str(R.string.settings_tts_voice_default)
+            val offlineLabel = str(R.string.settings_tts_offline)
+            val networkLabel = str(R.string.settings_tts_network)
+            val selectedVoiceLabel = ttsVoices.firstOrNull { it.name == current.ttsVoiceName }
+                ?.let { voice ->
+                    "${voice.localeTag} · ${voice.name} · ${if (voice.requiresNetwork) networkLabel else offlineLabel}"
+                }
+                ?: current.ttsVoiceName.takeIf { it.isNotBlank() }
+                ?: defaultVoiceLabel
+            Box(Modifier.fillMaxWidth()) {
+                BracketButton(
+                    text = selectedVoiceLabel,
+                    onClick = { ttsVoiceMenuExpanded = true },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                DropdownMenu(
+                    expanded = ttsVoiceMenuExpanded,
+                    onDismissRequest = { ttsVoiceMenuExpanded = false },
+                ) {
+                    DropdownMenuItem(
+                        text = { Text(defaultVoiceLabel) },
+                        onClick = {
+                            vm.update { it.copy(ttsVoiceName = "") }
+                            ttsVoiceMenuExpanded = false
+                        },
+                    )
+                    ttsVoices.forEach { voice ->
+                        DropdownMenuItem(
+                            text = {
+                                Text(
+                                    "${voice.localeTag} · ${voice.name} · ${if (voice.requiresNetwork) networkLabel else offlineLabel}",
+                                    maxLines = 2,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                            },
+                            onClick = {
+                                vm.update { it.copy(ttsVoiceName = voice.name) }
+                                ttsVoiceMenuExpanded = false
+                            },
+                        )
+                    }
+                }
+            }
+            val previewText = if (current.assistantLanguage.startsWith("en", ignoreCase = true)) {
+                "Hello, this is a preview of the selected Retrobit voice."
+            } else {
+                "Halo, ini pratinjau suara Retrobit yang dipilih."
+            }
+            val previewStarted = str(R.string.settings_tts_preview_started)
+            val previewUnavailable = str(R.string.settings_tts_preview_unavailable)
+            BracketButton(
+                text = str(R.string.settings_tts_preview),
+                onClick = {
+                    val accepted = vm.appGraph().tts.speak(
+                        text = previewText,
+                        languageTag = current.assistantLanguage,
+                        voiceName = current.ttsVoiceName,
+                        pitch = current.ttsPitch,
+                        speechRate = current.ttsSpeechRate,
+                    )
+                    ttsPreviewStatus = if (accepted) previewStarted else previewUnavailable
+                },
+                modifier = Modifier.fillMaxWidth(),
+            )
+            ttsPreviewStatus?.let {
+                Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            Text(
+                text = str(R.string.settings_tts_pitch) + " · %.1f".format(current.ttsPitch),
+                style = MaterialTheme.typography.bodySmall,
+            )
+            Slider(
+                value = current.ttsPitch,
+                onValueChange = { value ->
+                    vm.update { it.copy(ttsPitch = ((value * 10).roundToInt() / 10f).coerceIn(0.6f, 1.6f)) }
+                },
+                valueRange = 0.6f..1.6f,
+                steps = 9,
+                colors = SliderDefaults.colors(
+                    thumbColor = MaterialTheme.colorScheme.onSurface,
+                    activeTrackColor = MaterialTheme.colorScheme.onSurface,
+                    inactiveTrackColor = MaterialTheme.colorScheme.outline,
+                ),
+            )
+            Text(
+                text = str(R.string.settings_tts_rate) + " · %.1f".format(current.ttsSpeechRate),
+                style = MaterialTheme.typography.bodySmall,
+            )
+            Slider(
+                value = current.ttsSpeechRate,
+                onValueChange = { value ->
+                    vm.update { it.copy(ttsSpeechRate = ((value * 10).roundToInt() / 10f).coerceIn(0.6f, 1.6f)) }
+                },
+                valueRange = 0.6f..1.6f,
+                steps = 9,
+                colors = SliderDefaults.colors(
+                    thumbColor = MaterialTheme.colorScheme.onSurface,
+                    activeTrackColor = MaterialTheme.colorScheme.onSurface,
+                    inactiveTrackColor = MaterialTheme.colorScheme.outline,
+                ),
+            )
+
             SwitchRow(
                 title = str(R.string.settings_screen_context),
                 subtitle = when {

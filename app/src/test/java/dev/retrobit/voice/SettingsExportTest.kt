@@ -53,6 +53,9 @@ class SettingsExportTest {
         confirmBeforeActions = false,
         screenContextEnabled = true,
         speakReplies = false,
+        ttsVoiceName = "en-us-x-sfg#female_1-local",
+        ttsPitch = 1.2f,
+        ttsSpeechRate = 0.9f,
         assistantLanguage = "en-US",
         overlayBubbleEnabled = true,
         saveHistory = false,
@@ -147,6 +150,9 @@ class SettingsExportTest {
             llmApiKey = "key-llm-yang-ada",
             wakeWordEnabled = true,
             cleanupMode = CleanupMode.AI,
+            ttsVoiceName = "id-id-x-test-local",
+            ttsPitch = 1.3f,
+            ttsSpeechRate = 0.8f,
             epaperLightMode = true,
         )
         val preset = """{"app":"${SettingsSnapshotFormat.APP_ID}","schema":${SettingsSnapshotFormat.SCHEMA_VERSION},"sttEngine":"SYSTEM_LIVE","wakeWordEnabled":false}"""
@@ -157,6 +163,23 @@ class SettingsExportTest {
             aktif.copy(sttEngine = SttEngineChoice.SYSTEM_LIVE, wakeWordEnabled = false),
             restored,
         )
+    }
+
+    @Test
+    fun `preset TTS parsial mempertahankan nilai yang hilang dan membatasi pitch serta rate`() {
+        val aktif = AppSettings(ttsVoiceName = "suara-aktif", ttsPitch = 1.3f, ttsSpeechRate = 0.8f)
+        val lama = decodeSettingsSnapshot(
+            """{"app":"${SettingsSnapshotFormat.APP_ID}","schema":${SettingsSnapshotFormat.SCHEMA_VERSION}}""",
+        ).toSettings(aktif)
+        val diLuarRentang = decodeSettingsSnapshot(
+            """{"app":"${SettingsSnapshotFormat.APP_ID}","schema":${SettingsSnapshotFormat.SCHEMA_VERSION},"ttsPitch":3.0,"ttsSpeechRate":0.1}""",
+        ).toSettings(aktif)
+
+        assertEquals(aktif.ttsVoiceName, lama.ttsVoiceName)
+        assertEquals(aktif.ttsPitch, lama.ttsPitch, 0f)
+        assertEquals(aktif.ttsSpeechRate, lama.ttsSpeechRate, 0f)
+        assertEquals(1.6f, diLuarRentang.ttsPitch, 0f)
+        assertEquals(0.6f, diLuarRentang.ttsSpeechRate, 0f)
     }
 
     @Test

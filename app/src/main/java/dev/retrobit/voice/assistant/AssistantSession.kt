@@ -373,8 +373,15 @@ class AssistantSession(
 
         val shouldSpeak = speakReply ?: settings.speakReplies
         if (shouldSpeak) {
-            runCatching { graph.tts.speakAndWait(publishedTurn.reply, settings.assistantLanguage) }
-                .onFailure { VoiceLog.w("TTS jawaban gagal: ${it.message}") }
+            runCatching {
+                graph.tts.speakAndWait(
+                    publishedTurn.reply,
+                    settings.assistantLanguage,
+                    voiceName = settings.ttsVoiceName,
+                    pitch = settings.ttsPitch,
+                    speechRate = settings.ttsSpeechRate,
+                )
+            }.onFailure { VoiceLog.w("TTS jawaban gagal: ${it.message}") }
         }
 
         _state.value = _state.value.copy(
@@ -424,8 +431,15 @@ class AssistantSession(
             status = "Silakan ulangi perintah…",
         )
         if (settings.speakReplies) {
-            runCatching { graph.tts.speakAndWait("Silakan ulangi.", settings.assistantLanguage) }
-                .onFailure { VoiceLog.w("Prompt ulangan asisten gagal: ${it.message}") }
+            runCatching {
+                graph.tts.speakAndWait(
+                    "Silakan ulangi.",
+                    settings.assistantLanguage,
+                    voiceName = settings.ttsVoiceName,
+                    pitch = settings.ttsPitch,
+                    speechRate = settings.ttsSpeechRate,
+                )
+            }.onFailure { VoiceLog.w("Prompt ulangan asisten gagal: ${it.message}") }
         }
         return graph.dictation.listenForText(
             settings = settings,
@@ -523,7 +537,13 @@ class AssistantSession(
                 // TTS harus selesai dulu: jika STT dimulai bersamaan, prompt siap
                 // bisa masuk sebagai transkrip atau membuat SpeechRecognizer sibuk.
                 val spoken = runCatching {
-                    graph.tts.speakAndWait("Siap.", settings.assistantLanguage)
+                    graph.tts.speakAndWait(
+                        "Siap.",
+                        settings.assistantLanguage,
+                        voiceName = settings.ttsVoiceName,
+                        pitch = settings.ttsPitch,
+                        speechRate = settings.ttsSpeechRate,
+                    )
                 }.getOrElse {
                     VoiceLog.w("Prompt siap asisten gagal: ${it.message}")
                     false

@@ -170,6 +170,16 @@
     <string name="settings_assistant_subtitle">Even without online AI, dozens of commands work through local rules.</string>
     <string name="llm_off">Off</string>
     <string name="settings_speak_replies">Speak replies aloud</string>
+    <string name="settings_tts_voice">Answer voice</string>
+    <string name="settings_tts_voice_note">Available voices depend on the Android TTS engine and installed voice packages. Gender/style labels, including child or robot voices, appear only if the engine provides them; try adjusting pitch and rate.</string>
+    <string name="settings_tts_voice_default">System default voice</string>
+    <string name="settings_tts_offline">offline</string>
+    <string name="settings_tts_network">online</string>
+    <string name="settings_tts_preview">▶ PREVIEW VOICE</string>
+    <string name="settings_tts_preview_started">Voice preview is playing.</string>
+    <string name="settings_tts_preview_unavailable">The TTS engine is not ready or could not play the preview.</string>
+    <string name="settings_tts_pitch">Pitch</string>
+    <string name="settings_tts_rate">Speech rate</string>
     <string name="settings_screen_context">Allow screen context (opt in)</string>
     <string name="settings_screen_context_note">Off by default. When enabled, a snapshot is captured as an assistant session starts, but sent to your selected LLM only if your command asks to read or reply to screen content; it is not saved in history.</string>
     <string name="settings_screen_context_needs_a11y">Enable the accessibility service to read a screen snapshot on request. Passwords and text being edited are excluded.</string>
