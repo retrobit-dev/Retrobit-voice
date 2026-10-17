@@ -153,7 +153,7 @@ class WakeWordListener(
             recognizerUnavailableReported = false
 
             val engine = runCatching {
-                if (useOnDevice) {
+                if (useOnDevice && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                     SpeechRecognizer.createOnDeviceSpeechRecognizer(context)
                 } else {
                     SpeechRecognizer.createSpeechRecognizer(context)
