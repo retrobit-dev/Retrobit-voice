@@ -282,8 +282,8 @@ object CommandParser {
 
         val leadingNoise = listOf("sekarang", "saat ini", "hari ini", "today", "now", "right now", "currently")
         val trailingNoise = listOf(
-            "sekarang", "saat ini", "hari ini", "today", "now", "right now", "currently", "berapa", "derajat", "degrees",
-        )
+            "sekarang", "saat ini", "hari ini", "today", "right now", "currently", "berapa", "derajat", "degrees", "now",
+        ).sortedByDescending(String::length)
         var changed = true
         while (changed) {
             changed = false
