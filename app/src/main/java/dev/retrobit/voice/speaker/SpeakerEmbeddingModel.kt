@@ -33,7 +33,7 @@ class SpeakerEmbeddingModel(context: Context) : AutoCloseable {
 
     fun isModelDownloaded(): Boolean = modelFile.exists() && modelFile.length() > 0L
 
-    suspend fun prepareModel(onProgress: (downloadedBytes: Long, totalBytes: Long) -> Unit = {}) {
+    suspend fun prepareModel(onProgress: (downloadedBytes: Long, totalBytes: Long) -> Unit = { _, _ -> }) {
         val model = ensureModelFile(onProgress)
         sessionMutex.withLock {
             if (session == null) session = createSession(model)
@@ -42,7 +42,7 @@ class SpeakerEmbeddingModel(context: Context) : AutoCloseable {
 
     suspend fun embeddingFromWav(
         wavFile: File,
-        onProgress: (downloadedBytes: Long, totalBytes: Long) -> Unit = {},
+        onProgress: (downloadedBytes: Long, totalBytes: Long) -> Unit = { _, _ -> },
     ): FloatArray {
         val normalizedSpeech = withContext(Dispatchers.Default) {
             SpeakerAudioFeatures.trimSpeech(SpeakerAudioFeatures.readPcm16MonoWav(wavFile))
