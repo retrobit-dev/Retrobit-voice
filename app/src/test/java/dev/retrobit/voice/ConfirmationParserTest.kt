@@ -21,7 +21,16 @@ class ConfirmationParserTest {
     }
 
     @Test
-    fun `unrelated speech is not confirmation`() {
-        assertEquals(ConfirmationParser.Decision.UNCLEAR, ConfirmationParser.parse("ubah pesannya dulu"))
+    fun `stop and cancel variants reject a pending action`() {
+        listOf("berhenti", "stop", "batalin", "ga jadi").forEach { phrase ->
+            assertEquals(phrase, ConfirmationParser.Decision.NO, ConfirmationParser.parse(phrase))
+        }
+    }
+
+    @Test
+    fun `unclear speech is never treated as approval`() {
+        listOf("ubah pesannya dulu", "mungkin", "ya tapi nanti").forEach { phrase ->
+            assertEquals(phrase, ConfirmationParser.Decision.UNCLEAR, ConfirmationParser.parse(phrase))
+        }
     }
 }

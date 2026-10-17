@@ -110,6 +110,9 @@
     <string name="assistant_confirmation_to">Recipient</string>
     <string name="assistant_confirmation_note">The message has not been sent. Approve to open a draft in the messaging app; review it and tap Send.</string>
     <string name="assistant_confirm_prepare">Approve &amp; open draft</string>
+    <string name="assistant_phone_confirmation_title">Confirm phone call</string>
+    <string name="assistant_phone_confirmation_note">No call has been placed or answered yet. Approve to continue, or choose Cancel.</string>
+    <string name="assistant_confirm_phone_action">Approve</string>
     <string name="assistant_popup_title">RETROBIT // ASSISTANT</string>
     <string name="assistant_popup_command">COMMAND</string>
     <string name="assistant_popup_answer">ANSWER</string>

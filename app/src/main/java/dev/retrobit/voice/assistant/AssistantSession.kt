@@ -57,6 +57,11 @@ class AssistantSession(
         val pendingMessage: AssistantAction.SendMessage? = null,
         val pendingMessageCreatedAtMs: Long? = null,
         val pendingMessageUsesScreenContext: Boolean = false,
+        /** Panggilan keluar/menjawab masuk yang belum dijalankan sebelum persetujuan eksplisit. */
+        val pendingPhoneAction: AssistantAction? = null,
+        val pendingPhoneActionPrompt: String = "",
+        val pendingPhoneActionCreatedAtMs: Long? = null,
+        val pendingPhoneActionUsesScreenContext: Boolean = false,
     )
 
     private data class PendingScreenCapture(
@@ -95,10 +100,63 @@ class AssistantSession(
         if (_state.value.thinking || _state.value.listening) {
             return AssistantTurn(cleanText, null, "Tunggu sampai sesi asisten selesai.", "busy")
         }
-        val pending = _state.value.pendingMessage
-        if (pending != null) {
+        val waitingMessage = _state.value.pendingMessage
+        val waitingPhoneAction = _state.value.pendingPhoneAction
+        when (UniversalCommandParser.parse(cleanText)) {
+            UniversalCommandParser.Command.CANCEL_PENDING -> {
+                pendingScreenCapture = null
+                when {
+                    waitingMessage != null -> {
+                        _state.value = _state.value.copy(currentCommand = cleanText, currentReply = "")
+                        return resolvePendingMessage(cleanText, waitingMessage, speakReply)
+                    }
+                    waitingPhoneAction != null -> {
+                        _state.value = _state.value.copy(currentCommand = cleanText, currentReply = "")
+                        return resolvePendingPhoneAction(cleanText, waitingPhoneAction, speakReply)
+                    }
+                    else -> {
+                        val settings = graph.settings.current()
+                        val english = settings.assistantLanguage.startsWith("en", ignoreCase = true)
+                        _state.value = _state.value.copy(
+                            thinking = true,
+                            status = "Memproses…",
+                            error = null,
+                            partial = "",
+                            currentCommand = cleanText,
+                            currentReply = "",
+                        )
+                        return publishTurn(
+                            AssistantTurn(
+                                cleanText,
+                                null,
+                                if (english) "There is no pending action to cancel." else "Tidak ada aksi yang menunggu konfirmasi.",
+                                "perintah universal",
+                            ),
+                            settings,
+                            speakReply,
+                        )
+                    }
+                }
+            }
+            UniversalCommandParser.Command.REPEAT_LAST_REPLY -> {
+                pendingScreenCapture = null
+                if (waitingMessage != null && isPendingMessageExpired()) {
+                    return expirePendingMessage(cleanText, speakReply)
+                }
+                if (waitingPhoneAction != null && isPendingPhoneActionExpired()) {
+                    return expirePendingPhoneAction(cleanText, speakReply)
+                }
+                return repeatLastReply(cleanText, speakReply)
+            }
+            null -> Unit
+        }
+        if (waitingMessage != null) {
             _state.value = _state.value.copy(currentCommand = cleanText, currentReply = "")
-            return resolvePendingMessage(cleanText, pending, speakReply)
+            return resolvePendingMessage(cleanText, waitingMessage, speakReply)
+        }
+        if (waitingPhoneAction != null) {
+            _state.value = _state.value.copy(currentCommand = cleanText, currentReply = "")
+            return resolvePendingPhoneAction(cleanText, waitingPhoneAction, speakReply)
         }
 
         val settings = graph.settings.current()
@@ -152,8 +210,19 @@ class AssistantSession(
         var reply = understanding.reply
         var actionForTurn = understanding.action
         var actionReplyWasAnnounced = false
+        val pendingPhoneAction = understanding.action?.takeIf { PhoneActionConfirmation.isRequired(it) }
         val pendingMessage = understanding.action as? AssistantAction.SendMessage
-        if (pendingMessage != null) {
+        if (pendingPhoneAction != null) {
+            val english = settings.assistantLanguage.startsWith("en", ignoreCase = true)
+            val prompt = PhoneActionConfirmation.prompt(pendingPhoneAction, english)
+            _state.value = _state.value.copy(
+                pendingPhoneAction = pendingPhoneAction,
+                pendingPhoneActionPrompt = prompt,
+                pendingPhoneActionCreatedAtMs = System.currentTimeMillis(),
+                pendingPhoneActionUsesScreenContext = screenContext != null,
+            )
+            reply = prompt
+        } else if (pendingMessage != null) {
             if (pendingMessage.body.isBlank()) {
                 // Jangan membuka chat dengan pesan kosong. Minta pengguna/LLM
                 // memperjelas isi pesan sebelum aksi apa pun dijalankan.
@@ -422,6 +491,195 @@ class AssistantSession(
         )
     }
 
+    /** Konfirmasi aksi panggilan lewat tombol UI; jalur suara memakai jawaban ya/tidak. */
+    suspend fun confirmPendingPhoneAction(): AssistantTurn? = commandMutex.withLock {
+        withWakeWordPaused {
+            if (_state.value.listening || _state.value.thinking) return@withWakeWordPaused null
+            val pending = _state.value.pendingPhoneAction ?: return@withWakeWordPaused null
+            if (isPendingPhoneActionExpired()) {
+                return@withWakeWordPaused expirePendingPhoneAction("Konfirmasi dari pengguna", speakReply = null)
+            }
+            executePendingPhoneAction("Konfirmasi dari pengguna", pending, speakReply = null)
+        }
+    }
+
+    /** Batalkan panggilan yang sedang menunggu persetujuan tanpa memanggil executor. */
+    suspend fun cancelPendingPhoneAction(): AssistantTurn? = commandMutex.withLock {
+        withWakeWordPaused {
+            if (_state.value.listening || _state.value.thinking) return@withWakeWordPaused null
+            val pending = _state.value.pendingPhoneAction ?: return@withWakeWordPaused null
+            cancelPendingPhoneAction("Batal", pending, speakReply = null)
+        }
+    }
+
+    private fun isPendingPhoneActionExpired(): Boolean {
+        val createdAt = _state.value.pendingPhoneActionCreatedAtMs ?: return true
+        return System.currentTimeMillis() - createdAt > PENDING_PHONE_ACTION_TTL_MS
+    }
+
+    private suspend fun resolvePendingPhoneAction(
+        text: String,
+        pending: AssistantAction,
+        speakReply: Boolean?,
+    ): AssistantTurn {
+        if (isPendingPhoneActionExpired()) return expirePendingPhoneAction(text, speakReply)
+        val screenContextDerived = _state.value.pendingPhoneActionUsesScreenContext
+        return when (ConfirmationParser.parse(text)) {
+            ConfirmationParser.Decision.YES -> executePendingPhoneAction(text, pending, speakReply)
+            ConfirmationParser.Decision.NO -> cancelPendingPhoneAction(text, pending, speakReply)
+            ConfirmationParser.Decision.UNCLEAR -> {
+                val settings = graph.settings.current()
+                val english = settings.assistantLanguage.startsWith("en", ignoreCase = true)
+                val prompt = PhoneActionConfirmation.prompt(pending, english)
+                val reply = if (english) {
+                    "I still need a clear yes or no. $prompt"
+                } else {
+                    "Saya masih menunggu jawaban ‘ya’ atau ‘batal’. $prompt"
+                }
+                publishTurn(
+                    AssistantTurn(text, null, reply, "konfirmasi pengguna"),
+                    settings,
+                    speakReply,
+                    persistHistory = !screenContextDerived,
+                    screenContextDerived = screenContextDerived,
+                )
+            }
+        }
+    }
+
+    private suspend fun cancelPendingPhoneAction(
+        text: String,
+        action: AssistantAction,
+        speakReply: Boolean?,
+    ): AssistantTurn {
+        val screenContextDerived = _state.value.pendingPhoneActionUsesScreenContext
+        _state.value = _state.value.copy(
+            pendingPhoneAction = null,
+            pendingPhoneActionPrompt = "",
+            pendingPhoneActionCreatedAtMs = null,
+            pendingPhoneActionUsesScreenContext = false,
+            thinking = true,
+            status = "Membatalkan panggilan…",
+            error = null,
+        )
+        val settings = graph.settings.current()
+        return publishTurn(
+            AssistantTurn(
+                text,
+                null,
+                PhoneActionConfirmation.cancellationReply(
+                    action,
+                    settings.assistantLanguage.startsWith("en", ignoreCase = true),
+                ),
+                "konfirmasi pengguna",
+            ),
+            settings,
+            speakReply,
+            persistHistory = !screenContextDerived,
+            screenContextDerived = screenContextDerived,
+        )
+    }
+
+    private suspend fun expirePendingPhoneAction(text: String, speakReply: Boolean?): AssistantTurn {
+        val expired = _state.value.pendingPhoneAction ?: return AssistantTurn(
+            text,
+            null,
+            "Konfirmasi sudah kedaluwarsa.",
+            "konfirmasi kedaluwarsa",
+        )
+        val screenContextDerived = _state.value.pendingPhoneActionUsesScreenContext
+        _state.value = _state.value.copy(
+            pendingPhoneAction = null,
+            pendingPhoneActionPrompt = "",
+            pendingPhoneActionCreatedAtMs = null,
+            pendingPhoneActionUsesScreenContext = false,
+            thinking = true,
+            status = "Konfirmasi kedaluwarsa",
+            error = null,
+        )
+        val settings = graph.settings.current()
+        return publishTurn(
+            AssistantTurn(
+                text,
+                null,
+                PhoneActionConfirmation.expiredReply(
+                    expired,
+                    settings.assistantLanguage.startsWith("en", ignoreCase = true),
+                ),
+                "konfirmasi kedaluwarsa",
+            ),
+            settings,
+            speakReply,
+            persistHistory = !screenContextDerived,
+            screenContextDerived = screenContextDerived,
+        )
+    }
+
+    private suspend fun executePendingPhoneAction(
+        confirmationText: String,
+        action: AssistantAction,
+        speakReply: Boolean?,
+    ): AssistantTurn {
+        // Hapus pending sebelum membuka ACTION_CALL/acceptRingingCall agar konfirmasi ganda
+        // tidak dapat memicu panggilan atau menjawab panggilan yang sama dua kali.
+        val screenContextDerived = _state.value.pendingPhoneActionUsesScreenContext
+        _state.value = _state.value.copy(
+            pendingPhoneAction = null,
+            pendingPhoneActionPrompt = "",
+            pendingPhoneActionCreatedAtMs = null,
+            pendingPhoneActionUsesScreenContext = false,
+            thinking = true,
+            status = "Menjalankan panggilan…",
+            error = null,
+        )
+        val settings = graph.settings.current()
+        val outcome = graph.assistantExecutor.execute(action, settings)
+        val turn = AssistantTurn(
+            confirmationText,
+            action,
+            outcome.message.ifBlank {
+                if (outcome.success) "Aksi panggilan dijalankan." else "Aksi panggilan tidak dapat dijalankan."
+            },
+            "konfirmasi pengguna",
+        )
+        return publishTurn(
+            turn,
+            settings,
+            speakReply,
+            persistHistory = !screenContextDerived,
+            screenContextDerived = screenContextDerived,
+        )
+    }
+
+    private suspend fun repeatLastReply(text: String, speakReply: Boolean?): AssistantTurn {
+        val lastTurn = turns.value.lastOrNull()
+        val settings = graph.settings.current()
+        val english = settings.assistantLanguage.startsWith("en", ignoreCase = true)
+        val reply = lastTurn?.reply?.takeIf { it.isNotBlank() } ?: if (english) {
+            "There is no previous answer to repeat."
+        } else {
+            "Belum ada jawaban yang bisa diulangi."
+        }
+        val screenContextDerived = lastTurn?.source?.contains(SCREEN_CONTEXT_SOURCE_TAG, ignoreCase = true) == true
+        _state.value = _state.value.copy(
+            thinking = true,
+            status = "Mengulangi jawaban…",
+            error = null,
+            partial = "",
+            currentCommand = text,
+            currentReply = "",
+        )
+        // Jangan bawa action dari jawaban sebelumnya: mengulangi hanya membaca teks,
+        // tidak pernah menjalankan ulang panggilan atau aksi lain yang berdampak.
+        return publishTurn(
+            AssistantTurn(text, null, reply, "perintah universal: ulangi"),
+            settings,
+            speakReply = speakReply ?: true,
+            persistHistory = !screenContextDerived,
+            screenContextDerived = screenContextDerived,
+        )
+    }
+
     private suspend fun publishTurn(
         turn: AssistantTurn,
         settings: AppSettings,
@@ -437,6 +695,10 @@ class AssistantSession(
         }
         val pendingCreatedAt = if (pendingMessage == null) null else _state.value.pendingMessageCreatedAtMs
         val pendingUsesScreenContext = pendingMessage != null && _state.value.pendingMessageUsesScreenContext
+        val pendingPhoneAction = _state.value.pendingPhoneAction
+        val pendingPhoneActionPrompt = if (pendingPhoneAction == null) "" else _state.value.pendingPhoneActionPrompt
+        val pendingPhoneActionCreatedAt = if (pendingPhoneAction == null) null else _state.value.pendingPhoneActionCreatedAtMs
+        val pendingPhoneActionUsesScreenContext = pendingPhoneAction != null && _state.value.pendingPhoneActionUsesScreenContext
         _state.value = _state.value.copy(
             thinking = true,
             status = publishedTurn.reply,
@@ -445,6 +707,10 @@ class AssistantSession(
             pendingMessage = pendingMessage,
             pendingMessageCreatedAtMs = pendingCreatedAt,
             pendingMessageUsesScreenContext = pendingUsesScreenContext,
+            pendingPhoneAction = pendingPhoneAction,
+            pendingPhoneActionPrompt = pendingPhoneActionPrompt,
+            pendingPhoneActionCreatedAtMs = pendingPhoneActionCreatedAt,
+            pendingPhoneActionUsesScreenContext = pendingPhoneActionUsesScreenContext,
         )
         turns.value = (turns.value + publishedTurn).takeLast(50)
         if (persistHistory && !screenContextDerived) graph.history.addAssistant(publishedTurn, settings.saveHistory)
@@ -472,6 +738,10 @@ class AssistantSession(
             pendingMessage = pendingMessage,
             pendingMessageCreatedAtMs = pendingCreatedAt,
             pendingMessageUsesScreenContext = pendingUsesScreenContext,
+            pendingPhoneAction = pendingPhoneAction,
+            pendingPhoneActionPrompt = pendingPhoneActionPrompt,
+            pendingPhoneActionCreatedAtMs = pendingPhoneActionCreatedAt,
+            pendingPhoneActionUsesScreenContext = pendingPhoneActionUsesScreenContext,
         )
         return publishedTurn
     }
@@ -823,6 +1093,10 @@ class AssistantSession(
             pendingMessage = null,
             pendingMessageCreatedAtMs = null,
             pendingMessageUsesScreenContext = false,
+            pendingPhoneAction = null,
+            pendingPhoneActionPrompt = "",
+            pendingPhoneActionCreatedAtMs = null,
+            pendingPhoneActionUsesScreenContext = false,
         )
     }
 
@@ -840,6 +1114,7 @@ class AssistantSession(
     private companion object {
         const val SCREEN_CAPTURE_TTL_MS = 30_000L
         const val PENDING_MESSAGE_TTL_MS = 90_000L
+        const val PENDING_PHONE_ACTION_TTL_MS = 90_000L
         const val ASSISTANT_STT_TIMEOUT_MS = 20_000L
         const val MIN_ASSISTANT_SILENCE_TIMEOUT_MS = 500L
         const val MAX_ASSISTANT_SILENCE_TIMEOUT_MS = 5_000L

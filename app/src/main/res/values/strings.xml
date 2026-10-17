@@ -117,6 +117,9 @@
     <string name="assistant_confirmation_to">Penerima</string>
     <string name="assistant_confirmation_note">Pesan belum dikirim. Setujui untuk membuka draf di aplikasi pesan; periksa kembali lalu tekan Kirim.</string>
     <string name="assistant_confirm_prepare">Setuju &amp; buka draf</string>
+    <string name="assistant_phone_confirmation_title">Konfirmasi panggilan</string>
+    <string name="assistant_phone_confirmation_note">Panggilan belum dimulai atau dijawab. Setujui untuk melanjutkan, atau pilih Batal.</string>
+    <string name="assistant_confirm_phone_action">Setuju</string>
     <string name="assistant_popup_title">RETROBIT // ASISTEN</string>
     <string name="assistant_popup_command">PERINTAH</string>
     <string name="assistant_popup_answer">JAWABAN</string>

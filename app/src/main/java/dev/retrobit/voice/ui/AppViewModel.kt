@@ -196,6 +196,14 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch { graph.assistant.cancelPendingMessage() }
     }
 
+    fun confirmPendingPhoneAction() {
+        viewModelScope.launch { graph.assistant.confirmPendingPhoneAction() }
+    }
+
+    fun cancelPendingPhoneAction() {
+        viewModelScope.launch { graph.assistant.cancelPendingPhoneAction() }
+    }
+
     fun clearAssistantHistory() {
         graph.assistant.clearHistory()
         viewModelScope.launch { graph.settings.clearHistory() }

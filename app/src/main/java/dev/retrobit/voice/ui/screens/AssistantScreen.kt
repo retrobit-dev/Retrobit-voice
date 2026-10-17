@@ -164,6 +164,36 @@ fun AssistantScreen(
             }
         }
 
+        state.pendingPhoneAction?.let {
+            Panel(title = str(R.string.assistant_phone_confirmation_title), code = "CALL") {
+                Text(
+                    text = state.pendingPhoneActionPrompt,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+                Text(
+                    text = str(R.string.assistant_phone_confirmation_note),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    BracketButton(
+                        text = str(R.string.action_cancel),
+                        onClick = { vm.cancelPendingPhoneAction() },
+                        enabled = !state.thinking && !state.listening,
+                        modifier = Modifier.weight(1f),
+                    )
+                    BracketButton(
+                        text = str(R.string.assistant_confirm_phone_action),
+                        onClick = { vm.confirmPendingPhoneAction() },
+                        enabled = !state.thinking && !state.listening,
+                        filled = true,
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+            }
+        }
+
         SettingTextField(
             label = str(R.string.assistant_input_label),
             value = input,
