@@ -30,11 +30,11 @@ object ScreenContextRequest {
     )
 
     fun isRequested(text: String): Boolean = normalized(text).let { normalized ->
-        phrases.any(normalized::containsPhrase) || isMediaCommand(normalized)
+        phrases.any { normalized.containsPhrase(it) } || isMediaCommand(normalized)
     }
 
     fun isReadRequested(text: String): Boolean = normalized(text).let { normalized ->
-        readPhrases.any(normalized::containsPhrase)
+        readPhrases.any { normalized.containsPhrase(it) }
     }
 
     private fun isMediaCommand(normalizedText: String): Boolean {
