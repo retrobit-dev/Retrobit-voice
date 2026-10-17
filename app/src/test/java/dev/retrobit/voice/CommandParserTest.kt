@@ -3,7 +3,6 @@ package dev.retrobit.voice
 import dev.retrobit.voice.assistant.CommandParser
 import dev.retrobit.voice.core.AssistantAction
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -30,10 +29,38 @@ class CommandParserTest {
     }
 
     @Test
+    fun `membuka aplikasi saat STT mengkapitalkan awal kalimat`() {
+        val a = action("Buka WhatsApp")
+        assertTrue("hasil: $a", a is AssistantAction.OpenApp)
+        assertEquals("WhatsApp", (a as AssistantAction.OpenApp).appQuery)
+    }
+
+    @Test
+    fun `koreksi salah dengar puka hanya pada perintah buka aplikasi`() {
+        val a = action("puka WhatsApp")
+        assertTrue("hasil: $a", a is AssistantAction.OpenApp)
+        assertEquals("WhatsApp", (a as AssistantAction.OpenApp).appQuery)
+    }
+
+    @Test
+    fun `menghapus kata aplikasi walau kapitalisasi hasil STT berbeda`() {
+        val a = action("Buka Aplikasi WhatsApp")
+        assertTrue("hasil: $a", a is AssistantAction.OpenApp)
+        assertEquals("WhatsApp", (a as AssistantAction.OpenApp).appQuery)
+    }
+
+    @Test
     fun `pencarian web`() {
         val a = action("cari resep rendang")
         assertTrue(a is AssistantAction.WebSearch)
         assertTrue((a as AssistantAction.WebSearch).query.contains("resep rendang"))
+    }
+
+    @Test
+    fun `pencarian web hanya dikenali dari perintah eksplisit`() {
+        assertEquals(true, CommandParser.isExplicitSearchRequest("tolong cari resep rendang"))
+        assertEquals(false, CommandParser.isExplicitSearchRequest("jelaskan resep rendang"))
+        assertEquals(null, action("jelaskan resep rendang"))
     }
 
     @Test
@@ -114,6 +141,40 @@ class CommandParserTest {
     }
 
     @Test
+    fun `kontrol kecerahan layar`() {
+        val set = action("atur kecerahan ke 50 persen")
+        assertTrue("hasil: $set", set is AssistantAction.SetBrightness)
+        assertEquals(50, (set as AssistantAction.SetBrightness).percent)
+        assertTrue(action("naikkan kecerahan") is AssistantAction.SetBrightness)
+    }
+
+    @Test
+    fun `kontrol jangan ganggu dan bluetooth`() {
+        val dndOn = action("aktifkan jangan ganggu")
+        assertTrue(dndOn is AssistantAction.SetDnd)
+        assertEquals(true, (dndOn as AssistantAction.SetDnd).enabled)
+        val dndOff = action("turn off do not disturb")
+        assertTrue(dndOff is AssistantAction.SetDnd)
+        assertEquals(false, (dndOff as AssistantAction.SetDnd).enabled)
+        val dndModeOff = action("matikan mode jangan ganggu") as AssistantAction.SetDnd
+        assertEquals(false, dndModeOff.enabled)
+        assertEquals(null, action("balas chat ini dengan teks jangan ganggu"))
+
+        val bluetoothOn = action("nyalakan bluetooth")
+        assertTrue(bluetoothOn is AssistantAction.SetBluetooth)
+        assertEquals(true, (bluetoothOn as AssistantAction.SetBluetooth).enabled)
+        val bluetoothOff = action("matikan bluetooth")
+        assertTrue(bluetoothOff is AssistantAction.SetBluetooth)
+        assertEquals(false, (bluetoothOff as AssistantAction.SetBluetooth).enabled)
+    }
+
+    @Test
+    fun `menjawab panggilan masuk`() {
+        assertEquals(AssistantAction.AnswerCall, action("angkat panggilan masuk"))
+        assertEquals(AssistantAction.AnswerCall, action("answer the call"))
+    }
+
+    @Test
     fun `pengaturan sistem`() {
         val a = action("buka pengaturan wifi")
         assertTrue(a is AssistantAction.OpenSettingsPanel)
@@ -137,15 +198,41 @@ class CommandParserTest {
     }
 
     @Test
-    fun `kalimat bebas tidak diklaim sebagai perintah`() {
-        assertEquals(null, action("apa kabar hari ini bagaimana"))
+    fun `membaca waktu tanggal dan baterai perangkat`() {
+        assertEquals(AssistantAction.GetCurrentTime, action("jam berapa sekarang"))
+        assertEquals(AssistantAction.GetCurrentDate, action("hari ini tanggal berapa"))
+        assertEquals(AssistantAction.GetBatteryStatus, action("baterai saya tersisa berapa persen"))
+        assertEquals(AssistantAction.GetBatteryStatus, action("what is my battery level"))
+        assertEquals(AssistantAction.GetBatteryStatus, action("baterai tinggal 20 persen"))
     }
 
     @Test
-    fun `fallback pencarian web tersedia`() {
-        val fallback = CommandParser.asWebSearchFallback("tolong jelaskan fenomena el nino")
-        assertNotNull(fallback.query)
-        assertTrue(fallback.query.isNotBlank())
+    fun `meminta cuaca kota tertentu atau meminta nama kota`() {
+        assertEquals(AssistantAction.GetWeather("Jepara"), action("berapa suhu di Jepara sekarang"))
+        assertEquals(AssistantAction.GetWeather(null), action("bagaimana cuaca hari ini"))
+        assertEquals(AssistantAction.GetWeather("London"), action("weather in London right now"))
+        assertEquals(AssistantAction.GetWeather("London"), action("weather in London now"))
+        assertEquals(AssistantAction.GetWeather(null), action("what's the weather"))
+        assertEquals(AssistantAction.GetWeather(null), action("cuaca di sini"))
+    }
+
+    @Test
+    fun `ketik menyisipkan teks persis dan perintah dikte harus eksplisit`() {
+        assertEquals(AssistantAction.TypeText("Halo, apa kabar."), action("tolong ketik Halo, apa kabar."))
+        assertEquals(AssistantAction.StartDictation, action("mulai dikte"))
+        assertEquals(AssistantAction.StartDictation, action("dikte"))
+        assertEquals(AssistantAction.OpenWhatsAppChat("Budi"), action("chat WhatsApp dengan Budi"))
+        assertEquals(AssistantAction.OpenWhatsAppChat("Budi"), action("open WhatsApp chat with Budi"))
+        assertEquals(AssistantAction.OpenWhatsAppChat("Ibu", preparingCall = true), action("telepon Ibu di WhatsApp"))
+        assertEquals(AssistantAction.OpenWhatsAppChat("Ibu", preparingCall = true), action("WhatsApp call with Ibu"))
+        assertEquals(true, CommandParser.isWhatsAppCallRequest("call Ibu through WhatsApp"))
+        assertEquals(null, action("how do I start dictation"))
+        assertEquals(AssistantAction.ShowHelp, action("apa saja yang bisa kamu lakukan"))
+    }
+
+    @Test
+    fun `kalimat bebas tidak diklaim sebagai perintah`() {
+        assertEquals(null, action("apa kabar hari ini bagaimana"))
     }
 
     @Test

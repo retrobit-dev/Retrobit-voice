@@ -2,6 +2,7 @@ package dev.retrobit.voice.assistant
 
 import dev.retrobit.voice.ai.Http
 import dev.retrobit.voice.core.AssistantAction
+import dev.retrobit.voice.core.MediaCommand
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.jsonObject
@@ -47,6 +48,25 @@ object IntentMapper {
             "volume" -> slots.int("percent")?.let {
                 AssistantAction.SetVolume(it, relative = slots.bool("relative") == true)
             }
+            "brightness", "set_brightness" -> slots.int("percent")?.let {
+                AssistantAction.SetBrightness(it, relative = slots.bool("relative") == true)
+            }
+            "dnd", "do_not_disturb" -> slots.bool("on")?.let { AssistantAction.SetDnd(it) }
+            "bluetooth" -> slots.bool("on")?.let { AssistantAction.SetBluetooth(it) }
+            "answer_call" -> AssistantAction.AnswerCall
+            "current_time", "get_current_time" -> AssistantAction.GetCurrentTime
+            "current_date", "get_current_date" -> AssistantAction.GetCurrentDate
+            "battery_status", "get_battery_status" -> AssistantAction.GetBatteryStatus
+            "weather", "current_weather" -> AssistantAction.GetWeather(slots.str("location"))
+            "type_text" -> slots.str("text")?.let { AssistantAction.TypeText(it) }
+            "start_dictation" -> AssistantAction.StartDictation
+            "open_whatsapp_chat", "whatsapp_chat" -> slots.str("contact")?.let {
+                AssistantAction.OpenWhatsAppChat(it, preparingCall = slots.bool("for_call") == true)
+            }
+            "media_control" -> slots.str("command")?.uppercase()?.let { command ->
+                runCatching { MediaCommand.valueOf(command) }.getOrNull()?.let { AssistantAction.ControlMedia(it) }
+            }
+            "help" -> AssistantAction.ShowHelp
             else -> null
         }
 
@@ -110,6 +130,36 @@ object ActionText {
             } else {
                 "Volume diatur ke ${action.percent} persen."
             }
+        is AssistantAction.SetBrightness ->
+            if (action.relative) {
+                if (action.percent >= 0) "Kecerahan layar dinaikkan." else "Kecerahan layar diturunkan."
+            } else {
+                "Kecerahan layar diatur ke ${action.percent} persen."
+            }
+        is AssistantAction.SetDnd -> if (action.enabled) "Mode Jangan Ganggu dinyalakan." else "Mode Jangan Ganggu dimatikan."
+        is AssistantAction.SetBluetooth ->
+            "Pengaturan Bluetooth dibuka untuk ${if (action.enabled) "menyalakan" else "mematikan"} Bluetooth; konfirmasikan perubahan di sana."
+        AssistantAction.AnswerCall -> "Mencoba menjawab panggilan masuk."
+        AssistantAction.GetCurrentTime -> "Memeriksa waktu lokal perangkat."
+        AssistantAction.GetCurrentDate -> "Memeriksa tanggal lokal perangkat."
+        AssistantAction.GetBatteryStatus -> "Memeriksa status baterai perangkat."
+        is AssistantAction.GetWeather -> action.location?.let { "Memeriksa cuaca terkini di $it." }
+            ?: "Sebutkan nama kota agar saya bisa memeriksa cuacanya."
+        is AssistantAction.TypeText -> "Mengetik teks pada posisi kursor yang aktif."
+        AssistantAction.StartDictation -> "Memulai dikte."
+        is AssistantAction.OpenWhatsAppChat -> if (action.preparingCall) {
+            "Membuka chat WhatsApp dengan ${action.contactName}; panggilan perlu dimulai dari WhatsApp."
+        } else {
+            "Membuka chat WhatsApp dengan ${action.contactName}."
+        }
+        is AssistantAction.ControlMedia -> when (action.command) {
+            MediaCommand.PLAY -> "Mengirim perintah putar ke media aktif."
+            MediaCommand.PAUSE -> "Mengirim perintah jeda ke media aktif."
+            MediaCommand.STOP -> "Mengirim perintah berhenti ke media aktif."
+            MediaCommand.NEXT -> "Melewati media aktif ke berikutnya."
+            MediaCommand.PREVIOUS -> "Kembali ke media sebelumnya."
+        }
+        AssistantAction.ShowHelp -> "Menampilkan perintah yang bisa digunakan."
         is AssistantAction.Unknown -> "Maaf, saya belum paham perintah itu."
     }
 
@@ -124,6 +174,19 @@ object ActionText {
         "save_note" -> "Catatan disimpan."
         "torch" -> "Mengubah senter."
         "volume" -> "Mengubah volume."
+        "brightness", "set_brightness" -> "Mengubah kecerahan layar."
+        "dnd", "do_not_disturb" -> "Mengubah mode Jangan Ganggu."
+        "bluetooth" -> "Membuka pengaturan Bluetooth untuk konfirmasi pengguna."
+        "answer_call" -> "Mencoba menjawab panggilan masuk."
+        "current_time", "get_current_time" -> "Memeriksa waktu lokal perangkat."
+        "current_date", "get_current_date" -> "Memeriksa tanggal lokal perangkat."
+        "battery_status", "get_battery_status" -> "Memeriksa status baterai perangkat."
+        "weather", "current_weather" -> "Memeriksa cuaca terkini."
+        "type_text" -> "Mengetik teks pada posisi kursor yang aktif."
+        "start_dictation" -> "Memulai dikte."
+        "open_whatsapp_chat", "whatsapp_chat" -> "Membuka chat WhatsApp."
+        "media_control" -> "Mengontrol pemutar media yang aktif."
+        "help" -> "Menampilkan perintah yang bisa digunakan."
         "open_settings" -> "Membuka pengaturan."
         else -> "Baik."
     }

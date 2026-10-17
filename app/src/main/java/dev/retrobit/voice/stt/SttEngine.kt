@@ -13,7 +13,14 @@ interface SttEngine {
 class SttUnavailableException(message: String, cause: Throwable? = null) : Exception(message, cause)
 
 /** Mesin tersedia tapi gagal memproses (jaringan, kuota, izin, bahasa tidak didukung). */
-class SttFailedException(message: String, cause: Throwable? = null) : Exception(message, cause)
+open class SttFailedException(message: String, cause: Throwable? = null) : Exception(message, cause)
+
+/**
+ * Layanan pengenalan sedang sibuk — kegagalan sementara yang layak dicoba
+ * ulang sebentar lagi (sesi sebelumnya belum selesai, atau klien lain sedang
+ * memegang recognizer).
+ */
+class SttBusyException(message: String, cause: Throwable? = null) : SttFailedException(message, cause)
 
 /** Semua mesin gagal — berisi ringkasan setiap percobaan untuk ditampilkan ke pengguna. */
 class SttAllFailedException(val attempts: List<Pair<String, String>>) :

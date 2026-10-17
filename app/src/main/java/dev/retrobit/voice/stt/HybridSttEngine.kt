@@ -122,6 +122,7 @@ class HybridSttEngine(private val context: Context) {
         onPartial: (String) -> Unit,
         onLevel: (Float) -> Unit,
         timeoutMs: Long = 20_000L,
+        silenceTimeoutMs: Long = settings.silenceTimeoutMs.toLong(),
     ): Transcript {
         if (!system.isAvailable()) throw SttUnavailableException("Recognizer sistem tidak tersedia")
         return system.listen(
@@ -130,6 +131,7 @@ class HybridSttEngine(private val context: Context) {
             onLevel = onLevel,
             preferOnDevice = settings.sttEngine != SttEngineChoice.CLOUD,
             timeoutMs = timeoutMs,
+            silenceTimeoutMs = silenceTimeoutMs,
         )
     }
 

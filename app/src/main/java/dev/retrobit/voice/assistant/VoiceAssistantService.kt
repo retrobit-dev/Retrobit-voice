@@ -6,15 +6,23 @@ import android.service.voice.VoiceInteractionService
 import android.service.voice.VoiceInteractionSession
 import dev.retrobit.voice.core.AppGraph
 import dev.retrobit.voice.core.VoiceLog
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
 
 /**
  * Membuat Retrobit Voice bisa dipilih sebagai **asisten digital bawaan Android**
  * (Pengaturan → Aplikasi → Asisten digital).
  *
- * Setelah dipilih, menahan tombol home / tombol asisten akan membuka Retrobit
- * dan langsung mendengarkan — persis perilaku Google Assistant.
+ * Setelah dipilih, menahan tombol Home/tombol asisten memulai sesi dengar.
+ * Jika izin overlay dan mikrofon tersedia, popup Retrobit tampil tanpa mengganti
+ * aplikasi yang sedang dibuka; layar asisten menjadi fallback bila izin belum siap.
  */
 class VoiceAssistantService : VoiceInteractionService() {
+
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 
     override fun onCreate() {
         super.onCreate()
@@ -24,12 +32,16 @@ class VoiceAssistantService : VoiceInteractionService() {
     override fun onReady() {
         super.onReady()
         VoiceLog.i("VoiceInteractionService siap")
-        AppGraph.require.assistant.startWakeWordIfEnabled()
+        scope.launch {
+            val wakeWordEnabled = runCatching { AppGraph.require.settings.current().wakeWordEnabled }
+                .getOrDefault(false)
+            if (wakeWordEnabled) WakeWordService.start(this@VoiceAssistantService)
+        }
     }
 
-    override fun onShutdown() {
-        AppGraph.require.assistant.stopWakeWord()
-        super.onShutdown()
+    override fun onDestroy() {
+        scope.cancel()
+        super.onDestroy()
     }
 
     /**
@@ -64,16 +76,16 @@ class RetrobitVoiceInteractionSessionService : android.service.voice.VoiceIntera
 }
 
 /**
- * Sesi singkat: begitu asisten dipanggil, Retrobit membuka layar asisten
- * dan langsung mendengarkan. Kami sengaja tidak menggambar panel sendiri
- * supaya seluruh pengalaman terkontrol di satu tempat (dan mudah diuji).
+ * Sesi singkat: begitu asisten dipanggil, mulai mendengarkan dan serahkan
+ * presentasi ke popup overlay Retrobit. Jika izin overlay/mikrofon belum siap,
+ * AssistantSession membuka layar asisten sebagai fallback.
  */
 class RetrobitVoiceSession(context: Context) : VoiceInteractionSession(context) {
 
     override fun onShow(args: Bundle?, showFlags: Int) {
         super.onShow(args, showFlags)
         try {
-            AppGraph.require.assistant.openAssistantUi(autoListen = true)
+            AppGraph.require.assistant.openAssistantUi(autoListen = true, captureScreenContext = true)
         } catch (t: Throwable) {
             VoiceLog.e("Gagal membuka sesi asisten", t)
         }

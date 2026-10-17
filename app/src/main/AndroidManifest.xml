@@ -12,6 +12,11 @@
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.VIBRATE" />
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+    <!-- Special access is requested through Android Settings before changing these controls. -->
+    <uses-permission android:name="android.permission.WRITE_SETTINGS" tools:ignore="ProtectedPermissions" />
+    <uses-permission android:name="android.permission.ACCESS_NOTIFICATION_POLICY" />
+    <uses-permission android:name="android.permission.ANSWER_PHONE_CALLS" />
     <!--
       Package visibility TIDAK memakai QUERY_ALL_PACKAGES.
       Kebijakan Play melarangnya bila kebutuhan bisa dipenuhi deklarasi terarah,
@@ -25,6 +30,13 @@
     <uses-permission android:name="android.permission.READ_CONTACTS" />
 
     <uses-feature android:name="android.hardware.microphone" android:required="true" />
+    <!--
+      Aplikasi menyebut CALL_PHONE, tetapi panggilan dikirim sebagai Intent resmi
+      (ACTION_DIAL/ACTION_CALL) ke aplikasi telepon. Tanpa deklarasi ini, Play
+      menganggap aplikasi butuh perangkat telefoni dan menyaringnya dari tablet
+      serta Chromebook — semua fitur lain tetap berjalan tanpa telefoni.
+    -->
+    <uses-feature android:name="android.hardware.telephony" android:required="false" />
 
     <!-- Agar bisa menemukan app yang akan dibuka perintah asisten -->
     <queries>
@@ -32,6 +44,8 @@
             <action android:name="android.intent.action.MAIN" />
             <category android:name="android.intent.category.LAUNCHER" />
         </intent>
+        <package android:name="com.whatsapp" />
+        <package android:name="com.whatsapp.w4b" />
         <intent>
             <action android:name="android.speech.RecognitionService" />
         </intent>
@@ -105,7 +119,7 @@
             android:foregroundServiceType="specialUse">
             <property
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
-                android:value="Bubble mikrofon melayang untuk mulai dikte dari aplikasi apa pun" />
+                android:value="Bubble mikrofon dan popup asisten saat sesi Retrobit aktif" />
         </service>
 
         <!-- ============ DIKTE: JALUR CADANGAN VIA AKSESIBILITAS ============ -->
@@ -121,6 +135,12 @@
                 android:name="android.accessibilityservice"
                 android:resource="@xml/accessibility_service_config" />
         </service>
+
+        <!-- ============ PEMANTAU KATA KUNCI (OPT-IN) ============ -->
+        <service
+            android:name=".assistant.WakeWordService"
+            android:exported="false"
+            android:foregroundServiceType="microphone" />
 
         <!-- ============ ASISTEN ============ -->
         <service

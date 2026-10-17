@@ -1,26 +1,37 @@
 name: Build APK
 
 # Semua pembangunan APK dilakukan di GitHub Actions.
-# - Setiap push/PR  : unit test + APK debug (tersedia sebagai artifact)
-# - Push ke main    : tambahan APK rilis ber-tanda tangan + Release "build-terbaru"
-# - Tag v*          : Release resmi dengan catatan rilis
+# - PR / push ke main / manual : unit test + APK debug (artifact)
+# - PR, push ke main, dan tag  : APK rilis ber-tanda tangan (artifact)
+# - Push ke main                : Release "build-terbaru"
+# - Tag v*                      : Release resmi dengan catatan rilis
+# Push feature branch tanpa PR tidak membangun duplikat; gunakan workflow_dispatch bila perlu.
 on:
   push:
-    branches: ["**"]
+    branches: ["main"]
     tags: ["v*"]
   pull_request:
   workflow_dispatch:
+
+# Batalkan build lama pada ref/PR yang sama saat commit baru datang.
+concurrency:
+  group: retrobit-build-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: write
   pull-requests: write
 
+# Proyek ini sengaja TIDAK menyimpan keystore permanen (keputusan pemilik proyek).
+# Setiap build membuat kunci sekali pakai di runner — lihat langkah "Siapkan keystore".
+# Akibatnya tanda tangan APK berbeda di tiap build dan memasang versi baru selalu
+# memerlukan uninstall dulu (detail di README bagian "Unduh APK").
+# Kalau kelak ingin update menimpa tanpa uninstall, simpan satu keystore tetap
+# sebagai secret lalu pulihkan (base64 -d) di langkah tersebut.
 env:
-  # Dipakai hanya untuk build dari main/tag; kalau secret tidak ada, nilai bawaan
-  # ini membuat APK tetap terbangun (kunci uji, bukan kunci rilis Play Store).
-  KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD || 'retrobit-ci-pass' }}
-  KEY_PASSWORD: ${{ secrets.KEY_PASSWORD || 'retrobit-ci-pass' }}
-  KEY_ALIAS: ${{ secrets.KEY_ALIAS || 'retrobit' }}
+  KEYSTORE_PASSWORD: retrobit-ci-pass
+  KEY_PASSWORD: retrobit-ci-pass
+  KEY_ALIAS: retrobit
 
 jobs:
   build:
@@ -71,14 +82,25 @@ jobs:
           set -o pipefail
           ./gradlew testDebugUnitTest --stacktrace 2>&1 | tee build.log
 
+      # Penjaga regresi yang tidak terlihat unit test (mis. API tanpa cek versi,
+      # resource hilang). abortOnError = true di app/build.gradle.kts membuat
+      # temuan bertingkat error menggagalkan langkah ini.
+      - name: Lint (error menggagalkan build)
+        run: |
+          set -o pipefail
+          ./gradlew lintDebug --stacktrace 2>&1 | tee -a build.log
+
       - name: Build APK debug
         run: |
           set -o pipefail
           ./gradlew assembleDebug --stacktrace 2>&1 | tee -a build.log
 
-      # ---------- APK rilis ber-tanda tangan (main & tag saja) ----------
-      - name: Siapkan keystore
-        if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')
+      # ---------- APK rilis ber-tanda tangan (PR, main & tag) ----------
+      # Kunci dibuat SEKALI PAKAI di runner, bukan dipulihkan dari secret: proyek ini
+      # tidak menyimpan keystore permanen. Cukup untuk dipasang & diuji, tetapi setiap
+      # build punya tanda tangan berbeda sehingga tidak bisa menimpa versi lama.
+      - name: Siapkan keystore sekali pakai (kunci uji)
+        if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')
         run: |
           keytool -genkeypair -v -keystore "$RUNNER_TEMP/retrobit.jks" \
             -alias "$KEY_ALIAS" -keyalg RSA -keysize 2048 -validity 10000 \
@@ -87,10 +109,17 @@ jobs:
           echo "KEYSTORE_PATH=$RUNNER_TEMP/retrobit.jks" >> "$GITHUB_ENV"
 
       - name: Build APK rilis
-        if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')
+        if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')
         run: |
           set -o pipefail
           ./gradlew assembleRelease --stacktrace 2>&1 | tee -a build.log
+
+      - name: Verifikasi tanda tangan APK rilis
+        if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')
+        run: |
+          APKSIGNER=$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -n 1)
+          test -x "$APKSIGNER"
+          "$APKSIGNER" verify --verbose app/build/outputs/apk/release/app-release.apk
 
       - name: Unggah APK debug (artifact)
         uses: actions/upload-artifact@v4
@@ -100,7 +129,7 @@ jobs:
           if-no-files-found: error
 
       - name: Unggah APK rilis (artifact)
-        if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')
+        if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')
         uses: actions/upload-artifact@v4
         with:
           name: retrobit-voice-release
@@ -129,7 +158,16 @@ jobs:
             | `app-release.apk` | Rilis (lebih kecil & lebih cepat, sudah diminifikasi) |
             | `app-debug.apk` | Debug (untuk melaporkan masalah dengan log lengkap) |
 
-            Cara pasang: unduh APK → buka di ponsel → izinkan "Instal dari sumber tidak dikenal".
+            > ⚠️ **Uninstall versi lama dulu sebelum memasang.**
+            > Proyek ini tidak menyimpan keystore tetap, jadi setiap build ditandatangani
+            > kunci sekali pakai dan Android menolak pemasangan yang menimpa versi lama
+            > (`INSTALL_FAILED_UPDATE_INCOMPATIBLE`).
+            > Uninstall juga menghapus setelan & API key yang tersimpan — jalankan
+            > **Pengaturan → Cadangan setelan → Ekspor** sebelum mengganti versi, lalu
+            > **Impor** setelah versi baru terpasang.
+
+            Cara pasang: unduh APK → **uninstall versi lama** → buka berkas di ponsel → izinkan
+            "Instal dari sumber tidak dikenal" bila diminta.
             Setelah terpasang, ikuti 5 langkah aktivasi di tab **Beranda**.
           files: |
             app/build/outputs/apk/release/*.apk
@@ -157,10 +195,21 @@ jobs:
             echo "### ❌ Build gagal"
             echo
             echo '```text'
-            grep -n "^e: \| error: \|FAILED\|Execution failed\|Caused by" build.log 2>/dev/null | head -n 60 || true
+            grep -n "^e: \| error: \|Error: \|FAILED\|Execution failed\|Caused by" build.log 2>/dev/null | head -n 60 || true
             echo
             echo "--- 80 baris terakhir ---"
             tail -n 80 build.log 2>/dev/null || echo "(build.log tidak ada)"
             echo '```'
+
+            # Temuan Lint lengkap. Tanpa ini, gerbang Lint hanya memberi tahu bahwa
+            # build gagal — daftar temuannya tersembunyi di berkas laporan artefak.
+            if [ -f app/build/reports/lint-results-debug.txt ]; then
+              echo
+              echo "### 🔎 Temuan Lint"
+              echo
+              echo '```text'
+              grep -nE "Error:|Warning:" app/build/reports/lint-results-debug.txt | head -n 80 || true
+              echo '```'
+            fi
           } > /tmp/failure-comment.md
           gh pr comment ${{ github.event.pull_request.number }} --body-file /tmp/failure-comment.md || true
