@@ -244,7 +244,7 @@ class SpeakerVerificationManager(
                     capturingSample = false,
                     error = when (error) {
                         is SpeakerAudioFeatures.InvalidAudioException -> error.message
-                        else -> appContext.getString(R.string.speaker_enrollment_sample_failed),
+                        else -> appContext.getString(R.string.speaker_enrollment_sample_failed)
                     },
                 )
             }
