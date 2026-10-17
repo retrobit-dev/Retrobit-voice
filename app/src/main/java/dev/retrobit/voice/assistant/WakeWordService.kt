@@ -24,7 +24,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 
-/** Keeps the opt-in wake-word recognizer eligible to use the microphone in background. */
+/** Keeps opt-in local KWS monitoring eligible to use the microphone in background. */
 class WakeWordService : Service() {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
@@ -78,9 +78,22 @@ class WakeWordService : Service() {
 
         startJob?.cancel()
         startJob = scope.launch {
-            val enabled = runCatching { graph.settings.current().wakeWordEnabled }.getOrDefault(false)
-            if (enabled && graph.dictation.hasMicrophonePermission()) {
-                graph.assistant.startWakeWordIfEnabled()
+            val settings = runCatching { graph.settings.current() }.getOrNull()
+            if (graph.wakeWordEnrollment.state.value.enrollmentActive) {
+                graph.assistant.stopWakeWord()
+                stopSelfSafely()
+            } else if (settings?.wakeWordEnabled == true && graph.dictation.hasMicrophonePermission()) {
+                val profileReady = runCatching {
+                    graph.wakeWordEnrollment.hasProfileForPhrase(settings.wakeWordPhrase)
+                }.onFailure { VoiceLog.e("Profil wake word lokal gagal dibuka", it) }.getOrDefault(false)
+                if (!profileReady) {
+                    graph.settings.update { it.copy(wakeWordEnabled = false) }
+                    graph.assistant.stopWakeWord()
+                    ToastHub.show(this@WakeWordService, getString(R.string.wake_word_profile_required), long = true)
+                    stopSelfSafely()
+                } else {
+                    graph.assistant.startWakeWordIfEnabled()
+                }
             } else {
                 graph.assistant.stopWakeWord()
                 stopSelfSafely()

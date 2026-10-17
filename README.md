@@ -45,7 +45,7 @@ Dirancang **offline-first**: dikte dan puluhan perintah tetap jalan tanpa intern
 - **Aksi telepon dan pesan perlu konfirmasi eksplisit** — panggilan seluler keluar (`CallContact`/`Dial`), menjawab panggilan masuk, dan menyiapkan draf pesan hanya berjalan setelah jawaban “ya” atau persetujuan tombol. “Batal” membatalkan aksi yang menunggu; jawaban yang tidak jelas tidak menjalankan aksi. Pengiriman akhir pesan tetap memerlukan tap Kirim di aplikasi tujuan.
 - **Perintah universal** — “ulangi”/“repeat” membacakan jawaban terakhir tanpa mengulang aksinya; “batal” membatalkan konfirmasi yang menunggu. “Stop”/“berhenti” tetap mengikuti konteks, termasuk menghentikan media.
 - **Bisa dipilih sebagai asisten digital bawaan** (`VoiceInteractionService`) — tekan lama tombol Home langsung mendengarkan dan mengucapkan prompt siap.
-- **Kata kunci panggilan** opsional ("hai retro"). Pemantauan mikrofon berlangsung hampir terus-menerus dengan SpeechRecognizer Android dan dapat mengecilkan/menjeda media; nonaktifkan jika mengganggu pemutaran atau gunakan tahan Volume Atas. Model wake-word lokal hemat daya belum tersedia.
+- **Wake word lokal-personal** opsional (default: “hai retro”). Enrolmen satu kali merekam tiga contoh frasa; model embedding + pencocokan urutan berjalan di perangkat, tanpa sesi SpeechRecognizer pasif atau unggahan audio. `AudioRecord` tidak meminta fokus audio, sehingga pemantauan pasif tidak menjeda media. Profil fitur suara dienkripsi dengan Android Keystore; WAV mentah dihapus. Deteksi terutama ditujukan untuk suara yang direkam dan dapat kurang andal di lingkungan bising dibanding asisten sistem. Wake word selalu membuka overlay asisten, bukan dikte; overlay tetap meminta fokus audio eksklusif untuk menjeda media dan melepasnya saat ditutup.
 - **TTS bawaan Android** — pilih dan pratinjau suara yang tersedia dari mesin sistem, lalu atur pitch dan kecepatan (default mengikuti suara sistem, nilai 1,0; rentang 0,6–1,6).
 - Saat sesi suara dimulai, asisten mengucapkan “Saya siap.” sebelum mendengar. Jika prompt TTS gagal, sesi mendengar dibatalkan. Jeda hening perintah asisten dapat diatur terpisah dari jeda dikte (default 3 detik, rentang 0,5–5 detik).
 
@@ -55,7 +55,7 @@ Dirancang **offline-first**: dikte dan puluhan perintah tetap jalan tanpa intern
 - Riwayat hanya tersimpan di perangkat, bisa dimatikan sekali sentuh — tidak ada server milik proyek ini.
 - Akses konteks layar **mati secara bawaan**; bila diaktifkan, snapshot hanya diteruskan ke LLM pilihan jika diperlukan untuk memahami permintaan layar/kontekstual, dan tidak disimpan di riwayat. Aksi media yang dikenali diproses lokal.
 - Cuaca hanya dicari setelah diminta; hanya nama kota yang diucapkan dikirim ke Open-Meteo. Retrobit tidak mengakses lokasi GPS untuk cuaca.
-- Filter speaker bersifat opt-in. Template terenkripsi tetap di perangkat, dikecualikan dari backup Android dan ekspor setelan, serta tidak dikirim ke STT. Sampel enrolmen mentah dihapus setelah diproses. Audio dikirim ke STT yang dipilih hanya setelah lolos pemeriksaan; STT cloud tetap menerima audio yang lolos.
+- Filter speaker dan wake word personal bersifat opt-in. Templat fitur dienkripsi dengan Android Keystore, dikecualikan dari backup Android/ekspor setelan, dan tidak dikirim ke STT. Sampel WAV enrolmen mentah dihapus setelah diproses. Audio perintah asisten yang direkam setelah overlay terbuka tetap mengikuti mesin STT yang dipilih.
 - Tidak ada analytics, tidak ada iklan, tidak ada pengiriman data diam-diam. Pesan tidak pernah dikirim tanpa konfirmasi dan tap Kirim di aplikasi tujuan.
 
 ---
@@ -195,6 +195,7 @@ app/src/main/java/dev/retrobit/voice/
 
 Detail arsitektur & keputusan desain: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)
 Filter speaker lokal, privasi, dan atribusi model: [`docs/SPEAKER_VERIFICATION.md`](docs/SPEAKER_VERIFICATION.md)
+Detektor wake word lokal, enrolmen personal, dan atribusi model: [`docs/WAKE_WORD.md`](docs/WAKE_WORD.md)
 Peta izin sistem: [`docs/PERMISSIONS.md`](docs/PERMISSIONS.md)
 Rencana pengembangan: [`docs/ROADMAP.md`](docs/ROADMAP.md)
 

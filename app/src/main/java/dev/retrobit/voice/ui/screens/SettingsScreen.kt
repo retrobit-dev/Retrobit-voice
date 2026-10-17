@@ -65,10 +65,17 @@ import kotlin.math.roundToInt
 fun SettingsScreen(vm: AppViewModel, modifier: Modifier = Modifier) {
     val settings by vm.settings.collectAsStateWithLifecycle()
     val speakerState by vm.speakerVerification.collectAsStateWithLifecycle()
+    val wakeWordState by vm.wakeWordEnrollment.collectAsStateWithLifecycle()
     val current = settings ?: AppSettings()
     val context = LocalContext.current
     var showSpeakerConsent by remember { mutableStateOf(false) }
     var speakerConsentChecked by remember { mutableStateOf(false) }
+    var showWakeWordConsent by remember { mutableStateOf(false) }
+    var enableWakeWordAfterEnrollment by remember { mutableStateOf(false) }
+    var beginWakeWordEnrollmentAfterPermission by remember { mutableStateOf(false) }
+    var enableWakeWordAfterPermission by remember { mutableStateOf(false) }
+    var showWakeWordDeleteConfirmation by remember { mutableStateOf(false) }
+    var previousWakeWordPhrase by remember { mutableStateOf(current.wakeWordPhrase) }
     val accessibilityActive = DeviceState.isAccessibilityEnabled(context) || TextInsertAccessibilityService.isConnected()
     var log by remember { mutableStateOf("") }
     var deviceCheck by remember { mutableStateOf("") }
@@ -97,13 +104,47 @@ fun SettingsScreen(vm: AppViewModel, modifier: Modifier = Modifier) {
     val wakeWordMicrophonePermission = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission(),
     ) { granted ->
-        if (granted) vm.update { it.copy(wakeWordEnabled = true) }
+        if (granted) {
+            when {
+                beginWakeWordEnrollmentAfterPermission -> {
+                    beginWakeWordEnrollmentAfterPermission = false
+                    vm.beginWakeWordEnrollment(current.wakeWordPhrase)
+                }
+                enableWakeWordAfterPermission -> {
+                    enableWakeWordAfterPermission = false
+                    vm.update { it.copy(wakeWordEnabled = true) }
+                }
+            }
+        } else {
+            beginWakeWordEnrollmentAfterPermission = false
+            enableWakeWordAfterPermission = false
+            enableWakeWordAfterEnrollment = false
+            vm.wakeWordMicrophonePermissionDenied()
+        }
     }
     val speakerMicrophonePermission = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission(),
     ) { granted ->
         if (granted) vm.beginSpeakerEnrollment()
         else vm.speakerMicrophonePermissionDenied()
+    }
+
+    LaunchedEffect(current.wakeWordPhrase) {
+        if (previousWakeWordPhrase != current.wakeWordPhrase) {
+            enableWakeWordAfterEnrollment = false
+            previousWakeWordPhrase = current.wakeWordPhrase
+        }
+    }
+
+    LaunchedEffect(wakeWordState.profileReady, wakeWordState.enrollmentActive, wakeWordState.error) {
+        if (wakeWordState.error != null && !wakeWordState.enrollmentActive) {
+            enableWakeWordAfterEnrollment = false
+        } else if (
+            enableWakeWordAfterEnrollment && wakeWordState.profileReady && !wakeWordState.enrollmentActive
+        ) {
+            enableWakeWordAfterEnrollment = false
+            vm.update { it.copy(wakeWordEnabled = true) }
+        }
     }
 
     Column(
@@ -480,16 +521,87 @@ fun SettingsScreen(vm: AppViewModel, modifier: Modifier = Modifier) {
             )
             SwitchRow(
                 title = str(R.string.settings_wake_word),
-                subtitle = str(R.string.settings_wake_word_note),
+                subtitle = when {
+                    wakeWordState.enrollmentActive -> wakeWordState.status
+                    current.wakeWordEnabled -> str(R.string.settings_wake_word_note)
+                    !wakeWordState.profileReady -> str(R.string.wake_word_profile_missing)
+                    else -> str(R.string.wake_word_profile_ready)
+                },
                 checked = current.wakeWordEnabled,
                 onChange = { value ->
-                    if (value && !DeviceState.hasMicrophone(context)) {
+                    if (!value) {
+                        enableWakeWordAfterEnrollment = false
+                        enableWakeWordAfterPermission = false
+                        vm.update { it.copy(wakeWordEnabled = false) }
+                    } else if (!wakeWordState.profileReady) {
+                        enableWakeWordAfterEnrollment = true
+                        showWakeWordConsent = true
+                    } else if (!DeviceState.hasMicrophone(context)) {
+                        enableWakeWordAfterPermission = true
                         wakeWordMicrophonePermission.launch(Manifest.permission.RECORD_AUDIO)
                     } else {
-                        vm.update { it.copy(wakeWordEnabled = value) }
+                        vm.update { it.copy(wakeWordEnabled = true) }
                     }
                 },
             )
+            if (wakeWordState.modelLoading) {
+                LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+            }
+            if (wakeWordState.status.isNotBlank()) {
+                Text(wakeWordState.status, style = MaterialTheme.typography.bodySmall)
+            }
+            wakeWordState.error?.let { error ->
+                Text(
+                    text = "! $error",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error,
+                )
+            }
+            if (wakeWordState.enrollmentActive) {
+                Text(
+                    text = str(R.string.wake_word_enrollment_instructions, current.wakeWordPhrase),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                BracketButton(
+                    text = if (wakeWordState.capturingSample) {
+                        str(R.string.wake_word_recording_now)
+                    } else {
+                        str(R.string.wake_word_record_sample)
+                    },
+                    onClick = { vm.captureWakeWordSample() },
+                    enabled = !wakeWordState.capturingSample && !wakeWordState.modelLoading,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                BracketButton(
+                    text = str(R.string.wake_word_cancel_enrollment),
+                    onClick = {
+                        enableWakeWordAfterEnrollment = false
+                        vm.cancelWakeWordEnrollment()
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            } else {
+                BracketButton(
+                    text = if (wakeWordState.profileReady) {
+                        str(R.string.wake_word_reenroll)
+                    } else {
+                        str(R.string.wake_word_enroll)
+                    },
+                    onClick = {
+                        enableWakeWordAfterEnrollment = false
+                        showWakeWordConsent = true
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                if (wakeWordState.profileReady) {
+                    BracketButton(
+                        text = str(R.string.wake_word_delete_profile),
+                        onClick = { showWakeWordDeleteConfirmation = true },
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+            }
             SettingTextField(
                 label = str(R.string.settings_wake_word_phrase),
                 value = current.wakeWordPhrase,
@@ -576,6 +688,65 @@ fun SettingsScreen(vm: AppViewModel, modifier: Modifier = Modifier) {
                     modifier = Modifier.fillMaxWidth(),
                 )
             }
+        }
+
+        if (showWakeWordConsent) {
+            AlertDialog(
+                onDismissRequest = {
+                    showWakeWordConsent = false
+                    enableWakeWordAfterEnrollment = false
+                },
+                title = { Text(str(R.string.wake_word_consent_title)) },
+                text = {
+                    Text(
+                        str(R.string.wake_word_consent_body, current.wakeWordPhrase),
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            showWakeWordConsent = false
+                            if (DeviceState.hasMicrophone(context)) {
+                                beginWakeWordEnrollmentAfterPermission = false
+                                vm.beginWakeWordEnrollment(current.wakeWordPhrase)
+                            } else {
+                                beginWakeWordEnrollmentAfterPermission = true
+                                wakeWordMicrophonePermission.launch(Manifest.permission.RECORD_AUDIO)
+                            }
+                        },
+                    ) { Text(str(R.string.wake_word_consent_accept)) }
+                },
+                dismissButton = {
+                    TextButton(
+                        onClick = {
+                            showWakeWordConsent = false
+                            enableWakeWordAfterEnrollment = false
+                        },
+                    ) { Text(str(R.string.action_cancel)) }
+                },
+            )
+        }
+
+        if (showWakeWordDeleteConfirmation) {
+            AlertDialog(
+                onDismissRequest = { showWakeWordDeleteConfirmation = false },
+                title = { Text(str(R.string.wake_word_delete_title)) },
+                text = { Text(str(R.string.wake_word_delete_body), style = MaterialTheme.typography.bodySmall) },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            showWakeWordDeleteConfirmation = false
+                            vm.deleteWakeWordProfile()
+                        },
+                    ) { Text(str(R.string.wake_word_delete_profile)) }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showWakeWordDeleteConfirmation = false }) {
+                        Text(str(R.string.action_cancel))
+                    }
+                },
+            )
         }
 
         if (showSpeakerConsent) {

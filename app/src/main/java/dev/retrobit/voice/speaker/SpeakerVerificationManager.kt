@@ -82,7 +82,10 @@ class SpeakerVerificationManager(
             _state.value = _state.value.copy(error = appContext.getString(R.string.speaker_microphone_required))
             return
         }
-        if (graph.dictation.state.value.isBusy || graph.assistant.state.value.listening || graph.assistant.state.value.thinking) {
+        if (
+            graph.dictation.state.value.isBusy || graph.assistant.state.value.listening || graph.assistant.state.value.thinking ||
+            graph.wakeWordEnrollment.state.value.enrollmentActive
+        ) {
             _state.value = _state.value.copy(error = appContext.getString(R.string.speaker_busy))
             return
         }
@@ -140,7 +143,10 @@ class SpeakerVerificationManager(
 
     suspend fun captureEnrollmentSample() = operationMutex.withLock {
         if (!_state.value.enrollmentActive || _state.value.modelDownloading || _state.value.capturingSample) return@withLock
-        if (graph.dictation.state.value.isBusy || graph.assistant.state.value.listening || graph.assistant.state.value.thinking) {
+        if (
+            graph.dictation.state.value.isBusy || graph.assistant.state.value.listening || graph.assistant.state.value.thinking ||
+            graph.wakeWordEnrollment.state.value.enrollmentActive
+        ) {
             _state.value = _state.value.copy(error = appContext.getString(R.string.speaker_busy))
             return@withLock
         }

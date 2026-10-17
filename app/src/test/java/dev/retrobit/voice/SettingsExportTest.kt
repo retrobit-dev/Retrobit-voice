@@ -89,13 +89,21 @@ class SettingsExportTest {
     }
 
     @Test
-    fun `profil speaker tetap lokal dan tidak ikut cadangan setelan`() {
-        val enabled = AppSettings(speakerVerificationEnabled = true)
+    fun `profil speaker dan sampel wake word tetap lokal dan tidak ikut cadangan setelan`() {
+        val enabled = AppSettings(
+            speakerVerificationEnabled = true,
+            wakeWordEnabled = true,
+            wakeWordPhrase = "hai retro",
+        )
         val json = enabled.toSnapshot().encode()
         val restored = decodeSettingsSnapshot(json).toSettings()
 
         assertFalse(json.contains("speakerVerificationEnabled"))
+        assertFalse(json.contains("wakeWordProfile"))
+        assertFalse(json.contains("wakeWordTemplate"))
+        assertTrue(json.contains("wakeWordPhrase"))
         assertFalse(restored.speakerVerificationEnabled)
+        assertTrue(restored.wakeWordEnabled)
     }
 
     @Test

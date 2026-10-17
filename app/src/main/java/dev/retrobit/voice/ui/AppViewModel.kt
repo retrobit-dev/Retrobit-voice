@@ -7,6 +7,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import dev.retrobit.voice.BuildConfig
 import dev.retrobit.voice.R
+import dev.retrobit.voice.assistant.WakeWordAudioFeatures
 import dev.retrobit.voice.assistant.WakeWordService
 import dev.retrobit.voice.core.AppGraph
 import dev.retrobit.voice.core.VoiceLog
@@ -21,11 +22,11 @@ import dev.retrobit.voice.dictation.DictationController
 import dev.retrobit.voice.dictation.DictationService
 import dev.retrobit.voice.dictation.overlay.OverlayBubbleService
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -46,47 +47,46 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     val dictation: StateFlow<DictationController.UiState> = graph.dictation.state
     val assistant: StateFlow<dev.retrobit.voice.assistant.AssistantSession.UiState> = graph.assistant.state
     val speakerVerification = graph.speakerVerification.state
+    val wakeWordEnrollment = graph.wakeWordEnrollment.state
     val assistantHistory = graph.assistant.history
     val dictationHistory = graph.history.dictation
     val log = MutableStateFlow("")
 
     private val _toast = MutableStateFlow<String?>(null)
     val toast: StateFlow<String?> = _toast.asStateFlow()
-    private var wakeWordSyncJob: Job? = null
 
     init {
         viewModelScope.launch { graph.history.load() }
         viewModelScope.launch { graph.speakerVerification.refresh() }
+        viewModelScope.launch {
+            graph.settings.flow
+                .map { it.wakeWordPhrase }
+                .distinctUntilChanged()
+                .collect { phrase -> graph.wakeWordEnrollment.refresh(phrase) }
+        }
     }
 
     fun update(transform: (AppSettings) -> AppSettings) {
         viewModelScope.launch {
             var wakeWordShouldSync = false
-            var restartWakeWord = false
+            var phraseChangedWhileEnabled = false
             graph.settings.update { current ->
-                val updated = transform(current)
+                val candidate = transform(current)
+                val phraseChanged = WakeWordAudioFeatures.normalizePhrase(current.wakeWordPhrase) !=
+                    WakeWordAudioFeatures.normalizePhrase(candidate.wakeWordPhrase)
+                phraseChangedWhileEnabled = current.wakeWordEnabled && phraseChanged
+                val updated = if (phraseChangedWhileEnabled) candidate.copy(wakeWordEnabled = false) else candidate
                 wakeWordShouldSync = current.wakeWordEnabled != updated.wakeWordEnabled ||
-                    (updated.wakeWordEnabled && (
-                        current.wakeWordPhrase != updated.wakeWordPhrase ||
-                            current.assistantLanguage != updated.assistantLanguage
-                        ))
-                restartWakeWord = current.wakeWordEnabled && updated.wakeWordEnabled && wakeWordShouldSync
+                    (updated.wakeWordEnabled && phraseChanged)
                 updated
             }
+            if (phraseChangedWhileEnabled) {
+                _toast.value = getApplication<Application>().getString(R.string.wake_word_phrase_changed)
+                graph.wakeWordEnrollment.cancelEnrollment()
+            }
             if (wakeWordShouldSync) {
-                wakeWordSyncJob?.cancel()
-                if (restartWakeWord) {
-                    // Frasa ditulis per karakter; tunggu jeda singkat sebelum
-                    // membongkar dan memulai ulang recognizer.
-                    wakeWordSyncJob = viewModelScope.launch {
-                        delay(WAKE_WORD_RESTART_DEBOUNCE_MS)
-                        graph.assistant.stopWakeWord()
-                        synchronizeWakeWordService()
-                    }
-                } else {
-                    wakeWordSyncJob = null
-                    synchronizeWakeWordService()
-                }
+                graph.assistant.stopWakeWord()
+                synchronizeWakeWordService()
             }
         }
     }
@@ -99,14 +99,31 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     private suspend fun synchronizeWakeWordService() {
         val app = getApplication<Application>()
         val current = graph.settings.current()
+        if (graph.wakeWordEnrollment.state.value.enrollmentActive) {
+            graph.assistant.stopWakeWord()
+            WakeWordService.stop(app)
+            return
+        }
         if (!current.wakeWordEnabled) {
+            graph.assistant.stopWakeWord()
             WakeWordService.stop(app)
             return
         }
         if (!graph.dictation.hasMicrophonePermission()) {
             graph.settings.update { it.copy(wakeWordEnabled = false) }
+            graph.assistant.stopWakeWord()
             WakeWordService.stop(app)
             _toast.value = app.getString(R.string.settings_wake_word_needs_microphone)
+            return
+        }
+        val profileReady = runCatching {
+            graph.wakeWordEnrollment.hasProfileForPhrase(current.wakeWordPhrase)
+        }.onFailure { VoiceLog.e("Profil wake word lokal gagal dibaca", it) }.getOrDefault(false)
+        if (!profileReady) {
+            graph.settings.update { it.copy(wakeWordEnabled = false) }
+            graph.assistant.stopWakeWord()
+            WakeWordService.stop(app)
+            _toast.value = app.getString(R.string.wake_word_profile_required)
             return
         }
         if (!WakeWordService.start(app)) {
@@ -146,6 +163,48 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     fun deleteSpeakerEnrollment() {
         viewModelScope.launch { graph.speakerVerification.deleteEnrollment() }
+    }
+
+    fun beginWakeWordEnrollment(phrase: String) {
+        viewModelScope.launch {
+            graph.wakeWordEnrollment.beginEnrollment(phrase)
+            if (!graph.wakeWordEnrollment.state.value.enrollmentActive) {
+                if (graph.settings.current().wakeWordEnabled) synchronizeWakeWordService()
+            }
+        }
+    }
+
+    fun captureWakeWordSample() {
+        viewModelScope.launch {
+            graph.wakeWordEnrollment.captureEnrollmentSample()
+            if (
+                !graph.wakeWordEnrollment.state.value.enrollmentActive &&
+                graph.settings.current().wakeWordEnabled
+            ) {
+                synchronizeWakeWordService()
+            }
+        }
+    }
+
+    fun cancelWakeWordEnrollment() {
+        viewModelScope.launch {
+            graph.wakeWordEnrollment.cancelEnrollment()
+            if (graph.settings.current().wakeWordEnabled) synchronizeWakeWordService()
+        }
+    }
+
+    fun deleteWakeWordProfile() {
+        viewModelScope.launch {
+            graph.wakeWordEnrollment.deleteProfile()
+            if (graph.settings.current().wakeWordEnabled) {
+                graph.settings.update { it.copy(wakeWordEnabled = false) }
+            }
+            WakeWordService.stop(getApplication())
+        }
+    }
+
+    fun wakeWordMicrophonePermissionDenied() {
+        graph.wakeWordEnrollment.reportMicrophonePermissionRequired()
     }
 
     fun setSpeakerVerificationEnabled(enabled: Boolean) {
@@ -298,8 +357,4 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun appGraph(): AppGraph = graph
-
-    private companion object {
-        const val WAKE_WORD_RESTART_DEBOUNCE_MS = 450L
-    }
 }

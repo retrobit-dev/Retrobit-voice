@@ -103,15 +103,22 @@ class DictationController(
             )
             return false
         }
+        if (graph.wakeWordEnrollment.state.value.enrollmentActive) {
+            _state.value = UiState(
+                phase = Phase.ERROR,
+                source = source,
+                error = context.getString(R.string.dictation_wake_word_enrollment_active),
+            )
+            return false
+        }
 
         _state.value = UiState(phase = Phase.LISTENING, source = source, stage = "Mendengarkan…")
 
         captureJob = scope.launch {
             var wakeWordPaused = false
             try {
-                // Lepas loop SpeechRecognizer wake-word sebelum AudioRecord
-                // mengambil mikrofon. Menunggu sampai cleanup selesai mencegah
-                // dua klien Android berebut mic/recognizer secara bersamaan.
+                // Lepas AudioRecord KWS pasif sebelum perekam dikte mengambil mikrofon.
+                // Menunggu cleanup selesai mencegah dua klien audio berjalan bersamaan.
                 wakeWordPaused = true
                 graph.assistant.pauseWakeWordForDictation()
                 val settings = graph.settings.current()

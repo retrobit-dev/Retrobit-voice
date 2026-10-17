@@ -80,6 +80,8 @@ class AssistantSession(
 
     private val wakeWordLock = Any()
 
+    private var wakeWordStartGeneration = 0L
+
     @Volatile
     private var wakeWordListener: WakeWordListener? = null
 
@@ -862,6 +864,15 @@ class AssistantSession(
             )
             return
         }
+        if (graph.wakeWordEnrollment.state.value.enrollmentActive) {
+            _state.value = _state.value.copy(
+                listening = false,
+                thinking = false,
+                status = "",
+                error = context.getString(R.string.assistant_wake_word_enrollment_active),
+            )
+            return
+        }
         if (_state.value.listening || _state.value.thinking) return
         if (!graph.dictation.hasMicrophonePermission()) {
             _state.value = _state.value.copy(
@@ -969,45 +980,77 @@ class AssistantSession(
     }
 
     fun startWakeWordIfEnabled() {
+        val ticket = synchronized(wakeWordLock) {
+            ++wakeWordStartGeneration
+            wakeWordStartGeneration
+        }
         scope.launch {
             val settings = graph.settings.current()
-            if (!settings.wakeWordEnabled) {
-                stopWakeWord()
+            if (!settings.wakeWordEnabled) return@launch
+            if (graph.wakeWordEnrollment.state.value.enrollmentActive) return@launch
+            val profileReady = runCatching { graph.wakeWordEnrollment.hasProfileForPhrase(settings.wakeWordPhrase) }
+                .onFailure { VoiceLog.e("Profil wake word lokal gagal dibuka", it) }
+                .getOrDefault(false)
+            if (!profileReady) {
+                _state.value = _state.value.copy(status = context.getString(R.string.wake_word_profile_missing))
                 return@launch
             }
+            val latestSettings = graph.settings.current()
+            if (
+                !latestSettings.wakeWordEnabled ||
+                WakeWordAudioFeatures.normalizePhrase(latestSettings.wakeWordPhrase) !=
+                WakeWordAudioFeatures.normalizePhrase(settings.wakeWordPhrase)
+            ) return@launch
             synchronized(wakeWordLock) {
-                if (wakeWordPausedForDictation || wakeWordListener != null) return@synchronized
+                if (
+                    ticket != wakeWordStartGeneration || wakeWordPausedForDictation || wakeWordListener != null ||
+                    graph.wakeWordEnrollment.state.value.enrollmentActive
+                ) return@synchronized
                 val listener = WakeWordListener(
                     context = context,
                     phrase = settings.wakeWordPhrase,
+                    kws = graph.wakeWordKws,
                     onWake = { heard ->
-                        // Hentikan loop KWS sebelum memulai recognizer perintah kedua.
-                        // Ini mencegah sesi wake word berikutnya berebut SpeechRecognizer.
+                        // Local KWS releases AudioRecord before the existing assistant STT starts.
                         stopWakeWord()
-                        VoiceLog.i("Wake word membuka sesi asisten: $heard")
-                        _state.value = _state.value.copy(status = "Kata kunci terdeteksi: \"$heard\"")
-                        // Sama seperti tahan Volume Atas: snapshot layar sebelum popup,
-                        // lalu langsung buka overlay asisten dan dengarkan perintah.
+                        VoiceLog.i("Wake word lokal membuka sesi asisten: $heard")
+                        _state.value = _state.value.copy(status = context.getString(R.string.wake_word_detected))
+                        // Wake word always opens the assistant overlay, never dictation because a field is focused.
                         openAssistantUi(autoListen = true, captureScreenContext = true)
                     },
                     onStateChange = { status -> _state.value = _state.value.copy(status = status) },
-                    // Mengalah terhadap dikte dan sesi asisten yang sedang berjalan:
-                    // dua sesi recognizer sekaligus saling ditolak (ERROR_RECOGNIZER_BUSY).
+                    onTerminated = { terminated ->
+                        synchronized(wakeWordLock) {
+                            if (wakeWordListener === terminated) wakeWordListener = null
+                        }
+                    },
+                    // Release the microphone while dictation, assistant STT, or enrollment is active.
                     isYielded = {
                         graph.dictation.state.value.isBusy || _state.value.listening || _state.value.thinking ||
-                            graph.speakerVerification.state.value.enrollmentActive
+                            graph.speakerVerification.state.value.enrollmentActive ||
+                            graph.wakeWordEnrollment.state.value.enrollmentActive
                     },
                 )
                 wakeWordListener = listener
-                listener.start(scope, settings.assistantLanguage, preferOnDevice = true)
+                listener.start(scope)
             }
         }
     }
 
-    /** Hentikan wake-word dan tunggu sampai sesi recognizer terlepas. */
-    suspend fun pauseWakeWordForDictation() {
-        wakeWordPausedForDictation = true
+    /** Stop passive AudioRecord without setting the dictation pause flag. */
+    suspend fun stopWakeWordForEnrollment() {
         val listener = synchronized(wakeWordLock) {
+            wakeWordStartGeneration += 1
+            wakeWordListener.also { wakeWordListener = null }
+        }
+        listener?.stopAndJoin()
+    }
+
+    /** Hentikan wake-word dan tunggu sampai recognizer sesi dikte dilepas. */
+    suspend fun pauseWakeWordForDictation() {
+        val listener = synchronized(wakeWordLock) {
+            wakeWordPausedForDictation = true
+            wakeWordStartGeneration += 1
             wakeWordListener.also { wakeWordListener = null }
         }
         listener?.stopAndJoin()
@@ -1018,12 +1061,13 @@ class AssistantSession(
 
     /** Sambung kembali wake-word setelah dikte/asisten selesai, bila masih aktif di Pengaturan. */
     fun resumeWakeWordAfterDictation() {
-        wakeWordPausedForDictation = false
+        synchronized(wakeWordLock) { wakeWordPausedForDictation = false }
         startWakeWordIfEnabled()
     }
 
     fun stopWakeWord() {
         val listener = synchronized(wakeWordLock) {
+            wakeWordStartGeneration += 1
             wakeWordListener.also { wakeWordListener = null }
         }
         listener?.stop()

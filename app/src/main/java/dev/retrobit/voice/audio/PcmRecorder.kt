@@ -66,6 +66,7 @@ class PcmRecorder(
         )
         if (minBuffer <= 0) {
             VoiceLog.e("AudioRecord.getMinBufferSize gagal: $minBuffer")
+            out.delete()
             return false
         }
         val bufferBytes = maxOf(minBuffer * 2, sampleRate / 5 * 2) // ~200 ms
@@ -84,12 +85,14 @@ class PcmRecorder(
                 .build()
         } catch (t: Throwable) {
             VoiceLog.e("Gagal membuat AudioRecord", t)
+            out.delete()
             return false
         }
 
         if (record.state != AudioRecord.STATE_INITIALIZED) {
             VoiceLog.e("AudioRecord tidak terinisialisasi (izin mikrofon?)")
             record.release()
+            out.delete()
             return false
         }
 
@@ -101,6 +104,7 @@ class PcmRecorder(
         } catch (t: Throwable) {
             VoiceLog.e("Gagal membuka berkas rekaman", t)
             record.release()
+            out.delete()
             return false
         }
 
@@ -116,6 +120,7 @@ class PcmRecorder(
         } catch (t: Throwable) {
             VoiceLog.e("Gagal startRecording", t)
             release()
+            out.delete()
             return false
         }
 
@@ -128,14 +133,20 @@ class PcmRecorder(
         val buffer = ShortArray(chunkFrames)
         val bytes = ByteArray(chunkFrames * 2)
         var framesSinceAmplitudeUpdate = 0
-        while (running) {
+        while (running && activeRecord === record) {
             val read = try {
                 record.read(buffer, 0, buffer.size, AudioRecord.READ_BLOCKING)
             } catch (t: Throwable) {
                 VoiceLog.e("read() AudioRecord gagal", t)
                 break
             }
-            if (read <= 0) continue
+            if (read < 0) {
+                if (running && activeRecord === record) {
+                    VoiceLog.e("read() AudioRecord mengembalikan error: $read")
+                }
+                break
+            }
+            if (read == 0) continue
 
             var sumSquares = 0.0
             for (i in 0 until read) {
@@ -189,6 +200,7 @@ class PcmRecorder(
         running = false
         val f = file
         release()
+        job?.cancel()
         f?.delete()
     }
 

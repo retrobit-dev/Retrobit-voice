@@ -34,7 +34,7 @@ supaya bisa langsung dikerjakan.
 | --- | --- | --- |
 | Dukungan **whisper.cpp** (model kecil, offline) via NDK | Akurasi jauh lebih baik dari on-device bawaan, tetap 100% offline | Modul baru `:whisper`, `SttEngine` baru, JNI |
 | Dukungan **Vosk** (model Indonesia kecil) | Ringan untuk perangkat kelas bawah | Sama seperti di atas, unduhan model dari dalam aplikasi |
-| Model **wake word khusus** (openWakeWord / Porcupine) | Hemat baterai dibanding recognizer | Ganti isi `WakeWordListener` |
+| Model KWS umum yang tahan terhadap banyak suara dan aksen | Mengurangi ketergantungan detektor personal pada enrolmen pengguna | Evaluasi model multibahasa sebelum mengganti `LocalWakeWordKws` |
 | LLM lokal (llama.cpp / Gemini Nano) | Asisten pintar tanpa internet | `LlmProvider` baru di `LlmClient` |
 
 ## 1.0 — Rilis Play Store
@@ -53,7 +53,7 @@ supaya bisa langsung dikerjakan.
 
 | Utang | Dampak | Rencana |
 | --- | --- | --- |
-| `WakeWordListener` memakai recognizer ulang-alik | Boros baterai kalau dibiarkan menyala | Ganti ke model KWS (0.4) |
+| Threshold KWS personal belum dikalibrasi di banyak perangkat/lingkungan | Potensi wake palsu atau terlewat; akurasi lintas suara lebih rendah dari asisten sistem | Uji rekaman nyata dan sesuaikan threshold/konfirmasi sebelum rilis luas |
 | Belum ada uji instrumentasi (Espresso/Compose test) | Regresi UI bisa lolos | Tambah `androidTest` di 0.2 |
 | `AssistantSession.currentSettings()` memakai `runBlocking` | Berpotensi memblokir thread pemanggil | Ubah ke `suspend` saat layar UI ditata ulang |
 | Belum ada dukungan RTL penuh untuk teks Arab | Kosmetik | Uji & perbaiki di 0.2 |

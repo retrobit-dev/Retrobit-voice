@@ -138,13 +138,16 @@ Outcome(success, message) → jawaban + status UI ◄─────────
    menekan tombol panggil) dan tidak mengirim pesan tanpa membuka aplikasi pesan.
    Ini konsisten dengan kebijakan Play Store dan menghindari aplikasi "menyamar".
 
-4. **Kata kunci panggilan memakai recognizer, bukan model KWS khusus.**
-   Jujur soal trade-off: ini hemat pengembangan tetapi lebih boros baterai.
-   Karena itu fitur ini **mati secara bawaan** dan diberi peringatan di Pengaturan.
-   `WakeWordIntentRouter` memilih aksi berdasarkan fokus input saat kata kunci
-   terdengar: kolom teks aktif → dikte hands-free; di luar mode mengetik → sesi
-   perintah asisten. Titik ganti ke model khusus hanyalah `WakeWordListener` —
-   seluruh kode lain hanya bergantung pada callback `onWake`.
+4. **Pemantauan wake word memakai KWS personal sepenuhnya lokal.**
+   Model Google speech-embedding menghasilkan fitur suara, lalu DTW mencocokkannya
+   dengan tiga contoh yang direkam secara eksplisit oleh pengguna. `AudioRecord`
+   tidak meminta fokus audio dan pemantauan pasif tidak membuka `SpeechRecognizer`;
+   WAV enrolmen mentah dihapus, sementara fitur terenkripsi dengan Android Keystore
+   dan dikecualikan dari backup. Deteksi dipersonalisasi untuk suara yang direkam
+   dan perlu diulang saat frasa berubah. Saat terdeteksi, callback yang sama selalu
+   membuka overlay/sesi asisten (bukan dikte berdasarkan fokus kolom); setelah itu
+   alur STT perintah yang sudah ada tetap digunakan. Fokus audio eksklusif overlay
+   tetap dipisahkan dari pemantauan pasif agar media dijeda hanya selama overlay.
 
 ---
 
@@ -265,4 +268,4 @@ dijadikan jalan pintas.
 | Perintah asisten baru | `CommandParser` (offline) + `Prompts`/`IntentMapper` + `AssistantExecutor` |
 | Aksi berbeda di UI | `DictationController.UiState` (semua permukaan otomatis ikut) |
 | Penyedia LLM gaya OpenAI lain | Cukup isi base URL & model di Pengaturan — tidak perlu kode |
-| Model wake word khusus | Ganti isi `WakeWordListener` (kontraknya satu callback) |
+| Frontend/model KWS lokal | `WakeWordAudioFeatures`, `LocalWakeWordKws`, `WakeWordListener`; simpan profil lewat `WakeWordProfileStore` |
