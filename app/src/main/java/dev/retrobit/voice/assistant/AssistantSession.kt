@@ -505,6 +505,15 @@ class AssistantSession(
         speakReply: Boolean? = null,
         announceReady: Boolean = false,
     ) {
+        if (graph.speakerVerification.state.value.enrollmentActive) {
+            _state.value = _state.value.copy(
+                listening = false,
+                thinking = false,
+                status = "",
+                error = context.getString(R.string.assistant_speaker_enrollment_active),
+            )
+            return
+        }
         if (_state.value.listening || _state.value.thinking) return
         if (!graph.dictation.hasMicrophonePermission()) {
             _state.value = _state.value.copy(
@@ -637,7 +646,8 @@ class AssistantSession(
                     // Mengalah terhadap dikte dan sesi asisten yang sedang berjalan:
                     // dua sesi recognizer sekaligus saling ditolak (ERROR_RECOGNIZER_BUSY).
                     isYielded = {
-                        graph.dictation.state.value.isBusy || _state.value.listening || _state.value.thinking
+                        graph.dictation.state.value.isBusy || _state.value.listening || _state.value.thinking ||
+                            graph.speakerVerification.state.value.enrollmentActive
                     },
                 )
                 wakeWordListener = listener

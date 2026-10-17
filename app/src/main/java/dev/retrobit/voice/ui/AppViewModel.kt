@@ -45,6 +45,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     val dictation: StateFlow<DictationController.UiState> = graph.dictation.state
     val assistant: StateFlow<dev.retrobit.voice.assistant.AssistantSession.UiState> = graph.assistant.state
+    val speakerVerification = graph.speakerVerification.state
     val assistantHistory = graph.assistant.history
     val dictationHistory = graph.history.dictation
     val log = MutableStateFlow("")
@@ -55,6 +56,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     init {
         viewModelScope.launch { graph.history.load() }
+        viewModelScope.launch { graph.speakerVerification.refresh() }
     }
 
     fun update(transform: (AppSettings) -> AppSettings) {
@@ -124,6 +126,30 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     fun cancelDictation() {
         graph.dictation.cancel()
         DictationService.stop(getApplication())
+    }
+
+    fun beginSpeakerEnrollment() {
+        viewModelScope.launch { graph.speakerVerification.beginEnrollment(consentConfirmed = true) }
+    }
+
+    fun captureSpeakerEnrollmentSample() {
+        viewModelScope.launch { graph.speakerVerification.captureEnrollmentSample() }
+    }
+
+    fun cancelSpeakerEnrollment() {
+        graph.speakerVerification.cancelEnrollment()
+    }
+
+    fun deleteSpeakerEnrollment() {
+        viewModelScope.launch { graph.speakerVerification.deleteEnrollment() }
+    }
+
+    fun setSpeakerVerificationEnabled(enabled: Boolean) {
+        if (enabled && !graph.speakerVerification.state.value.enrolled) {
+            _toast.value = getApplication<Application>().getString(R.string.speaker_profile_missing)
+            return
+        }
+        update { it.copy(speakerVerificationEnabled = enabled) }
     }
 
     fun copyLastResult() {

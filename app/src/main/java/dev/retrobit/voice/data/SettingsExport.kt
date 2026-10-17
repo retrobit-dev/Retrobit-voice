@@ -12,7 +12,8 @@ import kotlinx.serialization.json.Json
  *    nilai enum berubah kelak,
  *  - kolom preferensi bersifat opsional agar preset parsial dapat mengubah beberapa
  *    setelan tanpa menghapus preferensi lain (termasuk API key) yang sudah aktif,
- *  - [AppSettings] sendiri tetap bebas dari anotasi serialisasi.
+ *  - [AppSettings] sendiri tetap bebas dari anotasi serialisasi,
+ *  - template speaker adalah biometrik lokal yang terikat perangkat dan tidak ikut diekspor.
  *
  * Ekspor cadangan penuh memuat API key dalam bentuk teks biasa — itu memang
  * tujuannya, supaya setelan bisa dipulihkan setelah uninstall, saat kunci Android

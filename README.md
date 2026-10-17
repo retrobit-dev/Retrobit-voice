@@ -19,8 +19,10 @@ Dirancang **offline-first**: dikte dan puluhan perintah tetap jalan tanpa intern
 
 ### Dikte (Wispr Flow style)
 - **Keyboard Retrobit** — IME khusus dengan tombol mikrofon; hasil bicara langsung masuk di posisi kursor.
-- **Bubble melayang kontekstual** — hanya muncul saat kolom teks fokus (ketuk = dikte hands-free dengan waveform dan auto-stop hening, tekan lama = asisten).
+- **Bubble melayang kontekstual** — muncul saat kolom teks fokus (ketuk = dikte hands-free dengan waveform dan auto-stop hening, tekan lama = asisten).
+- **Overlay pratinjau dikte opsional** — dapat mulai tanpa kolom teks fokus, menampilkan teks parsial/hasil, dan menyediakan Salin; hasil tidak ditempel otomatis tanpa target teks.
 - **Sisipkan langsung lewat aksesibilitas** — bubble memasukkan hasil ke kursor tanpa clipboard. Jika jalur langsung tidak tersedia, Retrobit melaporkan kegagalan alih-alih menyalin diam-diam.
+- **Filter speaker lokal opsional** — setelah persetujuan dan enrolmen tiga sampel, model ECAPA memeriksa rekaman sebelum STT. Template disimpan terenkripsi; sampel mentah dihapus. Filter probabilistik ini bukan kunci keamanan: salah tolak/terima dan rekaman ulang/tiruan tetap mungkin.
 - **Mesin STT hybrid** — satu rekaman dicoba berurutan:
   1. **on-device** (Google recognizer, Android 12+, privat & gratis),
   2. **cloud** (OpenAI / Groq / Deepgram) kalau langkah pertama gagal,
@@ -38,13 +40,15 @@ Dirancang **offline-first**: dikte dan puluhan perintah tetap jalan tanpa intern
 - **Kirim pesan selalu perlu konfirmasi eksplisit** — setelah setuju, Retrobit membuka draf atau pemilih penerima WhatsApp; pengguna memeriksa dan menekan Kirim di WhatsApp.
 - **Bisa dipilih sebagai asisten digital bawaan** (`VoiceInteractionService`) — tekan lama tombol Home langsung mendengarkan dan mengucapkan prompt siap.
 - **Kata kunci panggilan** opsional ("hai retro"), dengan catatan baterai yang jujur di pengaturan.
-- Jawaban dibacakan dengan TTS bawaan Android.
+- **TTS bawaan Android** — pilih dan pratinjau suara yang tersedia dari mesin sistem, lalu atur pitch dan kecepatan (default mengikuti suara sistem, nilai 1,0; rentang 0,6–1,6).
+- Saat sesi suara dimulai, asisten mengucapkan “Saya siap.” sebelum mendengar. Jika prompt TTS gagal, sesi mendengar dibatalkan. Jeda hening perintah asisten dapat diatur terpisah dari jeda dikte (default 3 detik, rentang 0,5–5 detik).
 
 ### Privasi
 - API key disimpan **terenkripsi** dengan Android Keystore.
 - Audio **dihapus segera** setelah transkripsi.
 - Riwayat hanya tersimpan di perangkat, bisa dimatikan sekali sentuh — tidak ada server milik proyek ini.
 - Akses konteks layar **mati secara bawaan**; bila diaktifkan, snapshot hanya diteruskan ke LLM pilihan saat perintah meminta membaca/membalas layar, dan tidak disimpan di riwayat.
+- Filter speaker bersifat opt-in. Template terenkripsi tetap di perangkat, dikecualikan dari backup Android dan ekspor setelan, serta tidak dikirim ke STT. Sampel enrolmen mentah dihapus setelah diproses. Audio dikirim ke STT yang dipilih hanya setelah lolos pemeriksaan; STT cloud tetap menerima audio yang lolos.
 - Tidak ada analytics, tidak ada iklan, tidak ada pengiriman data diam-diam. Pesan tidak pernah dikirim tanpa konfirmasi dan tap Kirim di aplikasi tujuan.
 
 ---
@@ -183,6 +187,7 @@ app/src/main/java/dev/retrobit/voice/
 ```
 
 Detail arsitektur & keputusan desain: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)
+Filter speaker lokal, privasi, dan atribusi model: [`docs/SPEAKER_VERIFICATION.md`](docs/SPEAKER_VERIFICATION.md)
 Peta izin sistem: [`docs/PERMISSIONS.md`](docs/PERMISSIONS.md)
 Rencana pengembangan: [`docs/ROADMAP.md`](docs/ROADMAP.md)
 

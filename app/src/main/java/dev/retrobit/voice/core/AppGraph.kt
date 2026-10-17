@@ -11,6 +11,7 @@ import dev.retrobit.voice.data.HistoryStore
 import dev.retrobit.voice.data.SettingsRepository
 import dev.retrobit.voice.dictation.DictationController
 import dev.retrobit.voice.dictation.insert.TextInserter
+import dev.retrobit.voice.speaker.SpeakerVerificationManager
 import dev.retrobit.voice.stt.HybridSttEngine
 
 /**
@@ -32,6 +33,7 @@ class AppGraph private constructor(context: Context) {
     val brain: AssistantBrain = AssistantBrain(llm, AppResolver(appContext))
     val dictation: DictationController = DictationController(appContext, this)
     val assistant: AssistantSession = AssistantSession(appContext, this)
+    val speakerVerification: SpeakerVerificationManager = SpeakerVerificationManager(appContext, this)
 
     companion object {
         @Volatile

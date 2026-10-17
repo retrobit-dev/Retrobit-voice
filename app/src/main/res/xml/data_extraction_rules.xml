@@ -1,9 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
   Aturan untuk Android 12+ (API 31). Cakupannya sama dengan backup_rules.xml:
-  hanya SharedPreferences. Setelan (DataStore) dan API key sengaja tidak ikut —
-  lihat penjelasan di berkas itu. Rekaman dikte ada di cacheDir dan cache tidak
-  pernah dicadangkan Android, jadi tidak perlu <exclude>.
+  hanya SharedPreferences. Setelan (DataStore), API key, dan template speaker
+  terenkripsi sengaja tidak ikut — lihat penjelasan di backup_rules.xml.
+  Rekaman dikte/enrolmen ada di cacheDir dan cache tidak pernah dicadangkan Android,
+  jadi tidak perlu <exclude>.
 -->
 <data-extraction-rules>
     <cloud-backup>

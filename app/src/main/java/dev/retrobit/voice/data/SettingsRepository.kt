@@ -57,6 +57,8 @@ data class AppSettings(
     val volumeKeyAssistantEnabled: Boolean = false,
     val silenceTimeoutMs: Int = 1600,
     val keepScreenOnWhileDictating: Boolean = false,
+    /** Filter speaker lokal; hanya aktif setelah pengguna menyelesaikan enrolmen secara opt-in. */
+    val speakerVerificationEnabled: Boolean = false,
 
     // --- Asisten ---
     val llmProvider: LlmProvider = LlmProvider.OFF,
@@ -112,6 +114,7 @@ class SettingsRepository(private val context: Context) {
         val volumeKeyAssistant = booleanPreferencesKey("volume_key_assistant")
         val silenceTimeoutMs = intPreferencesKey("silence_timeout_ms")
         val keepScreenOn = booleanPreferencesKey("keep_screen_on")
+        val speakerVerificationEnabled = booleanPreferencesKey("speaker_verification_enabled")
 
         val llmProvider = stringPreferencesKey("llm_provider")
         val llmApiKey = stringPreferencesKey("llm_api_key")
@@ -156,6 +159,7 @@ class SettingsRepository(private val context: Context) {
             prefs[K.volumeKeyAssistant] = updated.volumeKeyAssistantEnabled
             prefs[K.silenceTimeoutMs] = updated.silenceTimeoutMs
             prefs[K.keepScreenOn] = updated.keepScreenOnWhileDictating
+            prefs[K.speakerVerificationEnabled] = updated.speakerVerificationEnabled
 
             prefs[K.llmProvider] = updated.llmProvider.name
             prefs[K.llmApiKey] = SecretStore.encrypt(ApiKeys.sanitize(updated.llmApiKey))
@@ -201,6 +205,7 @@ class SettingsRepository(private val context: Context) {
             volumeKeyAssistantEnabled = this[K.volumeKeyAssistant] ?: defaults.volumeKeyAssistantEnabled,
             silenceTimeoutMs = this[K.silenceTimeoutMs] ?: defaults.silenceTimeoutMs,
             keepScreenOnWhileDictating = this[K.keepScreenOn] ?: defaults.keepScreenOnWhileDictating,
+            speakerVerificationEnabled = this[K.speakerVerificationEnabled] ?: defaults.speakerVerificationEnabled,
             llmProvider = enumOr(this[K.llmProvider], defaults.llmProvider),
             llmApiKey = ApiKeys.sanitize(SecretStore.decrypt(this[K.llmApiKey])),
             llmBaseUrl = this[K.llmBaseUrl] ?: defaults.llmBaseUrl,

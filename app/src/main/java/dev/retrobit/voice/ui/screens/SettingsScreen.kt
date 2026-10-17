@@ -8,21 +8,27 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
@@ -58,8 +64,11 @@ import kotlin.math.roundToInt
 @Composable
 fun SettingsScreen(vm: AppViewModel, modifier: Modifier = Modifier) {
     val settings by vm.settings.collectAsStateWithLifecycle()
+    val speakerState by vm.speakerVerification.collectAsStateWithLifecycle()
     val current = settings ?: AppSettings()
     val context = LocalContext.current
+    var showSpeakerConsent by remember { mutableStateOf(false) }
+    var speakerConsentChecked by remember { mutableStateOf(false) }
     val accessibilityActive = DeviceState.isAccessibilityEnabled(context) || TextInsertAccessibilityService.isConnected()
     var log by remember { mutableStateOf("") }
     var deviceCheck by remember { mutableStateOf("") }
@@ -90,6 +99,9 @@ fun SettingsScreen(vm: AppViewModel, modifier: Modifier = Modifier) {
     ) { granted ->
         if (granted) vm.update { it.copy(wakeWordEnabled = true) }
     }
+    val speakerMicrophonePermission = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission(),
+    ) { vm.beginSpeakerEnrollment() }
 
     Column(
         modifier
@@ -480,6 +492,130 @@ fun SettingsScreen(vm: AppViewModel, modifier: Modifier = Modifier) {
                 value = current.wakeWordPhrase,
                 onChange = { value -> vm.update { it.copy(wakeWordPhrase = value) } },
                 placeholder = "hai retro",
+            )
+        }
+
+        // ---------- Filter speaker lokal (opt-in) ----------
+        Panel(
+            title = str(R.string.settings_speaker_title),
+            code = "SPK",
+            subtitle = str(R.string.settings_speaker_subtitle),
+        ) {
+            Text(
+                text = str(R.string.settings_speaker_privacy_note),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            if (speakerState.modelDownloading) {
+                LinearProgressIndicator(
+                    progress = speakerState.modelProgress ?: 0f,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+            if (speakerState.status.isNotBlank()) {
+                Text(speakerState.status, style = MaterialTheme.typography.bodySmall)
+            }
+            speakerState.error?.let { error ->
+                Text(
+                    text = "! $error",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error,
+                )
+            }
+            if (speakerState.enrollmentActive) {
+                if (!speakerState.modelDownloading) {
+                    Text(
+                        text = str(R.string.speaker_enrollment_instructions),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    BracketButton(
+                        text = if (speakerState.capturingSample) {
+                            str(R.string.speaker_recording_now)
+                        } else {
+                            str(R.string.speaker_record_sample)
+                        },
+                        onClick = { vm.captureSpeakerEnrollmentSample() },
+                        enabled = !speakerState.capturingSample,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+                BracketButton(
+                    text = str(R.string.speaker_cancel_enrollment),
+                    onClick = { vm.cancelSpeakerEnrollment() },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            } else if (!speakerState.enrolled) {
+                BracketButton(
+                    text = str(R.string.speaker_enroll_voice),
+                    onClick = {
+                        speakerConsentChecked = false
+                        showSpeakerConsent = true
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+            SwitchRow(
+                title = str(R.string.settings_speaker_filter),
+                subtitle = when {
+                    !speakerState.enrolled -> str(R.string.settings_speaker_not_enrolled)
+                    current.speakerVerificationEnabled -> str(R.string.settings_speaker_filter_enabled_note)
+                    else -> str(R.string.settings_speaker_enrolled_note)
+                },
+                checked = current.speakerVerificationEnabled && speakerState.enrolled,
+                enabled = speakerState.enrolled && !speakerState.enrollmentActive,
+                onChange = vm::setSpeakerVerificationEnabled,
+            )
+            if (speakerState.enrolled && !speakerState.enrollmentActive) {
+                BracketButton(
+                    text = str(R.string.speaker_delete_profile),
+                    onClick = { vm.deleteSpeakerEnrollment() },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+        }
+
+        if (showSpeakerConsent) {
+            AlertDialog(
+                onDismissRequest = { showSpeakerConsent = false },
+                title = { Text(str(R.string.speaker_consent_title)) },
+                text = {
+                    Column(
+                        modifier = Modifier.heightIn(max = 420.dp).verticalScroll(rememberScrollState()),
+                        verticalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
+                        Text(str(R.string.speaker_consent_body), style = MaterialTheme.typography.bodySmall)
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Checkbox(
+                                checked = speakerConsentChecked,
+                                onCheckedChange = { speakerConsentChecked = it },
+                            )
+                            Text(
+                                text = str(R.string.speaker_consent_checkbox),
+                                modifier = Modifier.weight(1f),
+                                style = MaterialTheme.typography.bodySmall,
+                            )
+                        }
+                    }
+                },
+                confirmButton = {
+                    TextButton(
+                        enabled = speakerConsentChecked,
+                        onClick = {
+                            showSpeakerConsent = false
+                            if (DeviceState.hasMicrophone(context)) {
+                                vm.beginSpeakerEnrollment()
+                            } else {
+                                speakerMicrophonePermission.launch(Manifest.permission.RECORD_AUDIO)
+                            }
+                        },
+                    ) { Text(str(R.string.speaker_consent_accept)) }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showSpeakerConsent = false }) {
+                        Text(str(R.string.action_cancel))
+                    }
+                },
             )
         }
 

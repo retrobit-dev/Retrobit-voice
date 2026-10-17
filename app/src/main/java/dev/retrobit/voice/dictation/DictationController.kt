@@ -3,7 +3,9 @@ package dev.retrobit.voice.dictation
 import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
+import android.os.Build
 import androidx.core.content.ContextCompat
+import dev.retrobit.voice.R
 import dev.retrobit.voice.audio.PcmRecorder
 import dev.retrobit.voice.core.AppGraph
 import dev.retrobit.voice.core.PcmRecording
@@ -93,6 +95,14 @@ class DictationController(
             )
             return false
         }
+        if (graph.speakerVerification.state.value.enrollmentActive) {
+            _state.value = UiState(
+                phase = Phase.ERROR,
+                source = source,
+                error = context.getString(R.string.dictation_speaker_enrollment_active),
+            )
+            return false
+        }
 
         _state.value = UiState(phase = Phase.LISTENING, source = source, stage = "Mendengarkan…")
 
@@ -105,7 +115,16 @@ class DictationController(
                 wakeWordPaused = true
                 graph.assistant.pauseWakeWordForDictation()
                 val settings = graph.settings.current()
-                if (settings.sttEngine == SttEngineChoice.SYSTEM_LIVE) {
+                if (settings.speakerVerificationEnabled) {
+                    // Speaker check must see the original WAV before any recognizer or cloud STT.
+                    // SYSTEM_LIVE cannot expose its microphone audio to the local verifier, so use
+                    // a local recording path; older Android falls back to AUTO's file-capable STT.
+                    val fileSettings = if (
+                        settings.sttEngine == SttEngineChoice.SYSTEM_LIVE &&
+                        Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU
+                    ) settings.copy(sttEngine = SttEngineChoice.AUTO) else settings
+                    runRecorderSession(fileSettings)
+                } else if (settings.sttEngine == SttEngineChoice.SYSTEM_LIVE) {
                     runLiveSystemSession(settings)
                 } else {
                     runRecorderSession(settings)
@@ -230,6 +249,36 @@ class DictationController(
             stage = "Mengubah suara menjadi teks…",
             amplitude = 0f,
         )
+
+        if (settings.speakerVerificationEnabled) {
+            _state.value = _state.value.copy(stage = context.getString(R.string.dictation_speaker_checking))
+            val check = try {
+                graph.speakerVerification.verifyWav(recording.wavFile)
+            } catch (cancelled: CancellationException) {
+                recording.wavFile.delete()
+                throw cancelled
+            } catch (t: Throwable) {
+                VoiceLog.w("Pemeriksaan speaker lokal gagal: ${t.message}")
+                recording.wavFile.delete()
+                _state.value = _state.value.copy(
+                    phase = Phase.ERROR,
+                    error = context.getString(R.string.dictation_speaker_check_failed),
+                    stage = "",
+                    amplitude = 0f,
+                )
+                return
+            }
+            if (check is dev.retrobit.voice.speaker.SpeakerVerificationManager.CheckResult.Rejected) {
+                recording.wavFile.delete()
+                _state.value = _state.value.copy(
+                    phase = Phase.ERROR,
+                    error = context.getString(R.string.dictation_speaker_rejected),
+                    stage = "",
+                    amplitude = 0f,
+                )
+                return
+            }
+        }
 
         val transcript = try {
             graph.stt.transcribe(

@@ -89,6 +89,16 @@ class SettingsExportTest {
     }
 
     @Test
+    fun `profil speaker tetap lokal dan tidak ikut cadangan setelan`() {
+        val enabled = AppSettings(speakerVerificationEnabled = true)
+        val json = enabled.toSnapshot().encode()
+        val restored = decodeSettingsSnapshot(json).toSettings()
+
+        assertFalse(json.contains("speakerVerificationEnabled"))
+        assertFalse(restored.speakerVerificationEnabled)
+    }
+
+    @Test
     fun `jeda akhir perintah asisten berbawaan tiga detik dan impor dibatasi`() {
         assertEquals(3_000, AppSettings().assistantSilenceTimeoutMs)
 
