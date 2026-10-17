@@ -37,6 +37,7 @@ import dev.retrobit.voice.core.VoiceLog
 import dev.retrobit.voice.dictation.DictationController
 import dev.retrobit.voice.dictation.DictationService
 import dev.retrobit.voice.dictation.a11y.TextInsertAccessibilityService
+import dev.retrobit.voice.dictation.insert.ClipboardHelper
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -49,10 +50,10 @@ import kotlinx.coroutines.launch
 /**
  * Overlay mikrofon melayang dan popup jawaban asisten (butuh izin "tampil di atas aplikasi lain").
  *
- * Bubble mikrofon hanya tampak saat layanan aksesibilitas mendeteksi kolom teks
- * yang sedang fokus. Ketuk untuk mulai dikte hands-free; gelombang mengikuti input
- * mikrofon dan rekaman berhenti setelah jeda. Tekan lama membuka asisten. Popup asisten
- * tampil saat sesi berlangsung lalu menghilang otomatis setelah sepuluh detik idle.
+ * Bubble tampil selama pengguna mengaktifkan overlay. Ketuk untuk mulai/berhenti dikte;
+ * tanpa kolom teks hasil muncul di kartu pratinjau dan tidak ditempel otomatis.
+ * Tekan lama membuka asisten. Popup asisten tampil saat sesi berlangsung lalu
+ * menghilang otomatis setelah sepuluh detik idle.
  */
 class OverlayBubbleService : Service() {
 
@@ -62,6 +63,13 @@ class OverlayBubbleService : Service() {
     private var waveformView: MicWaveformView? = null
     private var params: WindowManager.LayoutParams? = null
     private var assistantPopupView: View? = null
+    private var dictationPreviewView: View? = null
+    private var dictationPreviewStatusText: TextView? = null
+    private var dictationPreviewBodyText: TextView? = null
+    private var dictationPreviewFooterText: TextView? = null
+    private var dictationPreviewCopyText: TextView? = null
+    private var dictationPreviewCloseText: TextView? = null
+    private var dictationPreviewDismissed = false
     private var popupTitleText: TextView? = null
     private var popupStatusText: TextView? = null
     private var popupCommandLabelText: TextView? = null
@@ -82,7 +90,6 @@ class OverlayBubbleService : Service() {
     private var assistantWasActive = false
     private var paperMode = false
     private var persistentBubbleEnabled = false
-    private var focusedTextField = false
     private var assistantSessionActive = false
 
     private var longPressRunnable: Runnable? = null
@@ -229,19 +236,21 @@ class OverlayBubbleService : Service() {
 
     private fun toggleDictation() {
         val graph = AppGraph.require
-        if (!TextInsertAccessibilityService.hasFocusedTextField() &&
-            graph.dictation.state.value.phase != DictationController.Phase.LISTENING
-        ) {
-            ToastHub.show(this, getString(R.string.overlay_need_text_focus))
-            return
-        }
+        val hasFocusedTextField = TextInsertAccessibilityService.hasFocusedTextField()
         when (graph.dictation.state.value.phase) {
             DictationController.Phase.LISTENING -> DictationService.stop(this)
             DictationController.Phase.TRANSCRIBING, DictationController.Phase.CLEANING, DictationController.Phase.INSERTING ->
                 ToastHub.show(this, getString(R.string.overlay_processing))
             else -> {
                 graph.dictation.reset()
-                DictationService.start(this, DictationController.Source.OVERLAY)
+                val source = if (hasFocusedTextField) {
+                    DictationController.Source.OVERLAY
+                } else {
+                    // Tanpa kolom teks, hentikan otomatis setelah jeda hening dan
+                    // tampilkan hasil di overlay tanpa mencoba menempel ke aplikasi lain.
+                    DictationController.Source.OVERLAY_PREVIEW
+                }
+                DictationService.start(this, source)
             }
         }
     }
@@ -249,30 +258,30 @@ class OverlayBubbleService : Service() {
     private fun observeState() {
         stateJob?.cancel()
         stateJob = scope.launch {
-            combine(
-                AppGraph.require.dictation.state,
-                TextInsertAccessibilityService.focusedTextField,
-            ) { state, textFieldFocused -> state to textFieldFocused }
-                .collect { (state, textFieldFocused) ->
-                    // Bubble mic hanya tersedia jika pengguna mengaktifkannya dan kolom teks fokus.
-                    focusedTextField = textFieldFocused
-                    bubbleView?.visibility = if (persistentBubbleEnabled && textFieldFocused && !assistantSessionActive) View.VISIBLE else View.GONE
+            AppGraph.require.dictation.state.collect { state ->
+                // Bubble selalu menjadi tombol overlay saat fitur ini diaktifkan;
+                // tanpa kolom fokus, hasil ditampilkan untuk disalin, bukan ditempel.
+                bubbleView?.visibility = if (persistentBubbleEnabled && !assistantSessionActive) View.VISIBLE else View.GONE
 
-                    // Monokrom: keadaan dibedakan lewat isi/garis, bukan warna.
-                    val recording = state.phase == DictationController.Phase.LISTENING
-                    val (fill, stroke, width) = when (state.phase) {
-                        DictationController.Phase.LISTENING -> Triple(INK, INK, 2)
-                        DictationController.Phase.TRANSCRIBING, DictationController.Phase.CLEANING,
-                        DictationController.Phase.INSERTING -> Triple(PANEL_DIM, INK, 2)
-                        DictationController.Phase.DONE -> Triple(PANEL, INK, 2)
-                        DictationController.Phase.ERROR -> Triple(PANEL, LINE_STRONG, 1)
-                        DictationController.Phase.IDLE -> Triple(PANEL, LINE_STRONG, 1)
-                    }
-                    bubbleView?.background = paneDrawable(fill, stroke, width)
-                    bubbleIcon?.visibility = if (recording) View.GONE else View.VISIBLE
-                    waveformView?.visibility = if (recording) View.VISIBLE else View.GONE
-                    waveformView?.setLevel(state.amplitude, if (fill == INK) PANEL else INK)
+                // Monokrom: keadaan dibedakan lewat isi/garis, bukan warna.
+                val recording = state.phase == DictationController.Phase.LISTENING
+                val (fill, stroke, width) = when (state.phase) {
+                    DictationController.Phase.LISTENING -> Triple(INK, INK, 2)
+                    DictationController.Phase.TRANSCRIBING, DictationController.Phase.CLEANING,
+                    DictationController.Phase.INSERTING -> Triple(PANEL_DIM, INK, 2)
+                    DictationController.Phase.DONE -> Triple(PANEL, INK, 2)
+                    DictationController.Phase.ERROR -> Triple(PANEL, LINE_STRONG, 1)
+                    DictationController.Phase.IDLE -> Triple(PANEL, LINE_STRONG, 1)
                 }
+                bubbleView?.background = paneDrawable(fill, stroke, width)
+                bubbleView?.contentDescription = getString(
+                    if (recording) R.string.overlay_dictation_stop else R.string.overlay_dictation_start,
+                )
+                bubbleIcon?.visibility = if (recording) View.GONE else View.VISIBLE
+                waveformView?.visibility = if (recording) View.VISIBLE else View.GONE
+                waveformView?.setLevel(state.amplitude, if (fill == INK) PANEL else INK)
+                renderDictationPreview(state)
+            }
         }
 
         assistantStateJob?.cancel()
@@ -285,10 +294,179 @@ class OverlayBubbleService : Service() {
                     paperMode = settings.epaperLightMode
                     persistentBubbleEnabled = settings.overlayBubbleEnabled
                     assistantSessionActive = state.listening || state.thinking
-                    bubbleView?.visibility = if (persistentBubbleEnabled && focusedTextField && !assistantSessionActive) View.VISIBLE else View.GONE
+                    bubbleView?.visibility = if (persistentBubbleEnabled && !assistantSessionActive) View.VISIBLE else View.GONE
+                    renderDictationPreview(AppGraph.require.dictation.state.value)
                     renderAssistantPopup(state)
                 }
         }
+    }
+
+    private fun renderDictationPreview(state: DictationController.UiState) {
+        if (state.phase == DictationController.Phase.IDLE) {
+            dictationPreviewDismissed = false
+            removeDictationPreview()
+            return
+        }
+
+        val showPreview = state.isBusy || state.phase == DictationController.Phase.DONE ||
+            state.phase == DictationController.Phase.ERROR
+        if (!persistentBubbleEnabled || assistantSessionActive || !showPreview || dictationPreviewDismissed) {
+            removeDictationPreview()
+            return
+        }
+
+        if (dictationPreviewView == null) addDictationPreview()
+        val palette = popupPalette()
+        dictationPreviewView?.background = paneDrawable(palette.panel, palette.line, 2)
+        dictationPreviewStatusText?.apply {
+            setTextColor(palette.dim)
+            text = when (state.phase) {
+                DictationController.Phase.LISTENING -> getString(R.string.overlay_dictation_listening)
+                DictationController.Phase.TRANSCRIBING,
+                DictationController.Phase.CLEANING,
+                DictationController.Phase.INSERTING -> state.stage.ifBlank { getString(R.string.overlay_dictation_processing) }
+                DictationController.Phase.DONE -> getString(R.string.overlay_dictation_done)
+                DictationController.Phase.ERROR -> getString(R.string.overlay_dictation_error)
+                DictationController.Phase.IDLE -> ""
+            }
+        }
+        val errorText = state.error.orEmpty()
+        dictationPreviewBodyText?.apply {
+            setTextColor(palette.ink)
+            text = when {
+                state.phase == DictationController.Phase.DONE && state.finalText.isNotBlank() -> state.finalText
+                state.phase == DictationController.Phase.ERROR && errorText.isNotBlank() -> errorText
+                state.partial.isNotBlank() -> state.partial
+                state.finalText.isNotBlank() -> state.finalText
+                state.rawText.isNotBlank() -> state.rawText
+                errorText.isNotBlank() -> errorText
+                state.phase == DictationController.Phase.LISTENING -> getString(R.string.overlay_dictation_speak_now)
+                else -> state.stage.ifBlank { getString(R.string.overlay_dictation_speak_now) }
+            }
+        }
+        dictationPreviewFooterText?.apply {
+            setTextColor(palette.dim)
+            text = if (state.phase == DictationController.Phase.LISTENING) {
+                getString(R.string.overlay_dictation_stop_hint)
+            } else {
+                getString(R.string.overlay_dictation_preview_hint)
+            }
+        }
+        dictationPreviewCopyText?.apply {
+            setTextColor(palette.ink)
+            visibility = if (state.finalText.isNotBlank()) View.VISIBLE else View.GONE
+        }
+        dictationPreviewCloseText?.setTextColor(palette.ink)
+    }
+
+    private fun addDictationPreview() {
+        val palette = popupPalette()
+        val panel = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(14), dp(12), dp(14), dp(12))
+            background = paneDrawable(palette.panel, palette.line, 2)
+            elevation = dp(8).toFloat()
+            isClickable = true
+        }
+        val header = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        val title = popupText(getString(R.string.overlay_dictation_preview_title), 10f, bold = true).apply {
+            setTextColor(palette.dim)
+            layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+        }
+        val close = popupText("×", 22f, bold = false).apply {
+            setTextColor(palette.ink)
+            gravity = Gravity.CENTER
+            contentDescription = getString(R.string.overlay_dictation_close)
+            isClickable = true
+            setOnClickListener {
+                dictationPreviewDismissed = true
+                removeDictationPreview()
+            }
+        }
+        header.addView(title)
+        header.addView(close, LinearLayout.LayoutParams(dp(36), dp(34)))
+        panel.addView(header)
+
+        val status = popupText(getString(R.string.overlay_dictation_listening), 10f, bold = true).apply {
+            setTextColor(palette.dim)
+            setPadding(0, dp(4), 0, dp(8))
+        }
+        panel.addView(status)
+
+        val body = popupText(getString(R.string.overlay_dictation_speak_now), 15f, bold = false).apply {
+            setTextColor(palette.ink)
+            maxLines = 5
+            setPadding(0, 0, 0, dp(8))
+        }
+        panel.addView(body)
+
+        val footerRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        val footer = popupText(getString(R.string.overlay_dictation_stop_hint), 9f, bold = true).apply {
+            setTextColor(palette.dim)
+            layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+        }
+        val copy = popupText(getString(R.string.overlay_dictation_copy), 10f, bold = true).apply {
+            setTextColor(palette.ink)
+            gravity = Gravity.CENTER
+            visibility = View.GONE
+            isClickable = true
+            contentDescription = getString(R.string.action_copy)
+            setOnClickListener {
+                val text = AppGraph.require.dictation.state.value.finalText
+                ClipboardHelper.copy(this@OverlayBubbleService, text)
+            }
+        }
+        footerRow.addView(footer)
+        footerRow.addView(copy)
+        panel.addView(footerRow)
+
+        val screenWidth = resources.displayMetrics.widthPixels
+        val previewWidth = (screenWidth - dp(32)).coerceAtMost(dp(560)).coerceAtLeast(dp(240))
+        val windowType = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+        } else {
+            @Suppress("DEPRECATION")
+            WindowManager.LayoutParams.TYPE_PHONE
+        }
+        val previewParams = WindowManager.LayoutParams(
+            previewWidth,
+            WindowManager.LayoutParams.WRAP_CONTENT,
+            windowType,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
+            PixelFormat.TRANSLUCENT,
+        ).apply {
+            gravity = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
+            y = dp(88)
+        }
+
+        try {
+            windowManager.addView(panel, previewParams)
+            dictationPreviewView = panel
+            dictationPreviewStatusText = status
+            dictationPreviewBodyText = body
+            dictationPreviewFooterText = footer
+            dictationPreviewCopyText = copy
+            dictationPreviewCloseText = close
+        } catch (t: Throwable) {
+            VoiceLog.e("Gagal menampilkan preview dikte overlay", t)
+            dictationPreviewDismissed = true
+        }
+    }
+
+    private fun removeDictationPreview() {
+        dictationPreviewView?.let { runCatching { windowManager.removeView(it) } }
+        dictationPreviewView = null
+        dictationPreviewStatusText = null
+        dictationPreviewBodyText = null
+        dictationPreviewFooterText = null
+        dictationPreviewCopyText = null
+        dictationPreviewCloseText = null
     }
 
     private fun renderAssistantPopup(state: AssistantSession.UiState) {
@@ -580,6 +758,7 @@ class OverlayBubbleService : Service() {
         assistantStateJob?.cancel()
         cancelPopupDismiss()
         removeAssistantPopup()
+        removeDictationPreview()
         scope.cancel()
         bubbleView?.let { runCatching { windowManager.removeView(it) } }
         bubbleView = null

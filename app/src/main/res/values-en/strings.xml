@@ -49,7 +49,7 @@
     <string name="setup_a11y_title">Direct insertion (accessibility)</string>
     <string name="setup_a11y_subtitle">Required to detect a focused field, insert text directly, and read volume buttons.</string>
     <string name="setup_overlay_title">Floating bubble</string>
-    <string name="setup_overlay_subtitle">The bubble appears at text fields; the same permission enables a temporary assistant popup.</string>
+    <string name="setup_overlay_subtitle">Use the bubble to start dictation anywhere; without a text field, preview and copy the result in the overlay.</string>
     <string name="setup_assistant_title">Set as default assistant</string>
     <string name="setup_assistant_subtitle">Long-press Home to summon Retrobit.</string>
     <string name="setup_notif_title">Notification permission</string>
@@ -65,7 +65,7 @@
     <string name="toast_volume_needs_mic">Microphone permission is missing — the volume buttons cannot start dictation yet.</string>
     <string name="toast_volume_start_failed">Could not start dictation from the volume button. Open the Retrobit app once, then try again.</string>
     <string name="toast_volume_assistant_busy">The assistant or dictation is already running. Wait for it to finish.</string>
-    <string name="overlay_need_text_focus">Focus a text field and place the cursor to use the dictation bubble.</string>
+    <string name="overlay_need_text_focus">Dictate without a text field; the result appears in the overlay for copying.</string>
     <string name="toast_export_done">Settings exported to the chosen file.</string>
     <string name="toast_export_failed">Could not write the backup file.</string>
     <string name="toast_import_done">Settings restored: %1$s</string>
@@ -100,6 +100,8 @@
     <string name="assistant_subtitle">Voice commands, questions, and app control — offline first, online AI when enabled.</string>
     <string name="assistant_input_label">Type a command or question</string>
     <string name="assistant_listening">Listening…</string>
+    <string name="assistant_ready_phrase">Saya siap.</string>
+    <string name="assistant_ready_speech_unavailable">Speech output is not ready; the assistant did not start listening.</string>
     <string name="assistant_thinking">Thinking…</string>
     <string name="assistant_examples">Examples: \"open WhatsApp\", \"call Mom\", \"set alarm 5 am\", \"timer 10 minutes\", \"turn on flashlight\", \"note pay the bill\", \"search for rendang recipe\".</string>
     <string name="assistant_settings_title">Quick assistant settings</string>
@@ -155,7 +157,7 @@
     <string name="trigger_hold">Press and hold</string>
     <string name="trigger_hands_free">Auto-stop on silence</string>
     <string name="trigger_hybrid">Both</string>
-    <string name="settings_silence_timeout">Silence before stopping (shorter is faster but may cut pauses)</string>
+    <string name="settings_silence_timeout">Dictation silence timeout (shorter is faster but may cut pauses)</string>
     <string name="settings_volume_trigger">Hold Volume Down for dictation</string>
     <string name="settings_volume_trigger_note">Requires accessibility. Hold Volume Down for about 0.7 seconds to start dictation; release to finish. A short tap still adjusts volume.</string>
     <string name="settings_volume_trigger_ready_hold">Ready. Hold Volume Down for 0.7 seconds to record, then release to finish. A short tap still adjusts volume.</string>
@@ -170,6 +172,8 @@
     <string name="settings_assistant_subtitle">Even without online AI, dozens of commands work through local rules.</string>
     <string name="llm_off">Off</string>
     <string name="settings_speak_replies">Speak replies aloud</string>
+    <string name="settings_assistant_silence_timeout">Silence before processing a command</string>
+    <string name="settings_assistant_silence_timeout_note">The assistant treats the command as complete after this much silence. Default: 3 seconds.</string>
     <string name="settings_tts_voice">Answer voice</string>
     <string name="settings_tts_voice_note">Available voices depend on the Android TTS engine and installed voice packages. Gender/style labels, including child or robot voices, appear only if the engine provides them; try adjusting pitch and rate.</string>
     <string name="settings_tts_voice_default">System default voice</string>
@@ -193,7 +197,7 @@
     <string name="settings_epaper_mode">Light paper mode (e-paper)</string>
     <string name="settings_epaper_mode_note">Panel turns bright, like an e-reader in sunlight.</string>
     <string name="settings_overlay">Floating mic bubble</string>
-    <string name="settings_overlay_note">At a focused text field: tap to dictate, long-press for the assistant. This permission also shows the assistant popup during a session.</string>
+    <string name="settings_overlay_note">The bubble stays available: tap to start/stop dictation, long-press for the assistant. At a focused text field the result is inserted; otherwise preview and copy it in the overlay.</string>
     <string name="settings_save_history">Keep history on device</string>
     <string name="settings_clear_history">Clear history</string>
     <string name="settings_backup_title">Settings backup</string>
@@ -246,4 +250,16 @@
     <string name="overlay_notif_text">The dictation bubble and assistant popup appear when needed.</string>
     <string name="overlay_permission_needed">Grant \"Display over other apps\" for the bubble and assistant popup.</string>
     <string name="overlay_processing">Still processing, one moment…</string>
+    <string name="overlay_dictation_start">Tap to start dictation</string>
+    <string name="overlay_dictation_stop">Tap to finish dictation</string>
+    <string name="overlay_dictation_preview_title">DICTATION PREVIEW</string>
+    <string name="overlay_dictation_listening">LISTENING…</string>
+    <string name="overlay_dictation_processing">PROCESSING DICTATION…</string>
+    <string name="overlay_dictation_done">DICTATION COMPLETE</string>
+    <string name="overlay_dictation_error">DICTATION FAILED</string>
+    <string name="overlay_dictation_speak_now">Speak now. Results appear here.</string>
+    <string name="overlay_dictation_stop_hint">Tap the bubble to finish sooner; silence also stops recording.</string>
+    <string name="overlay_dictation_preview_hint">Review the result; copy to use it.</string>
+    <string name="overlay_dictation_copy">COPY</string>
+    <string name="overlay_dictation_close">Close dictation preview</string>
 </resources>

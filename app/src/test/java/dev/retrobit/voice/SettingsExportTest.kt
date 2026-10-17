@@ -50,6 +50,7 @@ class SettingsExportTest {
         llmModel = "llama-uji",
         wakeWordEnabled = true,
         wakeWordPhrase = "halo retro",
+        assistantSilenceTimeoutMs = 4_500,
         confirmBeforeActions = false,
         screenContextEnabled = true,
         speakReplies = false,
@@ -85,6 +86,16 @@ class SettingsExportTest {
         ).toSettings(defaults)
         assertFalse(legacy.volumeKeyAssistantEnabled)
         assertFalse(legacy.screenContextEnabled)
+    }
+
+    @Test
+    fun `jeda akhir perintah asisten berbawaan tiga detik dan impor dibatasi`() {
+        assertEquals(3_000, AppSettings().assistantSilenceTimeoutMs)
+
+        val preset = """{"app":"${SettingsSnapshotFormat.APP_ID}","schema":${SettingsSnapshotFormat.SCHEMA_VERSION},"assistantSilenceTimeoutMs":9_000}"""
+        val restored = decodeSettingsSnapshot(preset).toSettings()
+
+        assertEquals(5_000, restored.assistantSilenceTimeoutMs)
     }
 
     @Test

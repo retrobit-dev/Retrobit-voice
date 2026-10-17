@@ -65,6 +65,8 @@ data class AppSettings(
     val llmModel: String = "",
     val wakeWordEnabled: Boolean = false,
     val wakeWordPhrase: String = "hai retro",
+    /** Jeda hening sebelum perintah suara asisten dikirim untuk diproses (bawaan 3 detik). */
+    val assistantSilenceTimeoutMs: Int = 3000,
     val confirmBeforeActions: Boolean = true,
     /** Baca teks layar satu kali saat pengguna meminta asisten (bawaan: mati). */
     val screenContextEnabled: Boolean = false,
@@ -117,6 +119,7 @@ class SettingsRepository(private val context: Context) {
         val llmModel = stringPreferencesKey("llm_model")
         val wakeWordEnabled = booleanPreferencesKey("wake_word_enabled")
         val wakeWordPhrase = stringPreferencesKey("wake_word_phrase")
+        val assistantSilenceTimeoutMs = intPreferencesKey("assistant_silence_timeout_ms")
         val confirmBeforeActions = booleanPreferencesKey("confirm_actions")
         val screenContext = booleanPreferencesKey("screen_context_enabled")
         val speakReplies = booleanPreferencesKey("speak_replies")
@@ -160,6 +163,7 @@ class SettingsRepository(private val context: Context) {
             prefs[K.llmModel] = updated.llmModel
             prefs[K.wakeWordEnabled] = updated.wakeWordEnabled
             prefs[K.wakeWordPhrase] = updated.wakeWordPhrase
+            prefs[K.assistantSilenceTimeoutMs] = updated.assistantSilenceTimeoutMs.coerceIn(500, 5_000)
             prefs[K.confirmBeforeActions] = updated.confirmBeforeActions
             prefs[K.screenContext] = updated.screenContextEnabled
             prefs[K.speakReplies] = updated.speakReplies
@@ -203,6 +207,8 @@ class SettingsRepository(private val context: Context) {
             llmModel = this[K.llmModel] ?: defaults.llmModel,
             wakeWordEnabled = this[K.wakeWordEnabled] ?: defaults.wakeWordEnabled,
             wakeWordPhrase = this[K.wakeWordPhrase] ?: defaults.wakeWordPhrase,
+            assistantSilenceTimeoutMs = (this[K.assistantSilenceTimeoutMs] ?: defaults.assistantSilenceTimeoutMs)
+                .coerceIn(500, 5_000),
             confirmBeforeActions = this[K.confirmBeforeActions] ?: defaults.confirmBeforeActions,
             screenContextEnabled = this[K.screenContext] ?: defaults.screenContextEnabled,
             speakReplies = this[K.speakReplies] ?: defaults.speakReplies,

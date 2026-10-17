@@ -155,7 +155,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun listenToAssistant() {
-        viewModelScope.launch { graph.assistant.listenAndHandle() }
+        viewModelScope.launch { graph.assistant.listenAndHandle(announceReady = true) }
     }
 
     fun confirmPendingAssistantMessage() {

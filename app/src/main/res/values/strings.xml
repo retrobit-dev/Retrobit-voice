@@ -53,7 +53,7 @@
     <string name="setup_a11y_title">Sisip otomatis (aksesibilitas)</string>
     <string name="setup_a11y_subtitle">Diperlukan untuk mendeteksi kolom yang fokus, menyisipkan teks langsung, dan membaca tombol volume.</string>
     <string name="setup_overlay_title">Bubble melayang</string>
-    <string name="setup_overlay_subtitle">Bubble muncul saat kolom teks fokus; izin yang sama menampilkan popup asisten sementara.</string>
+    <string name="setup_overlay_subtitle">Bubble bisa memulai dikte kapan saja; tanpa kolom teks, hasil tampil di overlay untuk disalin.</string>
     <string name="setup_assistant_title">Jadikan asisten bawaan</string>
     <string name="setup_assistant_subtitle">Tekan lama tombol Home untuk memanggil Retrobit.</string>
     <string name="setup_notif_title">Izin notifikasi</string>
@@ -69,7 +69,7 @@
     <string name="toast_volume_needs_mic">Izin mikrofon belum diberikan — tombol volume belum bisa memulai dikte.</string>
     <string name="toast_volume_start_failed">Tidak bisa memulai dikte dari tombol volume. Buka aplikasi Retrobit sekali, lalu coba lagi.</string>
     <string name="toast_volume_assistant_busy">Asisten atau dikte sedang berjalan. Tunggu sampai sesi selesai.</string>
-    <string name="overlay_need_text_focus">Buka kolom teks lalu letakkan kursor agar bubble dikte tersedia.</string>
+    <string name="overlay_need_text_focus">Bubble dapat memulai dikte tanpa kolom teks; hasil tampil di overlay untuk disalin.</string>
     <string name="toast_export_done">Setelan diekspor ke berkas yang dipilih.</string>
     <string name="toast_export_failed">Gagal menulis berkas cadangan.</string>
     <string name="toast_import_done">Setelan dipulihkan: %1$s</string>
@@ -107,6 +107,8 @@
     <string name="assistant_subtitle">Perintah suara, tanya jawab, dan kontrol aplikasi — offline dulu, AI daring kalau diaktifkan.</string>
     <string name="assistant_input_label">Tulis perintah atau pertanyaan</string>
     <string name="assistant_listening">Sedang mendengarkan…</string>
+    <string name="assistant_ready_phrase">Saya siap.</string>
+    <string name="assistant_ready_speech_unavailable">Mesin suara belum siap; asisten tidak mulai mendengarkan.</string>
     <string name="assistant_thinking">Sedang berpikir…</string>
     <string name="assistant_examples">Contoh: \"buka WhatsApp\", \"telepon Ibu\", \"alarm jam 5 pagi\", \"timer 10 menit\", \"nyalakan senter\", \"catat besok bayar listrik\", \"cari resep rendang\".</string>
     <string name="assistant_settings_title">Pengaturan cepat asisten</string>
@@ -163,7 +165,7 @@
     <string name="trigger_hold">Tekan dan tahan</string>
     <string name="trigger_hands_free">Otomatis saat berhenti bicara</string>
     <string name="trigger_hybrid">Bisa keduanya</string>
-    <string name="settings_silence_timeout">Jeda hening (lebih singkat = lebih cepat, bisa memotong jeda bicara)</string>
+    <string name="settings_silence_timeout">Jeda hening dikte (lebih singkat = lebih cepat, bisa memotong jeda bicara)</string>
     <string name="settings_volume_trigger">Tahan Volume Bawah untuk dikte</string>
     <string name="settings_volume_trigger_note">Perlu aksesibilitas. Tahan Volume Bawah sekitar 0,7 detik untuk mulai dikte; lepas untuk selesai. Ketukan singkat tetap mengatur volume.</string>
     <string name="settings_volume_trigger_ready_hold">Siap. Tahan Volume Bawah 0,7 detik untuk merekam, lepas untuk selesai. Ketukan singkat tetap mengatur volume.</string>
@@ -178,6 +180,8 @@
     <string name="settings_assistant_subtitle">Tanpa AI daring, asisten tetap menjalankan puluhan perintah lewat aturan lokal.</string>
     <string name="llm_off">Nonaktif</string>
     <string name="settings_speak_replies">Bacakan jawaban</string>
+    <string name="settings_assistant_silence_timeout">Jeda hening sebelum perintah diproses</string>
+    <string name="settings_assistant_silence_timeout_note">Asisten menganggap perintah selesai setelah jeda hening ini. Bawaan: 3 detik.</string>
     <string name="settings_tts_voice">Suara jawaban</string>
     <string name="settings_tts_voice_note">Pilihan suara bergantung pada mesin TTS Android dan paket suara yang terpasang. Label gender/gaya, termasuk suara anak atau robot, hanya tersedia jika disediakan mesin; coba sesuaikan tinggi nada dan kecepatan.</string>
     <string name="settings_tts_voice_default">Suara bawaan sistem</string>
@@ -201,7 +205,7 @@
     <string name="settings_epaper_mode">Mode kertas terang (e-paper)</string>
     <string name="settings_epaper_mode_note">Panel jadi terang seperti e-reader di bawah matahari.</string>
     <string name="settings_overlay">Bubble mikrofon melayang</string>
-    <string name="settings_overlay_note">Saat kolom teks fokus: ketuk untuk dikte, tekan lama untuk asisten. Izin overlay ini juga menampilkan popup asisten saat sesi aktif.</string>
+    <string name="settings_overlay_note">Bubble selalu tersedia: ketuk untuk mulai/berhenti dikte, tekan lama untuk asisten. Jika kolom teks fokus, hasil ditempel; tanpa fokus, hasil tampil di overlay untuk disalin.</string>
     <string name="settings_save_history">Simpan riwayat di perangkat</string>
     <string name="settings_clear_history">Bersihkan riwayat</string>
     <string name="settings_backup_title">Cadangan setelan</string>
@@ -256,4 +260,16 @@
     <string name="overlay_notif_text">Bubble dikte dan popup asisten ditampilkan saat diperlukan.</string>
     <string name="overlay_permission_needed">Berikan izin \"Tampil di atas aplikasi lain\" untuk bubble dan popup asisten.</string>
     <string name="overlay_processing">Masih memproses, tunggu sebentar…</string>
+    <string name="overlay_dictation_start">Ketuk untuk mulai dikte</string>
+    <string name="overlay_dictation_stop">Ketuk untuk selesai dikte</string>
+    <string name="overlay_dictation_preview_title">PRATINJAU DIKTE</string>
+    <string name="overlay_dictation_listening">MENDENGARKAN…</string>
+    <string name="overlay_dictation_processing">MEMPROSES DIKTE…</string>
+    <string name="overlay_dictation_done">DIKTE SELESAI</string>
+    <string name="overlay_dictation_error">DIKTE GAGAL</string>
+    <string name="overlay_dictation_speak_now">Silakan bicara. Hasil akan muncul di sini.</string>
+    <string name="overlay_dictation_stop_hint">Ketuk bubble untuk selesai lebih cepat; jeda hening juga menghentikan.</string>
+    <string name="overlay_dictation_preview_hint">Periksa hasil; salin untuk dipakai.</string>
+    <string name="overlay_dictation_copy">SALIN</string>
+    <string name="overlay_dictation_close">Tutup pratinjau dikte</string>
 </resources>

@@ -40,7 +40,7 @@ class DictationController(
 
     enum class Phase { IDLE, LISTENING, TRANSCRIBING, CLEANING, INSERTING, DONE, ERROR }
 
-    enum class Source { MANUAL, IME, OVERLAY, WAKE_WORD, TILE, ASSISTANT, VOLUME }
+    enum class Source { MANUAL, IME, OVERLAY, OVERLAY_PREVIEW, WAKE_WORD, TILE, ASSISTANT, VOLUME }
 
     data class UiState(
         val phase: Phase = Phase.IDLE,
@@ -171,7 +171,7 @@ class DictationController(
         // Bubble/wake-word tetap hands-free; pemicu tombol volume harus bertahan
         // sampai Volume Bawah dilepas, apa pun mode dikte umum yang dipilih.
         val source = _state.value.source
-        val autoStop = source == Source.OVERLAY || source == Source.WAKE_WORD ||
+        val autoStop = source == Source.OVERLAY || source == Source.OVERLAY_PREVIEW || source == Source.WAKE_WORD ||
             (source != Source.VOLUME && settings.dictationTrigger != DictationTrigger.HOLD_TO_TALK)
         val timeout = settings.silenceTimeoutMs.toLong()
 
@@ -283,7 +283,7 @@ class DictationController(
         )
 
         val source = _state.value.source
-        if (source != Source.ASSISTANT && source != Source.MANUAL) {
+        if (source != Source.ASSISTANT && source != Source.MANUAL && source != Source.OVERLAY_PREVIEW) {
             val result = graph.textInserter.insert(cleaned)
             if (!result.success) {
                 _state.value = _state.value.copy(
@@ -364,7 +364,7 @@ class DictationController(
         if (!hasMicrophonePermission()) return Result.failure(IllegalStateException("Izin mikrofon belum diberikan"))
         if (_state.value.isBusy) return Result.failure(IllegalStateException("Dikte sedang berjalan"))
 
-        val silenceWindowMs = silenceTimeoutMs.coerceIn(400L, 4_000L)
+        val silenceWindowMs = silenceTimeoutMs.coerceIn(400L, 5_000L)
         var heard = ""
         val job = scope.launch {
             if (settings.sttEngine == SttEngineChoice.SYSTEM_LIVE) {

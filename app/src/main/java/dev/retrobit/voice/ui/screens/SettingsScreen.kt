@@ -319,6 +319,31 @@ fun SettingsScreen(vm: AppViewModel, modifier: Modifier = Modifier) {
                 checked = current.speakReplies,
                 onChange = { value -> vm.update { it.copy(speakReplies = value) } },
             )
+            Text(
+                text = str(R.string.settings_assistant_silence_timeout) + " · %.1f s".format(
+                    current.assistantSilenceTimeoutMs / 1000f,
+                ),
+                style = MaterialTheme.typography.bodySmall,
+            )
+            Text(
+                text = str(R.string.settings_assistant_silence_timeout_note),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Slider(
+                value = current.assistantSilenceTimeoutMs.toFloat(),
+                onValueChange = { value ->
+                    val timeoutMs = ((value / 500f).roundToInt() * 500).coerceIn(500, 5_000)
+                    vm.update { it.copy(assistantSilenceTimeoutMs = timeoutMs) }
+                },
+                valueRange = 500f..5_000f,
+                steps = 8,
+                colors = SliderDefaults.colors(
+                    thumbColor = MaterialTheme.colorScheme.onSurface,
+                    activeTrackColor = MaterialTheme.colorScheme.onSurface,
+                    inactiveTrackColor = MaterialTheme.colorScheme.outline,
+                ),
+            )
 
             Text(str(R.string.settings_tts_voice), style = MaterialTheme.typography.bodyMedium)
             Text(

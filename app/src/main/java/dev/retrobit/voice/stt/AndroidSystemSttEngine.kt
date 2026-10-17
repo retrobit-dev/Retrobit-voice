@@ -135,7 +135,7 @@ class AndroidSystemSttEngine(private val context: Context) : SttEngine {
                         putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
                         putExtra(RecognizerIntent.EXTRA_CALLING_PACKAGE, context.packageName)
                         putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
-                        val endpointingSilenceMs = silenceTimeoutMs.coerceIn(400L, 4_000L)
+                        val endpointingSilenceMs = silenceTimeoutMs.coerceIn(400L, 5_000L)
                         putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, endpointingSilenceMs)
                         putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, endpointingSilenceMs)
                     }

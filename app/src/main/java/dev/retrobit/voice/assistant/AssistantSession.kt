@@ -454,9 +454,9 @@ class AssistantSession(
         _state.value = _state.value.copy(partial = command, currentCommand = command)
     }
 
-    /** Voice command selesai setelah jeda yang dipilih, maksimal 3 detik. */
+    /** Voice command selesai setelah jeda hening yang dipilih untuk asisten. */
     private fun assistantSilenceTimeoutMs(settings: AppSettings): Long =
-        settings.silenceTimeoutMs.toLong().coerceIn(MIN_ASSISTANT_SILENCE_TIMEOUT_MS, ASSISTANT_SILENCE_TIMEOUT_MS)
+        settings.assistantSilenceTimeoutMs.toLong().coerceIn(MIN_ASSISTANT_SILENCE_TIMEOUT_MS, MAX_ASSISTANT_SILENCE_TIMEOUT_MS)
 
     /**
      * Voice command memakai recognizer live bila tersedia, agar ucapan diproses
@@ -533,12 +533,12 @@ class AssistantSession(
             wakeWordPaused = true
             val settings = graph.settings.current()
 
-            if (announceReady && settings.speakReplies) {
+            if (announceReady) {
                 // TTS harus selesai dulu: jika STT dimulai bersamaan, prompt siap
                 // bisa masuk sebagai transkrip atau membuat SpeechRecognizer sibuk.
                 val spoken = runCatching {
                     graph.tts.speakAndWait(
-                        "Siap.",
+                        context.getString(R.string.assistant_ready_phrase),
                         settings.assistantLanguage,
                         voiceName = settings.ttsVoiceName,
                         pitch = settings.ttsPitch,
@@ -548,7 +548,16 @@ class AssistantSession(
                     VoiceLog.w("Prompt siap asisten gagal: ${it.message}")
                     false
                 }
-                if (!spoken) VoiceLog.w("Prompt siap asisten tidak selesai; melanjutkan sesi dengar")
+                if (!spoken) {
+                    VoiceLog.w("Prompt siap asisten tidak selesai; sesi mikrofon dibatalkan")
+                    _state.value = _state.value.copy(
+                        listening = false,
+                        thinking = false,
+                        status = "",
+                        error = context.getString(R.string.assistant_ready_speech_unavailable),
+                    )
+                    return
+                }
             }
 
             _state.value = _state.value.copy(
@@ -678,10 +687,10 @@ class AssistantSession(
             OverlayBubbleService.hasPermission(context) && graph.dictation.hasMicrophonePermission()
         if (canListenOverCurrentApp) {
             scope.launch {
-                // Capture konteks layar opt-in sebelum overlay muncul; lewati prompt
-                // suara agar recognizer segera siap menerima perintah.
+                // Capture konteks layar opt-in sebelum sesi dibuka; listenAndHandle
+                // mengucapkan prompt kesiapan sebelum recognizer mulai mendengarkan.
                 capturePendingScreenContext(captureScreenContext)
-                listenAndHandle(announceReady = false)
+                listenAndHandle(announceReady = true)
             }
             return
         }
@@ -744,8 +753,8 @@ class AssistantSession(
         const val SCREEN_CAPTURE_TTL_MS = 30_000L
         const val PENDING_MESSAGE_TTL_MS = 90_000L
         const val ASSISTANT_STT_TIMEOUT_MS = 20_000L
-        const val MIN_ASSISTANT_SILENCE_TIMEOUT_MS = 400L
-        const val ASSISTANT_SILENCE_TIMEOUT_MS = 3_000L
+        const val MIN_ASSISTANT_SILENCE_TIMEOUT_MS = 500L
+        const val MAX_ASSISTANT_SILENCE_TIMEOUT_MS = 5_000L
         const val SCREEN_CONTEXT_SOURCE_TAG = "konteks layar"
     }
 }
