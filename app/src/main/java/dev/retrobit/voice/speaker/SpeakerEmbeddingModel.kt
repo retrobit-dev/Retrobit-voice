@@ -35,8 +35,11 @@ class SpeakerEmbeddingModel(context: Context) : AutoCloseable {
 
     suspend fun prepareModel(onProgress: (downloadedBytes: Long, totalBytes: Long) -> Unit = { _, _ -> }) {
         val model = ensureModelFile(onProgress)
-        sessionMutex.withLock {
-            if (session == null) session = createSession(model)
+        // ONNX session creation can take several seconds on a phone; never run it on the UI thread.
+        withContext(Dispatchers.Default) {
+            sessionMutex.withLock {
+                if (session == null) session = createSession(model)
+            }
         }
     }
 

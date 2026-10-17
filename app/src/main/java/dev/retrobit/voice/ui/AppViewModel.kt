@@ -132,12 +132,16 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch { graph.speakerVerification.beginEnrollment(consentConfirmed = true) }
     }
 
+    fun speakerMicrophonePermissionDenied() {
+        graph.speakerVerification.reportMicrophonePermissionRequired()
+    }
+
     fun captureSpeakerEnrollmentSample() {
         viewModelScope.launch { graph.speakerVerification.captureEnrollmentSample() }
     }
 
     fun cancelSpeakerEnrollment() {
-        graph.speakerVerification.cancelEnrollment()
+        viewModelScope.launch(Dispatchers.IO) { graph.speakerVerification.cancelEnrollment() }
     }
 
     fun deleteSpeakerEnrollment() {

@@ -10,6 +10,7 @@ import dev.retrobit.voice.core.AppGraph
 import dev.retrobit.voice.core.VoiceLog
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -65,6 +66,10 @@ class SpeakerVerificationManager(
             graph.settings.update { it.copy(speakerVerificationEnabled = false) }
         }
         _state.value = _state.value.copy(enrolled = enrolled)
+    }
+
+    fun reportMicrophonePermissionRequired() {
+        _state.value = _state.value.copy(error = appContext.getString(R.string.speaker_microphone_required))
     }
 
     /** Called only from the app's explicit consent dialog after the user accepts. */
@@ -164,9 +169,11 @@ class SpeakerVerificationManager(
         try {
             graph.assistant.pauseWakeWordForDictation()
             wakeWordPaused = true
-            val recordingStarted = synchronized(enrollmentCommitLock) {
-                if (enrollmentGeneration != generation) false
-                else recorder.start(recordingsDir, prefix = RAW_ENROLLMENT_PREFIX)
+            val recordingStarted = withContext(Dispatchers.IO) {
+                synchronized(enrollmentCommitLock) {
+                    if (enrollmentGeneration != generation) false
+                    else recorder.start(recordingsDir, prefix = RAW_ENROLLMENT_PREFIX)
+                }
             }
             if (!recordingStarted) {
                 if (!isEnrollmentGenerationCurrent(generation)) throw CancellationException("Enrolmen dibatalkan")
@@ -174,7 +181,7 @@ class SpeakerVerificationManager(
             }
             delay(SAMPLE_RECORDING_MS)
             if (!isEnrollmentGenerationCurrent(generation)) throw CancellationException("Enrolmen dibatalkan")
-            val recording = recorder.stopAndWait()
+            val recording = withContext(Dispatchers.IO) { recorder.stopAndWait() }
                 ?: throw IllegalStateException(appContext.getString(R.string.speaker_recording_failed))
             recordingFile = recording.wavFile
             if (!recorder.vad.hasSpeech) {
@@ -238,7 +245,7 @@ class SpeakerVerificationManager(
             ) throw cancelled
         } catch (error: Throwable) {
             if (!isEnrollmentGenerationCurrent(generation)) return@withLock
-            VoiceLog.w("Sampel enrolmen speaker ditolak: ${error.message}")
+            VoiceLog.e("Sampel enrolmen speaker gagal", error)
             updateEnrollmentStateIfCurrent(generation) {
                 it.copy(
                     capturingSample = false,
@@ -249,7 +256,7 @@ class SpeakerVerificationManager(
                 )
             }
         } finally {
-            if (recorder.isRunning) recorder.cancel()
+            if (recorder.isRunning) withContext(NonCancellable + Dispatchers.IO) { recorder.cancel() }
             recordingFile?.let { file ->
                 runCatching { deleteRawEnrollmentSample(file) }
                     .onFailure { VoiceLog.e("Rekaman enrolmen mentah tidak dapat dihapus", it) }

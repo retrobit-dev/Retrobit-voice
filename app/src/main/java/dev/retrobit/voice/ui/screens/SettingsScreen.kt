@@ -101,7 +101,10 @@ fun SettingsScreen(vm: AppViewModel, modifier: Modifier = Modifier) {
     }
     val speakerMicrophonePermission = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission(),
-    ) { vm.beginSpeakerEnrollment() }
+    ) { granted ->
+        if (granted) vm.beginSpeakerEnrollment()
+        else vm.speakerMicrophonePermissionDenied()
+    }
 
     Column(
         modifier
