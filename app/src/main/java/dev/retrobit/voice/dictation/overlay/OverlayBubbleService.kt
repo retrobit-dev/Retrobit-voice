@@ -12,6 +12,9 @@ import android.graphics.Paint
 import android.graphics.PixelFormat
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
+import android.media.AudioAttributes
+import android.media.AudioFocusRequest
+import android.media.AudioManager
 import android.net.Uri
 import android.os.Build
 import android.os.Handler
@@ -91,6 +94,8 @@ class OverlayBubbleService : Service() {
     private var paperMode = false
     private var persistentBubbleEnabled = false
     private var assistantSessionActive = false
+    private var assistantAudioManager: AudioManager? = null
+    private var assistantAudioFocusRequest: AudioFocusRequest? = null
 
     private var longPressRunnable: Runnable? = null
     private var downX = 0f
@@ -633,6 +638,7 @@ class OverlayBubbleService : Service() {
         }
 
         try {
+            requestAssistantOverlayAudioFocus()
             windowManager.addView(panel, windowParams)
             assistantPopupView = panel
             popupTitleText = title
@@ -648,10 +654,56 @@ class OverlayBubbleService : Service() {
             popupMascot = mascot
             VoiceLog.i("Popup asisten Retrobit ditampilkan")
         } catch (t: Throwable) {
+            releaseAssistantOverlayAudioFocus()
             assistantPopupRequested = false
             VoiceLog.e("Gagal menampilkan popup asisten", t)
             if (!persistentBubbleEnabled) stopSelf()
         }
+    }
+
+    /**
+     * Fokus eksklusif sementara meminta pemutar lain berhenti saat popup terlihat.
+     * Pemutar yang mengikuti Android Audio Focus biasanya melanjutkan otomatis
+     * ketika fokus dilepas setelah popup ditutup.
+     */
+    private fun requestAssistantOverlayAudioFocus() {
+        if (assistantAudioFocusRequest != null) return
+        val manager = getSystemService(Context.AUDIO_SERVICE) as? AudioManager ?: return
+        try {
+            val request = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_EXCLUSIVE)
+                .setAudioAttributes(
+                    AudioAttributes.Builder()
+                        .setUsage(AudioAttributes.USAGE_ASSISTANT)
+                        .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+                        .build(),
+                )
+                .setAcceptsDelayedFocusGain(false)
+                .setWillPauseWhenDucked(true)
+                .setOnAudioFocusChangeListener { change ->
+                    if (change == AudioManager.AUDIOFOCUS_LOSS) {
+                        VoiceLog.w("Popup asisten kehilangan fokus audio sebelum ditutup")
+                    }
+                }
+                .build()
+            if (manager.requestAudioFocus(request) == AudioManager.AUDIOFOCUS_REQUEST_GRANTED) {
+                assistantAudioManager = manager
+                assistantAudioFocusRequest = request
+                VoiceLog.i("Fokus audio eksklusif sementara aktif selama popup asisten")
+            } else {
+                VoiceLog.w("Fokus audio popup asisten tidak diberikan")
+            }
+        } catch (t: Throwable) {
+            VoiceLog.w("Tidak dapat meminta fokus audio untuk popup asisten: ${t.message}")
+        }
+    }
+
+    private fun releaseAssistantOverlayAudioFocus() {
+        val request = assistantAudioFocusRequest ?: return
+        runCatching { assistantAudioManager?.abandonAudioFocusRequest(request) }
+            .onFailure { VoiceLog.w("Tidak dapat melepas fokus audio popup asisten: ${it.message}") }
+        assistantAudioFocusRequest = null
+        assistantAudioManager = null
+        VoiceLog.i("Fokus audio dilepas setelah popup asisten ditutup")
     }
 
     private fun addPopupSection(
@@ -727,6 +779,7 @@ class OverlayBubbleService : Service() {
 
     private fun removeAssistantPopup() {
         assistantPopupView?.let { runCatching { windowManager.removeView(it) } }
+        releaseAssistantOverlayAudioFocus()
         assistantPopupView = null
         popupTitleText = null
         popupStatusText = null

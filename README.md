@@ -31,6 +31,7 @@ Dirancang **offline-first**: dikte dan puluhan perintah tetap jalan tanpa intern
 - **Auto-stop saat berhenti bicara** — detektor aktivitas suara (VAD) dengan noise floor adaptif.
 - **Pintasan tombol volume** — tahan Volume Atas sekitar 0,7 detik untuk asisten/voice command; tahan Volume Bawah untuk mulai dikte dan lepas untuk selesai. Ketukan singkat tetap menaikkan/menurunkan volume. Masing-masing pintasan dapat diaktifkan di Pengaturan dan memerlukan aksesibilitas.
 - **Wake word membuka asisten** — setiap kali terdeteksi, overlay/sesi asisten langsung siap mendengar perintah, termasuk saat kolom teks sedang fokus; wake word tidak pernah dialihkan menjadi dikte.
+- **Audio saat popup asisten** — popup meminta fokus audio sementara eksklusif selama tampil agar pemutar lain berhenti; fokus dilepas saat popup ditutup supaya pemutar yang mengikuti Android Audio Focus bisa melanjutkan.
 - Pemicu tile **Pengaturan Cepat** Android.
 
 ### Asisten (Google Assistant style)
