@@ -144,6 +144,7 @@ class AssistantSession(
 
         var reply = understanding.reply
         var actionForTurn = understanding.action
+        var actionReplyWasAnnounced = false
         val pendingMessage = understanding.action as? AssistantAction.SendMessage
         if (pendingMessage != null) {
             if (pendingMessage.body.isBlank()) {
@@ -161,12 +162,75 @@ class AssistantSession(
                     "Apakah saya buka draf? Ucapkan ‘ya, siapkan draf’ atau ‘tidak, batal’. Pesan belum dikirim."
             }
         } else if (understanding.action != null) {
-            val outcome = graph.assistantExecutor.execute(understanding.action, settings)
-            reply = outcome.message.ifBlank { reply }
+            if (understanding.action == AssistantAction.StartDictation) {
+                val canStart = graph.dictation.hasMicrophonePermission() &&
+                    !graph.dictation.state.value.isBusy &&
+                    !graph.speakerVerification.state.value.enrollmentActive
+                if (!canStart) {
+                    actionForTurn = null
+                    val english = settings.assistantLanguage.startsWith("en", ignoreCase = true)
+                    reply = when {
+                        !graph.dictation.hasMicrophonePermission() -> if (english) {
+                            "Microphone permission is required to start dictation."
+                        } else {
+                            "Izin mikrofon diperlukan untuk memulai dikte."
+                        }
+                        graph.speakerVerification.state.value.enrollmentActive -> if (english) {
+                            "Voice enrollment is in progress. Finish or cancel it before starting dictation."
+                        } else {
+                            "Enrolmen suara sedang berlangsung. Selesaikan atau batalkan sebelum memulai dikte."
+                        }
+                        else -> if (english) {
+                            "Dictation is already running. Finish or cancel it before starting another session."
+                        } else {
+                            "Dikte sedang berjalan. Selesaikan atau batalkan dulu sebelum memulai lagi."
+                        }
+                    }
+                } else {
+                    val shouldSpeak = speakReply ?: settings.speakReplies
+                    val announced = !shouldSpeak || runCatching {
+                        graph.tts.speakAndWait(
+                            if (settings.assistantLanguage.startsWith("en", ignoreCase = true)) {
+                                "Dictation will start now. Please speak after this prompt finishes."
+                            } else {
+                                "Dikte akan dimulai. Silakan bicara setelah instruksi ini selesai."
+                            },
+                            settings.assistantLanguage,
+                            voiceName = settings.ttsVoiceName,
+                            pitch = settings.ttsPitch,
+                            speechRate = settings.ttsSpeechRate,
+                        )
+                    }.getOrDefault(false)
+                    if (!announced) {
+                        actionForTurn = null
+                        reply = if (settings.assistantLanguage.startsWith("en", ignoreCase = true)) {
+                            "Dictation was not started because voice guidance is unavailable. Use the Dictation button."
+                        } else {
+                            "Dikte tidak dimulai karena panduan suara tidak tersedia. Gunakan tombol Dikte."
+                        }
+                    } else {
+                        val outcome = graph.assistantExecutor.execute(understanding.action, settings)
+                        reply = outcome.message.ifBlank { reply }
+                        actionReplyWasAnnounced = shouldSpeak && outcome.success
+                    }
+                }
+            } else {
+                val outcome = graph.assistantExecutor.execute(understanding.action, settings)
+                reply = outcome.message.ifBlank { reply }
+            }
         }
 
+        val turnUserText = if (understanding.action is AssistantAction.TypeText) {
+            if (settings.assistantLanguage.startsWith("en", ignoreCase = true)) {
+                "Type [text hidden]"
+            } else {
+                "Ketik [teks disembunyikan]"
+            }
+        } else {
+            cleanText
+        }
         val turn = AssistantTurn(
-            userText = cleanText,
+            userText = turnUserText,
             action = actionForTurn,
             reply = reply,
             source = if (screenContext != null) {
@@ -178,7 +242,7 @@ class AssistantSession(
         return publishTurn(
             turn,
             settings,
-            speakReply,
+            speakReply = if (actionReplyWasAnnounced) false else speakReply,
             persistHistory = screenContext == null,
             screenContextDerived = screenContext != null,
         )

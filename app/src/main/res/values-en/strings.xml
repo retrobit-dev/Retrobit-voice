@@ -103,7 +103,7 @@
     <string name="assistant_ready_phrase">Saya siap.</string>
     <string name="assistant_ready_speech_unavailable">Speech output is not ready; the assistant did not start listening.</string>
     <string name="assistant_thinking">Thinking…</string>
-    <string name="assistant_examples">Examples: \"open WhatsApp\", \"call Mom\", \"set alarm 5 am\", \"timer 10 minutes\", \"turn on flashlight\", \"note pay the bill\", \"search for rendang recipe\".</string>
+    <string name="assistant_examples">Examples: \"what time is it\", \"what is my battery level\", \"weather in London\", \"start dictation\", \"type Hello there.\" Say \"help\" for more commands.</string>
     <string name="assistant_settings_title">Quick assistant settings</string>
     <string name="assistant_clear_history">Clear conversation history</string>
     <string name="assistant_confirmation_title">Confirm message draft</string>

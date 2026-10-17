@@ -192,6 +192,33 @@ class CommandParserTest {
     }
 
     @Test
+    fun `membaca waktu tanggal dan baterai perangkat`() {
+        assertEquals(AssistantAction.GetCurrentTime, action("jam berapa sekarang"))
+        assertEquals(AssistantAction.GetCurrentDate, action("hari ini tanggal berapa"))
+        assertEquals(AssistantAction.GetBatteryStatus, action("baterai saya tersisa berapa persen"))
+        assertEquals(AssistantAction.GetBatteryStatus, action("what is my battery level"))
+        assertEquals(AssistantAction.GetBatteryStatus, action("baterai tinggal 20 persen"))
+    }
+
+    @Test
+    fun `meminta cuaca kota tertentu atau meminta nama kota`() {
+        assertEquals(AssistantAction.GetWeather("Jepara"), action("berapa suhu di Jepara sekarang"))
+        assertEquals(AssistantAction.GetWeather(null), action("bagaimana cuaca hari ini"))
+        assertEquals(AssistantAction.GetWeather("London"), action("weather in London right now"))
+        assertEquals(AssistantAction.GetWeather("London"), action("weather in London now"))
+        assertEquals(AssistantAction.GetWeather(null), action("what's the weather"))
+        assertEquals(AssistantAction.GetWeather(null), action("cuaca di sini"))
+    }
+
+    @Test
+    fun `ketik menyisipkan teks persis dan perintah dikte harus eksplisit`() {
+        assertEquals(AssistantAction.TypeText("Halo, apa kabar."), action("tolong ketik Halo, apa kabar."))
+        assertEquals(AssistantAction.StartDictation, action("mulai dikte"))
+        assertEquals(null, action("how do I start dictation"))
+        assertEquals(AssistantAction.ShowHelp, action("apa saja yang bisa kamu lakukan"))
+    }
+
+    @Test
     fun `kalimat bebas tidak diklaim sebagai perintah`() {
         assertEquals(null, action("apa kabar hari ini bagaimana"))
     }

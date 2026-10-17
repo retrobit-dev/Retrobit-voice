@@ -9,7 +9,7 @@ Retrobit Voice menggabungkan dua hal yang biasanya terpisah:
 | Bagian | Meniru | Yang Anda dapat |
 | --- | --- | --- |
 | **Mode Dikte** | Wispr Flow | Ucapan langsung menjadi teks rapi di aplikasi apa pun — WhatsApp, Gmail, Notes, kolom pencarian |
-| **Mode Asisten** | Google Assistant | "Buka WhatsApp", "telepon Ibu", "alarm jam 5 pagi", "atur volume/kecerahan", "aktifkan Jangan Ganggu", "angkat panggilan", dan tanya-jawab bebas |
+| **Mode Asisten** | Google Assistant | "Buka WhatsApp", "telepon Ibu", "jam berapa sekarang", "baterai tersisa berapa", "cuaca di Jepara", "mulai dikte", "ketik halo", dan tanya-jawab bebas |
 
 Dirancang **offline-first**: dikte dan puluhan perintah tetap jalan tanpa internet, lalu meningkat otomatis kalau Anda memasukkan API key milik Anda sendiri (BYOK).
 
@@ -35,7 +35,9 @@ Dirancang **offline-first**: dikte dan puluhan perintah tetap jalan tanpa intern
 
 ### Asisten (Google Assistant style)
 - **Kaskade cerdas**: aturan lokal → LLM (opsional) → fallback pencarian web. Artinya asisten tetap berguna tanpa API key.
-- Perintah yang dikenali secara offline: buka aplikasi, cari di web/YouTube/Maps/Tokopedia, telepon, alarm, timer, pesan, catatan, senter, dan volume musik. Kecerahan dan Jangan Ganggu memerlukan akses khusus Android; pengaturan Bluetooth dibuka agar pengguna mengonfirmasi perubahan; menjawab panggilan memerlukan izin Telepon.
+- Perintah yang dikenali secara offline: buka aplikasi/pengaturan, cari di web, telepon, draf pesan, alarm, timer, catatan, senter, volume, kecerahan, Jangan Ganggu, Bluetooth, waktu/tanggal lokal, dan status baterai. Ucapkan “bantuan” untuk daftar kemampuan. Kecerahan dan Jangan Ganggu memerlukan akses khusus Android; Bluetooth membuka Pengaturan untuk dikonfirmasi pengguna; menjawab panggilan memerlukan izin Telepon.
+- **Cuaca terkini** — ucapkan “cuaca di Jepara” atau sebutkan kota lain. Data Open-Meteo diambil lewat internet; nama kota dikirim ke layanan geocoding cuaca dan Retrobit tidak meminta GPS.
+- **Ketik & dikte ke kolom aktif** — “Ketik halo, apa kabar” menyisipkan teks persis di posisi kursor. “Mulai dikte” memulai perekaman; hasil dikte masuk ke posisi kursor/seleksi aktif (atau ke akhir kolom jika posisi kursor tidak diberikan aplikasi).
 - **Konteks layar opt-in** — snapshot teks layar hanya dipakai saat pengguna meminta membaca/membalas chat. Teks bisa dibacakan langsung offline; permintaan balasan/ringkasan memakai LLM terpilih. Snapshot tidak disimpan di riwayat.
 - **Kirim pesan selalu perlu konfirmasi eksplisit** — setelah setuju, Retrobit membuka draf atau pemilih penerima WhatsApp; pengguna memeriksa dan menekan Kirim di WhatsApp.
 - **Bisa dipilih sebagai asisten digital bawaan** (`VoiceInteractionService`) — tekan lama tombol Home langsung mendengarkan dan mengucapkan prompt siap.
@@ -48,6 +50,7 @@ Dirancang **offline-first**: dikte dan puluhan perintah tetap jalan tanpa intern
 - Audio **dihapus segera** setelah transkripsi.
 - Riwayat hanya tersimpan di perangkat, bisa dimatikan sekali sentuh — tidak ada server milik proyek ini.
 - Akses konteks layar **mati secara bawaan**; bila diaktifkan, snapshot hanya diteruskan ke LLM pilihan saat perintah meminta membaca/membalas layar, dan tidak disimpan di riwayat.
+- Cuaca hanya dicari setelah diminta; hanya nama kota yang diucapkan dikirim ke Open-Meteo. Retrobit tidak mengakses lokasi GPS untuk cuaca.
 - Filter speaker bersifat opt-in. Template terenkripsi tetap di perangkat, dikecualikan dari backup Android dan ekspor setelan, serta tidak dikirim ke STT. Sampel enrolmen mentah dihapus setelah diproses. Audio dikirim ke STT yang dipilih hanya setelah lolos pemeriksaan; STT cloud tetap menerima audio yang lolos.
 - Tidak ada analytics, tidak ada iklan, tidak ada pengiriman data diam-diam. Pesan tidak pernah dikirim tanpa konfirmasi dan tap Kirim di aplikasi tujuan.
 

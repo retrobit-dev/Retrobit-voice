@@ -29,7 +29,7 @@ class AppGraph private constructor(context: Context) {
     val llm: LlmClient = LlmClient()
     val tts: TtsSpeaker = TtsSpeaker(appContext)
     val textInserter: TextInserter = TextInserter(settings)
-    val assistantExecutor: AssistantExecutor = AssistantExecutor(appContext, history)
+    val assistantExecutor: AssistantExecutor = AssistantExecutor(appContext, history, textInserter)
     val brain: AssistantBrain = AssistantBrain(llm, AppResolver(appContext))
     val dictation: DictationController = DictationController(appContext, this)
     val assistant: AssistantSession = AssistantSession(appContext, this)

@@ -110,7 +110,7 @@
     <string name="assistant_ready_phrase">Saya siap.</string>
     <string name="assistant_ready_speech_unavailable">Mesin suara belum siap; asisten tidak mulai mendengarkan.</string>
     <string name="assistant_thinking">Sedang berpikir…</string>
-    <string name="assistant_examples">Contoh: \"buka WhatsApp\", \"telepon Ibu\", \"alarm jam 5 pagi\", \"timer 10 menit\", \"nyalakan senter\", \"catat besok bayar listrik\", \"cari resep rendang\".</string>
+    <string name="assistant_examples">Contoh: \"jam berapa sekarang\", \"baterai tersisa berapa\", \"cuaca di Jepara\", \"mulai dikte\", \"ketik Halo, apa kabar.\" Ucapkan \"bantuan\" untuk daftar perintah.</string>
     <string name="assistant_settings_title">Pengaturan cepat asisten</string>
     <string name="assistant_clear_history">Bersihkan riwayat percakapan</string>
     <string name="assistant_confirmation_title">Konfirmasi draf pesan</string>

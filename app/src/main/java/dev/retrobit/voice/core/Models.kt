@@ -43,6 +43,14 @@ sealed interface AssistantAction {
     data class SetDnd(val enabled: Boolean) : AssistantAction
     data class SetBluetooth(val enabled: Boolean) : AssistantAction
     data object AnswerCall : AssistantAction
+    data object GetCurrentTime : AssistantAction
+    data object GetCurrentDate : AssistantAction
+    data object GetBatteryStatus : AssistantAction
+    data class GetWeather(val location: String?) : AssistantAction
+    /** Insert exact text into the focused field at its active cursor/selection. */
+    data class TypeText(val text: String) : AssistantAction
+    data object StartDictation : AssistantAction
+    data object ShowHelp : AssistantAction
     data class Unknown(val rawText: String) : AssistantAction
 }
 

@@ -6,7 +6,9 @@ import dev.retrobit.voice.data.InsertMethod
 import dev.retrobit.voice.data.SettingsRepository
 import dev.retrobit.voice.dictation.a11y.TextInsertAccessibilityService
 import dev.retrobit.voice.dictation.ime.RetrobitImeService
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.withContext
 
 /**
  * Menyisipkan hasil dikte langsung ke posisi kursor aktif.
@@ -40,33 +42,35 @@ class TextInserter(
     suspend fun insert(text: String): Result {
         if (text.isBlank()) return Result(false, Channel.NONE, "Tidak ada teks untuk disisipkan")
         val method = settings.flow.first().insertMethod
-        val order = when (method) {
-            InsertMethod.IME -> listOf(Channel.IME, Channel.ACCESSIBILITY)
-            InsertMethod.ACCESSIBILITY -> listOf(Channel.ACCESSIBILITY, Channel.IME)
-            InsertMethod.AUTO -> listOf(Channel.IME, Channel.ACCESSIBILITY)
-        }
-
-        for (channel in order) {
-            val inserted = when (channel) {
-                Channel.IME -> insertViaIme(text)
-                Channel.ACCESSIBILITY -> TextInsertAccessibilityService.insertIntoFocusedField(text)
-                Channel.NONE -> false
+        return withContext(Dispatchers.Main.immediate) {
+            val order = when (method) {
+                InsertMethod.IME -> listOf(Channel.IME, Channel.ACCESSIBILITY)
+                InsertMethod.ACCESSIBILITY -> listOf(Channel.ACCESSIBILITY, Channel.IME)
+                InsertMethod.AUTO -> listOf(Channel.IME, Channel.ACCESSIBILITY)
             }
-            if (inserted) {
-                val message = when (channel) {
-                    Channel.IME -> "Teks disisipkan langsung di posisi kursor lewat keyboard Retrobit"
-                    Channel.ACCESSIBILITY -> "Teks disisipkan langsung di posisi kursor lewat aksesibilitas"
-                    Channel.NONE -> "Teks belum disisipkan"
+
+            for (channel in order) {
+                val inserted = when (channel) {
+                    Channel.IME -> insertViaIme(text)
+                    Channel.ACCESSIBILITY -> TextInsertAccessibilityService.insertIntoFocusedField(text)
+                    Channel.NONE -> false
                 }
-                return Result(true, channel, message)
+                if (inserted) {
+                    val message = when (channel) {
+                        Channel.IME -> "Teks disisipkan langsung di posisi kursor lewat keyboard Retrobit"
+                        Channel.ACCESSIBILITY -> "Teks disisipkan langsung di posisi kursor lewat aksesibilitas"
+                        Channel.NONE -> "Teks belum disisipkan"
+                    }
+                    return@withContext Result(true, channel, message)
+                }
             }
-        }
 
-        return Result(
-            success = false,
-            channel = Channel.NONE,
-            message = "Tidak dapat menyisipkan teks langsung. Pastikan kolom teks tetap fokus dan aktifkan keyboard Retrobit atau layanan aksesibilitas.",
-        )
+            Result(
+                success = false,
+                channel = Channel.NONE,
+                message = "Tidak dapat menyisipkan teks langsung. Pastikan kolom teks tetap fokus dan aktifkan keyboard Retrobit atau layanan aksesibilitas.",
+            )
+        }
     }
 
     private fun insertViaIme(text: String): Boolean {

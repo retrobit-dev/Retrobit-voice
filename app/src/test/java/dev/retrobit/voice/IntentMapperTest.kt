@@ -25,5 +25,25 @@ class IntentMapperTest {
             AssistantAction.AnswerCall,
             IntentMapper.map("""{"intent":"answer_call","slots":{},"reply":"Menjawab panggilan."}""").action,
         )
+        assertEquals(
+            AssistantAction.GetCurrentTime,
+            IntentMapper.map("""{"intent":"current_time","slots":{},"reply":"Saya periksa."}""").action,
+        )
+        assertEquals(
+            AssistantAction.GetBatteryStatus,
+            IntentMapper.map("""{"intent":"battery_status","slots":{},"reply":"Saya periksa."}""").action,
+        )
+        assertEquals(
+            AssistantAction.GetWeather("Jepara"),
+            IntentMapper.map("""{"intent":"weather","slots":{"location":"Jepara"},"reply":"Saya periksa."}""").action,
+        )
+        assertEquals(
+            AssistantAction.TypeText("Halo"),
+            IntentMapper.map("""{"intent":"type_text","slots":{"text":"Halo"},"reply":"Saya ketik."}""").action,
+        )
+        assertEquals(
+            AssistantAction.StartDictation,
+            IntentMapper.map("""{"intent":"start_dictation","slots":{},"reply":"Dikte siap."}""").action,
+        )
     }
 }

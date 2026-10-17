@@ -11,6 +11,7 @@ import android.hardware.camera2.CameraCharacteristics
 import android.hardware.camera2.CameraManager
 import android.media.AudioManager
 import android.net.Uri
+import android.os.BatteryManager
 import android.os.Build
 import android.provider.AlarmClock
 import android.provider.Settings
@@ -20,9 +21,19 @@ import dev.retrobit.voice.core.AssistantAction
 import dev.retrobit.voice.core.VoiceLog
 import dev.retrobit.voice.data.AppSettings
 import dev.retrobit.voice.data.HistoryStore
+import dev.retrobit.voice.dictation.DictationController
+import dev.retrobit.voice.dictation.DictationService
+import dev.retrobit.voice.dictation.insert.TextInserter
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import java.io.IOException
 import java.net.URLEncoder
+import java.time.LocalDate
+import java.time.ZoneId
+import java.time.ZonedDateTime
+import java.time.format.DateTimeFormatter
+import java.time.format.TextStyle
+import java.util.Locale
 
 /**
  * Menjalankan aksi asisten di Android.
@@ -35,6 +46,7 @@ import java.net.URLEncoder
 class AssistantExecutor(
     private val context: Context,
     private val history: HistoryStore,
+    private val textInserter: TextInserter,
 ) {
 
     data class Outcome(
@@ -45,6 +57,7 @@ class AssistantExecutor(
 
     private val apps = AppResolver(context)
     private val contacts = ContactsResolver(context)
+    private val weatherClient = CurrentWeatherClient()
     private val cameraManager by lazy { context.getSystemService(Context.CAMERA_SERVICE) as? CameraManager }
     private val audioManager by lazy { context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager }
 
@@ -68,6 +81,13 @@ class AssistantExecutor(
                 is AssistantAction.SetDnd -> setDnd(action.enabled)
                 is AssistantAction.SetBluetooth -> setBluetooth(action.enabled)
                 AssistantAction.AnswerCall -> answerCall()
+                AssistantAction.GetCurrentTime -> currentTime(settings)
+                AssistantAction.GetCurrentDate -> currentDate(settings)
+                AssistantAction.GetBatteryStatus -> batteryStatus(settings)
+                is AssistantAction.GetWeather -> currentWeather(action.location, settings)
+                is AssistantAction.TypeText -> typeText(action.text, settings)
+                AssistantAction.StartDictation -> startDictation(settings)
+                AssistantAction.ShowHelp -> showHelp(settings)
                 is AssistantAction.Unknown -> Outcome(false, "Perintah tidak dikenali")
             }
         } catch (t: Throwable) {
@@ -235,6 +255,122 @@ class AssistantExecutor(
             Outcome(false, "Panel pengaturan tidak tersedia di perangkat ini")
         }
     }
+
+    private fun currentTime(settings: AppSettings): Outcome {
+        val locale = assistantLocale(settings.assistantLanguage)
+        val now = ZonedDateTime.now(ZoneId.systemDefault())
+        val timePattern = if (locale.language == "en") "h:mm a" else "HH.mm"
+        val time = now.format(DateTimeFormatter.ofPattern(timePattern, locale))
+        val zone = now.zone
+        val zoneLabel = if (locale.language == "id") {
+            when (zone.id) {
+                "Asia/Jakarta", "Asia/Pontianak", "Asia/Pangkal_Pinang" -> "WIB"
+                "Asia/Makassar", "Asia/Bali", "Asia/Manado", "Asia/Kendari", "Asia/Kupang", "Asia/Ujung_Pandang" -> "WITA"
+                "Asia/Jayapura", "Asia/Timor" -> "WIT"
+                else -> zone.getDisplayName(TextStyle.SHORT, locale)
+            }
+        } else {
+            zone.getDisplayName(TextStyle.SHORT, locale)
+        }
+        val message = if (locale.language == "en") "The time is $time $zoneLabel." else "Sekarang pukul $time $zoneLabel."
+        return Outcome(true, message)
+    }
+
+    private fun currentDate(settings: AppSettings): Outcome {
+        val locale = assistantLocale(settings.assistantLanguage)
+        val date = LocalDate.now(ZoneId.systemDefault())
+            .format(DateTimeFormatter.ofPattern("EEEE, d MMMM yyyy", locale))
+        val message = if (locale.language == "en") "Today is $date." else "Hari ini $date."
+        return Outcome(true, message)
+    }
+
+    private fun batteryStatus(settings: AppSettings): Outcome {
+        val english = assistantLocale(settings.assistantLanguage).language == "en"
+        val battery = context.getSystemService(BatteryManager::class.java)
+            ?: return Outcome(false, if (english) "Battery status is unavailable on this device." else "Status baterai tidak tersedia di perangkat ini.")
+        val level = battery.getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY)
+            .takeIf { it in 0..100 }
+            ?: return Outcome(false, if (english) "Battery percentage is unavailable on this device." else "Persentase baterai tidak tersedia di perangkat ini.")
+        val message = if (english) {
+            "Battery is at $level percent${if (battery.isCharging) " and charging" else ""}."
+        } else {
+            "Baterai tersisa $level persen${if (battery.isCharging) " dan sedang diisi" else ""}."
+        }
+        return Outcome(true, message)
+    }
+
+    private suspend fun currentWeather(location: String?, settings: AppSettings): Outcome {
+        if (location.isNullOrBlank()) {
+            val message = if (assistantLocale(settings.assistantLanguage).language == "en") {
+                "Please name a city, for example: weather in Jepara."
+            } else {
+                "Sebutkan nama kota, misalnya: cuaca di Jepara. Saya tidak memakai lokasi GPS."
+            }
+            return Outcome(false, message)
+        }
+        return try {
+            Outcome(true, weatherClient.currentWeather(location, settings.assistantLanguage))
+        } catch (error: IOException) {
+            VoiceLog.w("Data cuaca tidak dapat diambil: ${error.message}")
+            val cityNotFound = error.message.orEmpty().contains("tidak ditemukan", ignoreCase = true)
+            val message = when {
+                cityNotFound && assistantLocale(settings.assistantLanguage).language == "en" ->
+                    "I couldn't find the city \"$location\". Try a more specific city name."
+                cityNotFound -> error.message.orEmpty()
+                assistantLocale(settings.assistantLanguage).language == "en" ->
+                    "I couldn't get the latest weather. Check the internet connection and city name, then try again."
+                else -> "Cuaca terkini belum bisa diambil. Periksa koneksi internet dan nama kota, lalu coba lagi."
+            }
+            Outcome(false, message)
+        }
+    }
+
+    private suspend fun typeText(text: String, settings: AppSettings): Outcome {
+        val english = assistantLocale(settings.assistantLanguage).language == "en"
+        if (text.isBlank()) {
+            return Outcome(false, if (english) "The text to type is empty." else "Teks yang akan diketik kosong.")
+        }
+        val result = textInserter.insert(text)
+        val message = when {
+            result.success && english -> "Text inserted at the active cursor."
+            !result.success && english -> "Text was not inserted. Keep the target field focused and enable the Retrobit keyboard or accessibility service."
+            else -> result.message
+        }
+        return Outcome(result.success, message)
+    }
+
+    private fun startDictation(settings: AppSettings): Outcome {
+        val english = assistantLocale(settings.assistantLanguage).language == "en"
+        if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) !=
+            PackageManager.PERMISSION_GRANTED
+        ) {
+            return Outcome(false, if (english) "Microphone permission is required to start dictation." else "Izin mikrofon diperlukan untuk memulai dikte.")
+        }
+        return try {
+            DictationService.start(context, DictationController.Source.OVERLAY)
+            val message = if (english) {
+                "Dictation started. The recognized text will be inserted at the active cursor."
+            } else {
+                "Dikte dimulai. Teks hasilnya akan disisipkan di posisi kursor aktif."
+            }
+            Outcome(true, message)
+        } catch (error: Throwable) {
+            VoiceLog.e("Tidak dapat memulai dikte dari asisten", error)
+            Outcome(false, if (english) "Dictation could not start. Try the Dictation button in the app." else "Dikte tidak dapat dimulai. Coba gunakan tombol Dikte di aplikasi.")
+        }
+    }
+
+    private fun showHelp(settings: AppSettings): Outcome {
+        val message = if (assistantLocale(settings.assistantLanguage).language == "en") {
+            "I can open apps, search, call contacts, prepare message drafts, set alarms and timers, save notes, control flashlight, volume, brightness, Do Not Disturb and Bluetooth, read visible screen text when enabled, and report time, battery and city weather. Try: ‘weather in Jepara’, ‘start dictation’, or ‘type hello’."
+        } else {
+            "Saya bisa membuka aplikasi, mencari, menelepon, menyiapkan draf pesan, membuat alarm dan timer, menyimpan catatan, mengatur senter, volume, kecerahan, Jangan Ganggu dan Bluetooth, membaca layar jika diaktifkan, serta memberi tahu jam, baterai dan cuaca kota. Coba: ‘cuaca di Jepara’, ‘mulai dikte’, atau ‘ketik halo’."
+        }
+        return Outcome(true, message)
+    }
+
+    private fun assistantLocale(language: String): Locale =
+        Locale.forLanguageTag(language).takeIf { it.language != "und" } ?: Locale.getDefault()
 
     private fun sendMessage(action: AssistantAction.SendMessage): Outcome {
         if (action.body.isBlank()) {
