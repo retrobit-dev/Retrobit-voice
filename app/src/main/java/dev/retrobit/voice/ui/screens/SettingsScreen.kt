@@ -559,7 +559,7 @@ fun SettingsScreen(vm: AppViewModel, modifier: Modifier = Modifier) {
             }
             if (wakeWordState.enrollmentActive) {
                 Text(
-                    text = str(R.string.wake_word_enrollment_instructions, current.wakeWordPhrase),
+                    text = context.getString(R.string.wake_word_enrollment_instructions, current.wakeWordPhrase),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -699,7 +699,7 @@ fun SettingsScreen(vm: AppViewModel, modifier: Modifier = Modifier) {
                 title = { Text(str(R.string.wake_word_consent_title)) },
                 text = {
                     Text(
-                        str(R.string.wake_word_consent_body, current.wakeWordPhrase),
+                        context.getString(R.string.wake_word_consent_body, current.wakeWordPhrase),
                         style = MaterialTheme.typography.bodySmall,
                     )
                 },

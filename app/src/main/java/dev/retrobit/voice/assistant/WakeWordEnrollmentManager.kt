@@ -56,6 +56,8 @@ class WakeWordEnrollmentManager(
 
     val state: StateFlow<UiState> = _state.asStateFlow()
 
+    suspend fun hasProfileForPhrase(phrase: String): Boolean = kws.hasProfileForPhrase(phrase)
+
     suspend fun refresh(phrase: String) {
         val normalizedPhrase = WakeWordAudioFeatures.normalizePhrase(phrase)
         val current = _state.value
