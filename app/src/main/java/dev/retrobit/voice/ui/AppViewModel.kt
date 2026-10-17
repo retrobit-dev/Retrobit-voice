@@ -7,6 +7,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import dev.retrobit.voice.BuildConfig
 import dev.retrobit.voice.R
+import dev.retrobit.voice.assistant.WakeWordService
 import dev.retrobit.voice.core.AppGraph
 import dev.retrobit.voice.core.VoiceLog
 import dev.retrobit.voice.data.AppSettings
@@ -20,6 +21,8 @@ import dev.retrobit.voice.dictation.DictationController
 import dev.retrobit.voice.dictation.DictationService
 import dev.retrobit.voice.dictation.overlay.OverlayBubbleService
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -48,13 +51,65 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _toast = MutableStateFlow<String?>(null)
     val toast: StateFlow<String?> = _toast.asStateFlow()
+    private var wakeWordSyncJob: Job? = null
 
     init {
         viewModelScope.launch { graph.history.load() }
     }
 
     fun update(transform: (AppSettings) -> AppSettings) {
-        viewModelScope.launch { graph.settings.update(transform) }
+        viewModelScope.launch {
+            var wakeWordShouldSync = false
+            var restartWakeWord = false
+            graph.settings.update { current ->
+                val updated = transform(current)
+                wakeWordShouldSync = current.wakeWordEnabled != updated.wakeWordEnabled ||
+                    (updated.wakeWordEnabled && (
+                        current.wakeWordPhrase != updated.wakeWordPhrase ||
+                            current.assistantLanguage != updated.assistantLanguage
+                        ))
+                restartWakeWord = current.wakeWordEnabled && updated.wakeWordEnabled && wakeWordShouldSync
+                updated
+            }
+            if (wakeWordShouldSync) {
+                wakeWordSyncJob?.cancel()
+                if (restartWakeWord) {
+                    // Frasa ditulis per karakter; tunggu jeda singkat sebelum
+                    // membongkar dan memulai ulang recognizer.
+                    wakeWordSyncJob = viewModelScope.launch {
+                        delay(WAKE_WORD_RESTART_DEBOUNCE_MS)
+                        graph.assistant.stopWakeWord()
+                        synchronizeWakeWordService()
+                    }
+                } else {
+                    wakeWordSyncJob = null
+                    synchronizeWakeWordService()
+                }
+            }
+        }
+    }
+
+    /** Sinkronkan layanan foreground setelah activity kembali ke depan. */
+    fun syncWakeWordService() {
+        viewModelScope.launch { synchronizeWakeWordService() }
+    }
+
+    private suspend fun synchronizeWakeWordService() {
+        val app = getApplication<Application>()
+        val current = graph.settings.current()
+        if (!current.wakeWordEnabled) {
+            WakeWordService.stop(app)
+            return
+        }
+        if (!graph.dictation.hasMicrophonePermission()) {
+            graph.settings.update { it.copy(wakeWordEnabled = false) }
+            WakeWordService.stop(app)
+            _toast.value = app.getString(R.string.settings_wake_word_needs_microphone)
+            return
+        }
+        if (!WakeWordService.start(app)) {
+            _toast.value = app.getString(R.string.toast_wake_word_start_failed)
+        }
     }
 
     // ---------------- Dikte ----------------
@@ -174,6 +229,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 // update() menulis ulang lewat SecretStore, jadi API key dari berkas
                 // otomatis dienkripsi lagi — bukan disimpan mentah.
                 graph.settings.update { current -> snapshot.toSettings(current) }
+                graph.assistant.stopWakeWord()
+                synchronizeWakeWordService()
                 app.getString(R.string.toast_import_done, snapshot.describe())
             }
             hasil.exceptionOrNull()?.let { VoiceLog.e("Impor setelan gagal", it) }
@@ -203,4 +260,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun appGraph(): AppGraph = graph
+
+    private companion object {
+        const val WAKE_WORD_RESTART_DEBOUNCE_MS = 450L
+    }
 }

@@ -1,5 +1,6 @@
 package dev.retrobit.voice.ui.screens
 
+import android.Manifest
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
@@ -83,6 +84,12 @@ fun SettingsScreen(vm: AppViewModel, modifier: Modifier = Modifier) {
     val importLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocument(),
     ) { uri -> if (uri != null) vm.importSettingsFrom(uri) }
+
+    val wakeWordMicrophonePermission = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission(),
+    ) { granted ->
+        if (granted) vm.update { it.copy(wakeWordEnabled = true) }
+    }
 
     Column(
         modifier
@@ -436,9 +443,11 @@ fun SettingsScreen(vm: AppViewModel, modifier: Modifier = Modifier) {
                 subtitle = str(R.string.settings_wake_word_note),
                 checked = current.wakeWordEnabled,
                 onChange = { value ->
-                    vm.update { it.copy(wakeWordEnabled = value) }
-                    if (value) vm.appGraph().assistant.startWakeWordIfEnabled()
-                    else vm.appGraph().assistant.stopWakeWord()
+                    if (value && !DeviceState.hasMicrophone(context)) {
+                        wakeWordMicrophonePermission.launch(Manifest.permission.RECORD_AUDIO)
+                    } else {
+                        vm.update { it.copy(wakeWordEnabled = value) }
+                    }
                 },
             )
             SettingTextField(

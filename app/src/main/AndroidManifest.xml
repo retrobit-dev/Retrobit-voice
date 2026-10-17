@@ -136,6 +136,12 @@
                 android:resource="@xml/accessibility_service_config" />
         </service>
 
+        <!-- ============ PEMANTAU KATA KUNCI (OPT-IN) ============ -->
+        <service
+            android:name=".assistant.WakeWordService"
+            android:exported="false"
+            android:foregroundServiceType="microphone" />
+
         <!-- ============ ASISTEN ============ -->
         <service
             android:name=".assistant.VoiceAssistantService"

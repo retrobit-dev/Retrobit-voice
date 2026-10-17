@@ -193,7 +193,8 @@
     <string name="settings_screen_context_needs_a11y">Aktifkan layanan aksesibilitas untuk membaca snapshot layar atas permintaan. Kata sandi dan kolom yang sedang diketik dikecualikan.</string>
     <string name="settings_screen_context_enabled_note">Opt-in aktif: snapshot satu kali saat sesi asisten dimulai; hanya diteruskan ke LLM pilihan untuk permintaan yang merujuk teks layar. Kata sandi dan kolom edit dikecualikan; tidak disimpan di riwayat.</string>
     <string name="settings_wake_word">Kata kunci panggilan</string>
-    <string name="settings_wake_word_note">Saat terdeteksi, wake word selalu membuka asisten dan siap mendengar perintah, termasuk ketika kolom teks sedang fokus. Wake word tidak pernah dialihkan menjadi dikte. Mendengarkan terus-menerus menambah baterai.</string>
+    <string name="settings_wake_word_note">Perlu izin mikrofon. Saat terdeteksi, wake word membuka asisten dan siap mendengar perintah meski kolom teks sedang fokus; wake word tidak dialihkan menjadi dikte. Mengutamakan pengenalan di perangkat; bila tidak tersedia, layanan Android dapat memakai internet. Pemantauan latar memakai notifikasi dan menambah baterai.</string>
+    <string name="settings_wake_word_needs_microphone">Wake word dimatikan karena izin mikrofon tidak tersedia. Aktifkan izin mikrofon lalu nyalakan kembali.</string>
     <string name="settings_wake_word_phrase">Frasa kata kunci</string>
     <string name="settings_data_title">Tampilan &amp; data</string>
     <string name="settings_display_title">Mode tampilan</string>
@@ -244,6 +245,12 @@
     <string name="notif_dictation_idle">Siap merekam</string>
     <string name="notif_dictation_listening">Silakan bicara…</string>
     <string name="notif_dictation_no_permission">Izin mikrofon diperlukan</string>
+    <string name="notif_channel_wake_word">Wake word Retrobit</string>
+    <string name="notif_channel_wake_word_desc">Muncul selama pemantauan wake word diizinkan aktif.</string>
+    <string name="notif_wake_word_title">Pemantau wake word aktif</string>
+    <string name="notif_wake_word_active">Mendengarkan kata kunci…</string>
+    <string name="action_stop_wake_word">Matikan</string>
+    <string name="toast_wake_word_start_failed">Wake word tidak dapat dimulai. Pastikan izin mikrofon aktif dan layanan pengenalan suara tersedia.</string>
     <string name="notif_channel_overlay">Overlay Retrobit</string>
     <string name="overlay_notif_title">Overlay Retrobit aktif</string>
     <string name="overlay_notif_text">Bubble dikte dan popup asisten ditampilkan saat diperlukan.</string>

@@ -12,8 +12,7 @@ import kotlinx.coroutines.launch
 
 /**
  * Titik awal aplikasi: menyiapkan service locator, memuat riwayat,
- * dan memulihkan fitur latar belakang yang sebelumnya diaktifkan pengguna
- * (bubble melayang, kata kunci panggilan).
+ * dan memulihkan bubble melayang yang sebelumnya diaktifkan pengguna.
  */
 class RetrobitApp : Application() {
 
@@ -31,9 +30,6 @@ class RetrobitApp : Application() {
             if (settings.overlayBubbleEnabled && OverlayBubbleService.hasPermission(this@RetrobitApp)) {
                 runCatching { OverlayBubbleService.start(this@RetrobitApp) }
                     .onFailure { VoiceLog.e("Gagal memulihkan bubble", it) }
-            }
-            if (settings.wakeWordEnabled) {
-                graph.assistant.startWakeWordIfEnabled()
             }
         }
 

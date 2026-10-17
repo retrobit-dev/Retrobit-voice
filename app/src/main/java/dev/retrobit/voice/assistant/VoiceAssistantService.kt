@@ -6,6 +6,11 @@ import android.service.voice.VoiceInteractionService
 import android.service.voice.VoiceInteractionSession
 import dev.retrobit.voice.core.AppGraph
 import dev.retrobit.voice.core.VoiceLog
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
 
 /**
  * Membuat Retrobit Voice bisa dipilih sebagai **asisten digital bawaan Android**
@@ -17,6 +22,8 @@ import dev.retrobit.voice.core.VoiceLog
  */
 class VoiceAssistantService : VoiceInteractionService() {
 
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+
     override fun onCreate() {
         super.onCreate()
         AppGraph.init(applicationContext)
@@ -25,12 +32,16 @@ class VoiceAssistantService : VoiceInteractionService() {
     override fun onReady() {
         super.onReady()
         VoiceLog.i("VoiceInteractionService siap")
-        AppGraph.require.assistant.startWakeWordIfEnabled()
+        scope.launch {
+            val wakeWordEnabled = runCatching { AppGraph.require.settings.current().wakeWordEnabled }
+                .getOrDefault(false)
+            if (wakeWordEnabled) WakeWordService.start(this@VoiceAssistantService)
+        }
     }
 
-    override fun onShutdown() {
-        AppGraph.require.assistant.stopWakeWord()
-        super.onShutdown()
+    override fun onDestroy() {
+        scope.cancel()
+        super.onDestroy()
     }
 
     /**

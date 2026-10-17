@@ -185,7 +185,8 @@
     <string name="settings_screen_context_needs_a11y">Enable the accessibility service to read a screen snapshot on request. Passwords and text being edited are excluded.</string>
     <string name="settings_screen_context_enabled_note">Opt-in is on: one snapshot is captured when an assistant session starts and forwarded to your selected LLM only for screen-related requests. Passwords/editable fields are excluded; it is not saved in history.</string>
     <string name="settings_wake_word">Wake word</string>
-    <string name="settings_wake_word_note">When detected, the wake word always opens the assistant ready for a command, even while a text field is focused. It never switches to dictation. Continuous listening costs extra battery.</string>
+    <string name="settings_wake_word_note">Microphone permission is required. When detected, the wake word opens the assistant ready for a command, even while a text field is focused; it never switches to dictation. On-device recognition is preferred; if unavailable, Android's speech service may use the internet. Background monitoring shows an ongoing notification and uses extra battery.</string>
+    <string name="settings_wake_word_needs_microphone">Wake word was turned off because microphone permission is missing. Grant microphone permission and enable it again.</string>
     <string name="settings_wake_word_phrase">Wake phrase</string>
     <string name="settings_data_title">Appearance &amp; data</string>
     <string name="settings_display_title">Display mode</string>
@@ -234,6 +235,12 @@
     <string name="notif_dictation_idle">Ready to record</string>
     <string name="notif_dictation_listening">Go ahead and speak…</string>
     <string name="notif_dictation_no_permission">Microphone permission required</string>
+    <string name="notif_channel_wake_word">Retrobit wake word</string>
+    <string name="notif_channel_wake_word_desc">Shown while opt-in wake-word monitoring is active.</string>
+    <string name="notif_wake_word_title">Wake-word monitoring is active</string>
+    <string name="notif_wake_word_active">Listening for the wake phrase…</string>
+    <string name="action_stop_wake_word">Turn off</string>
+    <string name="toast_wake_word_start_failed">Wake word could not start. Check microphone permission and that a speech recognition service is available.</string>
     <string name="notif_channel_overlay">Retrobit overlay</string>
     <string name="overlay_notif_title">Retrobit overlay is active</string>
     <string name="overlay_notif_text">The dictation bubble and assistant popup appear when needed.</string>
