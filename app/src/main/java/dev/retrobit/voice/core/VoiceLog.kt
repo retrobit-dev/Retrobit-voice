@@ -19,14 +19,18 @@ object VoiceLog {
     fun d(message: String) = log("D", message)
     fun i(message: String) = log("I", message)
     fun w(message: String) = log("W", message)
-    fun e(message: String, t: Throwable? = null) = log("E", message + (t?.let { " :: ${it.javaClass.simpleName}: ${it.message}" } ?: ""))
+    fun e(message: String, t: Throwable? = null) = log(
+        "E",
+        message + (t?.let { " :: ${it.javaClass.simpleName}: ${it.message}" } ?: ""),
+        t,
+    )
 
-    private fun log(level: String, message: String) {
+    private fun log(level: String, message: String, throwable: Throwable? = null) {
         when (level) {
             "D" -> Log.d(TAG, message)
             "I" -> Log.i(TAG, message)
             "W" -> Log.w(TAG, message)
-            else -> Log.e(TAG, message)
+            else -> if (throwable == null) Log.e(TAG, message) else Log.e(TAG, message, throwable)
         }
         val n = seq.incrementAndGet()
         lines.add("$n [$level] ${java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.US).format(java.util.Date())} $message")

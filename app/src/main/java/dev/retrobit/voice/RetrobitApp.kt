@@ -2,6 +2,7 @@ package dev.retrobit.voice
 
 import android.app.Application
 import dev.retrobit.voice.core.AppGraph
+import dev.retrobit.voice.core.EnrollmentCrashCheckpoint
 import dev.retrobit.voice.core.VoiceLog
 import dev.retrobit.voice.dictation.overlay.OverlayBubbleService
 import kotlinx.coroutines.CoroutineScope
@@ -20,6 +21,12 @@ class RetrobitApp : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        EnrollmentCrashCheckpoint.consumeFatalException(this)?.let { previousFatal ->
+            VoiceLog.e("Stack trace crash enrolmen sebelumnya (pesan exception tidak disimpan):\n$previousFatal")
+        }
+        EnrollmentCrashCheckpoint.consume(this)?.let { previousStage ->
+            VoiceLog.w("Enrolmen suara sebelumnya berhenti di: $previousStage")
+        }
         val graph = AppGraph.init(this)
         graph.tts.init()
 
@@ -55,7 +62,8 @@ class RetrobitApp : Application() {
     private fun installCrashLogger() {
         val previous = Thread.getDefaultUncaughtExceptionHandler()
         Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
-            VoiceLog.e("Crash di thread ${thread.name}", throwable)
+            runCatching { EnrollmentCrashCheckpoint.saveFatalException(this, thread.name, throwable) }
+            runCatching { VoiceLog.e("Crash di thread ${thread.name}", throwable) }
             previous?.uncaughtException(thread, throwable)
         }
     }

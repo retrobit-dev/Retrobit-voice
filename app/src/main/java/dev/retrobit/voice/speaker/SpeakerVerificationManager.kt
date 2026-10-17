@@ -7,6 +7,7 @@ import androidx.core.content.ContextCompat
 import dev.retrobit.voice.R
 import dev.retrobit.voice.audio.PcmRecorder
 import dev.retrobit.voice.core.AppGraph
+import dev.retrobit.voice.core.EnrollmentCrashCheckpoint
 import dev.retrobit.voice.core.VoiceLog
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -173,8 +174,10 @@ class SpeakerVerificationManager(
         var wakeWordPaused = false
         var recordingFile: File? = null
         try {
+            EnrollmentCrashCheckpoint.mark(appContext, "speaker-profile", "pause-wake-word")
             graph.assistant.pauseWakeWordForDictation()
             wakeWordPaused = true
+            EnrollmentCrashCheckpoint.mark(appContext, "speaker-profile", "start-audio-recording")
             val recordingStarted = withContext(Dispatchers.IO) {
                 synchronized(enrollmentCommitLock) {
                     if (enrollmentGeneration != generation) false
@@ -185,16 +188,20 @@ class SpeakerVerificationManager(
                 if (!isEnrollmentGenerationCurrent(generation)) throw CancellationException("Enrolmen dibatalkan")
                 throw IllegalStateException(appContext.getString(R.string.speaker_recording_failed))
             }
+            EnrollmentCrashCheckpoint.mark(appContext, "speaker-profile", "recording-audio")
             delay(SAMPLE_RECORDING_MS)
             if (!isEnrollmentGenerationCurrent(generation)) throw CancellationException("Enrolmen dibatalkan")
+            EnrollmentCrashCheckpoint.mark(appContext, "speaker-profile", "stopping-audio-recording")
             val recording = withContext(Dispatchers.IO) { recorder.stopAndWait() }
                 ?: throw IllegalStateException(appContext.getString(R.string.speaker_recording_failed))
             recordingFile = recording.wavFile
             if (!recorder.vad.hasSpeech) {
                 throw SpeakerAudioFeatures.InvalidAudioException(appContext.getString(R.string.speaker_no_speech))
             }
+            EnrollmentCrashCheckpoint.mark(appContext, "speaker-profile", "processing-audio-and-onnx")
             val embedding = model.embeddingFromWav(recording.wavFile)
             if (!isEnrollmentGenerationCurrent(generation)) throw CancellationException("Enrolmen dibatalkan")
+            EnrollmentCrashCheckpoint.mark(appContext, "speaker-profile", "embedding-ready")
             deleteRawEnrollmentSample(recording.wavFile)
             recordingFile = null
             val complete = synchronized(enrollmentCommitLock) {
@@ -209,6 +216,7 @@ class SpeakerVerificationManager(
                 val template = synchronized(enrollmentEmbeddings) {
                     SpeakerAudioFeatures.averageNormalized(enrollmentEmbeddings.toList())
                 } ?: throw IllegalStateException(appContext.getString(R.string.speaker_embedding_failed))
+                EnrollmentCrashCheckpoint.mark(appContext, "speaker-profile", "saving-encrypted-profile")
                 withContext(Dispatchers.IO) {
                     synchronized(enrollmentCommitLock) {
                         if (enrollmentGeneration != generation) throw CancellationException("Enrolmen dibatalkan")
@@ -268,7 +276,13 @@ class SpeakerVerificationManager(
                     .onFailure { VoiceLog.e("Rekaman enrolmen mentah tidak dapat dihapus", it) }
             }
             purgeRawEnrollmentSamples()
-            if (wakeWordPaused) graph.assistant.resumeWakeWordAfterDictation()
+            if (wakeWordPaused) {
+                withContext(NonCancellable) {
+                    EnrollmentCrashCheckpoint.mark(appContext, "speaker-profile", "resuming-wake-word")
+                }
+                graph.assistant.resumeWakeWordAfterDictation()
+            }
+            EnrollmentCrashCheckpoint.clear(appContext)
         }
     }
 

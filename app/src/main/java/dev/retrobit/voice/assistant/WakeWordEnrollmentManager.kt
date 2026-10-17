@@ -8,6 +8,7 @@ import androidx.core.content.ContextCompat
 import dev.retrobit.voice.R
 import dev.retrobit.voice.audio.PcmRecorder
 import dev.retrobit.voice.core.AppGraph
+import dev.retrobit.voice.core.EnrollmentCrashCheckpoint
 import dev.retrobit.voice.core.VoiceLog
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -174,6 +175,7 @@ class WakeWordEnrollmentManager(
 
         var recordingFile: File? = null
         try {
+            EnrollmentCrashCheckpoint.mark(appContext, "wake-word-example", "start-audio-recording")
             val started = withContext(Dispatchers.IO) {
                 synchronized(stateLock) {
                     if (generation != ticket) false
@@ -184,12 +186,14 @@ class WakeWordEnrollmentManager(
                 if (!isCurrent(ticket)) throw CancellationException("Enrolmen wake word dibatalkan")
                 throw IllegalStateException(appContext.getString(R.string.wake_word_recording_failed))
             }
+            EnrollmentCrashCheckpoint.mark(appContext, "wake-word-example", "recording-audio")
 
             val recordingDeadline = SystemClock.elapsedRealtime() + SAMPLE_RECORDING_MS
             while (recorder.isRunning && SystemClock.elapsedRealtime() < recordingDeadline) {
                 delay(20)
             }
             if (!isCurrent(ticket)) throw CancellationException("Enrolmen wake word dibatalkan")
+            EnrollmentCrashCheckpoint.mark(appContext, "wake-word-example", "stopping-audio-recording")
             val recording = withContext(Dispatchers.IO) { recorder.stopAndWait() }
                 ?: throw IllegalStateException(appContext.getString(R.string.wake_word_recording_failed))
             recordingFile = recording.wavFile
@@ -197,9 +201,12 @@ class WakeWordEnrollmentManager(
                 appContext.getString(R.string.wake_word_no_speech),
             )
 
+            EnrollmentCrashCheckpoint.mark(appContext, "wake-word-example", "reading-recorded-wav")
             val pcm = withContext(Dispatchers.IO) { WakeWordAudioFeatures.readPcm16MonoWav(recording.wavFile) }
+            EnrollmentCrashCheckpoint.mark(appContext, "wake-word-example", "onnx-embedding")
             val template = kws.createTemplate(pcm)
             if (!isCurrent(ticket)) throw CancellationException("Enrolmen wake word dibatalkan")
+            EnrollmentCrashCheckpoint.mark(appContext, "wake-word-example", "embedding-ready")
             deleteRawSample(recording.wavFile)
             recordingFile = null
 
@@ -221,6 +228,7 @@ class WakeWordEnrollmentManager(
                 )
             } else {
                 val phrase = activePhrase
+                EnrollmentCrashCheckpoint.mark(appContext, "wake-word-example", "saving-encrypted-profile")
                 withContext(Dispatchers.IO) {
                     synchronized(stateLock) {
                         if (generation != ticket) throw CancellationException("Enrolmen wake word dibatalkan")
@@ -270,6 +278,7 @@ class WakeWordEnrollmentManager(
                 runCatching { deleteRawSample(file) }
                     .onFailure { VoiceLog.e("Rekaman wake word mentah tidak dapat dihapus", it) }
             }
+            EnrollmentCrashCheckpoint.clear(appContext)
         }
     }
 
