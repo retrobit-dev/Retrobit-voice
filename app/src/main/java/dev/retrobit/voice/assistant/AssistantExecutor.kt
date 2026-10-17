@@ -11,6 +11,8 @@ import android.hardware.camera2.CameraCharacteristics
 import android.hardware.camera2.CameraManager
 import android.media.AudioManager
 import android.net.Uri
+import android.telephony.PhoneNumberUtils
+import android.view.KeyEvent
 import android.os.BatteryManager
 import android.os.Build
 import android.provider.AlarmClock
@@ -18,6 +20,7 @@ import android.provider.Settings
 import android.telecom.TelecomManager
 import androidx.core.content.ContextCompat
 import dev.retrobit.voice.core.AssistantAction
+import dev.retrobit.voice.core.MediaCommand
 import dev.retrobit.voice.core.VoiceLog
 import dev.retrobit.voice.data.AppSettings
 import dev.retrobit.voice.data.HistoryStore
@@ -69,7 +72,7 @@ class AssistantExecutor(
                 is AssistantAction.OpenApp -> openApp(action.appQuery)
                 is AssistantAction.WebSearch -> webSearch(action.query, action.site)
                 is AssistantAction.Dial -> dial(action.target, action.contactName)
-                is AssistantAction.CallContact -> callContact(action.name)
+                is AssistantAction.CallContact -> callContact(action.name, settings)
                 is AssistantAction.SetAlarm -> setAlarm(action)
                 is AssistantAction.SetTimer -> setTimer(action)
                 is AssistantAction.OpenSettingsPanel -> openSettings(action.panel)
@@ -87,6 +90,8 @@ class AssistantExecutor(
                 is AssistantAction.GetWeather -> currentWeather(action.location, settings)
                 is AssistantAction.TypeText -> typeText(action.text, settings)
                 AssistantAction.StartDictation -> startDictation(settings)
+                is AssistantAction.OpenWhatsAppChat -> openWhatsAppChat(action, settings)
+                is AssistantAction.ControlMedia -> controlMedia(action.command, settings)
                 AssistantAction.ShowHelp -> showHelp(settings)
                 is AssistantAction.Unknown -> Outcome(false, "Perintah tidak dikenali")
             }
@@ -192,13 +197,116 @@ class AssistantExecutor(
         }
     }
 
-    private fun callContact(name: String): Outcome {
-        if (!contacts.hasPermission()) {
-            return Outcome(false, "Butuh izin kontak untuk menelepon $name", Manifest.permission.READ_CONTACTS)
+    private fun callContact(name: String, settings: AppSettings): Outcome {
+        val english = assistantLocale(settings.assistantLanguage).language == "en"
+        return when (val result = contacts.lookup(name)) {
+            ContactsResolver.Lookup.PermissionRequired -> Outcome(
+                false,
+                if (english) "Contacts permission is required to find $name in your phone address book."
+                else "Izin Kontak diperlukan untuk mencari $name di buku alamat ponsel.",
+                Manifest.permission.READ_CONTACTS,
+            )
+            ContactsResolver.Lookup.NotFound -> Outcome(
+                false,
+                if (english) "I couldn't find $name in your phone contacts." else "Kontak $name tidak ditemukan di buku alamat ponsel.",
+            )
+            is ContactsResolver.Lookup.Ambiguous -> Outcome(
+                false,
+                if (english) "I found several matching contacts: ${result.names.joinToString(", ")}. Please say the full name."
+                else "Ada beberapa kontak yang cocok: ${result.names.joinToString(", ")}. Sebutkan nama lengkap.",
+            )
+            is ContactsResolver.Lookup.Found -> dial(result.contact.number, result.contact.displayName)
         }
-        val contact = contacts.best(name)
-            ?: return Outcome(false, "Kontak \"$name\" tidak ditemukan di buku telepon")
-        return dial(contact.number, contact.displayName)
+    }
+
+    private fun openWhatsAppChat(action: AssistantAction.OpenWhatsAppChat, settings: AppSettings): Outcome {
+        val contactName = action.contactName
+        val english = assistantLocale(settings.assistantLanguage).language == "en"
+        val contact = when (val lookup = contacts.lookup(contactName)) {
+            ContactsResolver.Lookup.PermissionRequired -> return Outcome(
+                success = false,
+                message = if (english) {
+                    "Contacts permission is needed to find $contactName in your phone address book. WhatsApp's private contact list is not directly accessible."
+                } else {
+                    "Izin Kontak diperlukan untuk mencari $contactName di buku alamat ponsel. Daftar internal WhatsApp tidak bisa dibaca langsung."
+                },
+                needsPermission = Manifest.permission.READ_CONTACTS,
+            )
+            ContactsResolver.Lookup.NotFound -> return Outcome(
+                false,
+                if (english) "I couldn't find $contactName in your phone address book. Try the contact's full name."
+                else "Kontak $contactName tidak ditemukan di buku alamat ponsel. Coba sebutkan nama lengkap.",
+            )
+            is ContactsResolver.Lookup.Ambiguous -> return Outcome(
+                false,
+                if (english) "Several contacts match: ${lookup.names.joinToString(", ")}. Please say the full name."
+                else "Ada beberapa kontak yang cocok: ${lookup.names.joinToString(", ")}. Sebutkan nama lengkap.",
+            )
+            is ContactsResolver.Lookup.Found -> lookup.contact
+        }
+        val e164 = runCatching {
+            PhoneNumberUtils.formatNumberToE164(contact.number, Locale.getDefault().country)
+        }.getOrNull() ?: contact.number
+        val number = e164.filter(Char::isDigit)
+        if (number.length < 5) {
+            return Outcome(false, if (english) "The phone number for ${contact.displayName} is invalid." else "Nomor telepon ${contact.displayName} tidak valid.")
+        }
+
+        val packages = listOf("com.whatsapp", "com.whatsapp.w4b")
+        for (packageName in packages) {
+            val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://wa.me/$number"))
+                .setPackage(packageName)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            if (intent.resolveActivity(context.packageManager) != null) {
+                return try {
+                    context.startActivity(intent)
+                    Outcome(
+                        true,
+                        when {
+                            english && action.preparingCall -> "WhatsApp chat with ${contact.displayName} is open. I can't start a WhatsApp call automatically; tap the phone icon in WhatsApp. No call was placed."
+                            !english && action.preparingCall -> "Chat WhatsApp dengan ${contact.displayName} dibuka. Saya tidak bisa memulai panggilan WhatsApp otomatis; tekan ikon telepon di WhatsApp. Belum ada panggilan yang dibuat."
+                            english -> "WhatsApp chat with ${contact.displayName} is open. You can type a message; it won't be sent automatically."
+                            else -> "Chat WhatsApp dengan ${contact.displayName} dibuka. Anda bisa mengetik pesan; pesan tidak dikirim otomatis."
+                        },
+                    )
+                } catch (error: Throwable) {
+                    VoiceLog.e("Tidak dapat membuka chat WhatsApp", error)
+                    Outcome(false, if (english) "WhatsApp couldn't open that chat." else "WhatsApp tidak dapat membuka chat tersebut.")
+                }
+            }
+        }
+        return Outcome(false, if (english) "WhatsApp is not installed or can't open this chat." else "WhatsApp tidak terpasang atau tidak dapat membuka chat ini.")
+    }
+
+    private fun controlMedia(command: MediaCommand, settings: AppSettings): Outcome {
+        val manager = audioManager
+            ?: return Outcome(false, if (assistantLocale(settings.assistantLanguage).language == "en") "Media controls are unavailable on this device." else "Kontrol media tidak tersedia di perangkat ini.")
+        val keyCode = when (command) {
+            MediaCommand.PLAY -> KeyEvent.KEYCODE_MEDIA_PLAY
+            MediaCommand.PAUSE -> KeyEvent.KEYCODE_MEDIA_PAUSE
+            MediaCommand.STOP -> KeyEvent.KEYCODE_MEDIA_STOP
+            MediaCommand.NEXT -> KeyEvent.KEYCODE_MEDIA_NEXT
+            MediaCommand.PREVIOUS -> KeyEvent.KEYCODE_MEDIA_PREVIOUS
+        }
+        return try {
+            manager.dispatchMediaKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, keyCode))
+            manager.dispatchMediaKeyEvent(KeyEvent(KeyEvent.ACTION_UP, keyCode))
+            val verb = when (command) {
+                MediaCommand.PLAY -> if (assistantLocale(settings.assistantLanguage).language == "en") "play" else "putar"
+                MediaCommand.PAUSE -> if (assistantLocale(settings.assistantLanguage).language == "en") "pause" else "jeda"
+                MediaCommand.STOP -> if (assistantLocale(settings.assistantLanguage).language == "en") "stop" else "hentikan"
+                MediaCommand.NEXT -> if (assistantLocale(settings.assistantLanguage).language == "en") "next" else "berikutnya"
+                MediaCommand.PREVIOUS -> if (assistantLocale(settings.assistantLanguage).language == "en") "previous" else "sebelumnya"
+            }
+            Outcome(
+                true,
+                if (assistantLocale(settings.assistantLanguage).language == "en") "Sent the $verb command to the active media player."
+                else "Perintah $verb dikirim ke pemutar media aktif.",
+            )
+        } catch (error: Throwable) {
+            VoiceLog.e("Tidak dapat mengirim perintah ke pemutar media", error)
+            Outcome(false, if (assistantLocale(settings.assistantLanguage).language == "en") "Couldn't control the active media player." else "Tidak dapat mengontrol pemutar media aktif.")
+        }
     }
 
     private fun setAlarm(action: AssistantAction.SetAlarm): Outcome {
@@ -362,9 +470,9 @@ class AssistantExecutor(
 
     private fun showHelp(settings: AppSettings): Outcome {
         val message = if (assistantLocale(settings.assistantLanguage).language == "en") {
-            "I can open apps, search, call contacts, prepare message drafts, set alarms and timers, save notes, control flashlight, volume, brightness, Do Not Disturb and Bluetooth, read visible screen text when enabled, and report time, battery and city weather. Try: ‘weather in Jepara’, ‘start dictation’, or ‘type hello’."
+            "I can open apps, search only when asked, call phone contacts, prepare WhatsApp drafts, control media in the app on screen when screen context is enabled, set alarms and timers, save notes, control device settings, and report time, battery and city weather. Try: ‘play’ while a media app is open, ‘start dictation’, ‘type hello’, or ‘search …’."
         } else {
-            "Saya bisa membuka aplikasi, mencari, menelepon, menyiapkan draf pesan, membuat alarm dan timer, menyimpan catatan, mengatur senter, volume, kecerahan, Jangan Ganggu dan Bluetooth, membaca layar jika diaktifkan, serta memberi tahu jam, baterai dan cuaca kota. Coba: ‘cuaca di Jepara’, ‘mulai dikte’, atau ‘ketik halo’."
+            "Saya bisa membuka aplikasi, mencari hanya jika diminta, menelepon kontak telepon, menyiapkan draf WhatsApp, mengontrol media sesuai aplikasi di layar jika konteks layar diaktifkan, membuat alarm dan timer, menyimpan catatan, mengatur perangkat, serta memberi tahu jam, baterai dan cuaca kota. Coba: ‘mainkan’ saat media terbuka, ‘dikte’, ‘ketik halo’, atau ‘cari …’."
         }
         return Outcome(true, message)
     }

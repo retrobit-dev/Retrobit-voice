@@ -110,7 +110,7 @@
     <string name="assistant_ready_phrase">Saya siap.</string>
     <string name="assistant_ready_speech_unavailable">Mesin suara belum siap; asisten tidak mulai mendengarkan.</string>
     <string name="assistant_thinking">Sedang berpikir…</string>
-    <string name="assistant_examples">Contoh: \"jam berapa sekarang\", \"baterai tersisa berapa\", \"cuaca di Jepara\", \"mulai dikte\", \"ketik Halo, apa kabar.\" Ucapkan \"bantuan\" untuk daftar perintah.</string>
+    <string name="assistant_examples">Contoh: \"jam berapa sekarang\", \"baterai tersisa berapa\", \"cuaca di Jepara\", \"dikte\", \"mainkan\" saat media terbuka, \"ketik Halo.\", \"cari resep rendang\". Ucapkan \"bantuan\" untuk daftar perintah.</string>
     <string name="assistant_settings_title">Pengaturan cepat asisten</string>
     <string name="assistant_clear_history">Bersihkan riwayat percakapan</string>
     <string name="assistant_confirmation_title">Konfirmasi draf pesan</string>
@@ -193,11 +193,11 @@
     <string name="settings_tts_pitch">Tinggi nada</string>
     <string name="settings_tts_rate">Kecepatan bicara</string>
     <string name="settings_screen_context">Izinkan konteks layar (opt-in)</string>
-    <string name="settings_screen_context_note">Mati secara bawaan. Jika aktif, snapshot dibuat saat sesi asisten dimulai, tetapi hanya dikirim ke LLM pilihan bila perintah Anda meminta membaca atau membalas layar; snapshot tidak disimpan di riwayat.</string>
-    <string name="settings_screen_context_needs_a11y">Aktifkan layanan aksesibilitas untuk membaca snapshot layar atas permintaan. Kata sandi dan kolom yang sedang diketik dikecualikan.</string>
-    <string name="settings_screen_context_enabled_note">Opt-in aktif: snapshot satu kali saat sesi asisten dimulai; hanya diteruskan ke LLM pilihan untuk permintaan yang merujuk teks layar. Kata sandi dan kolom edit dikecualikan; tidak disimpan di riwayat.</string>
+    <string name="settings_screen_context_note">Mati secara bawaan. Jika aktif, satu snapshot diambil saat sesi asisten dimulai agar perintah kontekstual seperti “mainkan” mengikuti aplikasi yang sedang terbuka. Snapshot hanya dikirim ke LLM pilihan jika dibutuhkan untuk memahami permintaan baca/balas/kontekstual; tidak disimpan di riwayat.</string>
+    <string name="settings_screen_context_needs_a11y">Aktifkan layanan aksesibilitas untuk mengambil snapshot layar. Kata sandi dan kolom yang sedang diketik dikecualikan.</string>
+    <string name="settings_screen_context_enabled_note">Opt-in aktif: satu snapshot saat sesi dimulai; perintah media sederhana diproses lokal, dan snapshot hanya diteruskan ke LLM untuk memahami permintaan kontekstual yang lebih rumit. Kata sandi dan kolom edit dikecualikan; tidak disimpan di riwayat.</string>
     <string name="settings_wake_word">Kata kunci panggilan</string>
-    <string name="settings_wake_word_note">Perlu izin mikrofon. Saat terdeteksi, wake word membuka asisten dan siap mendengar perintah meski kolom teks sedang fokus; wake word tidak dialihkan menjadi dikte. Mengutamakan pengenalan di perangkat; bila tidak tersedia, layanan Android dapat memakai internet. Pemantauan latar memakai notifikasi dan menambah baterai.</string>
+    <string name="settings_wake_word_note">Perlu izin mikrofon. Saat terdeteksi, wake word membuka asisten siap mendengar perintah; wake word tidak memulai dikte. Mikrofon dipantau hampir terus-menerus dengan SpeechRecognizer Android dan dapat mengecilkan atau menjeda media karena fokus audio. Jika terganggu, matikan wake word dan gunakan tahan Volume Atas. Pengenalan on-device diutamakan; layanan fallback Android mungkin memakai internet.</string>
     <string name="settings_wake_word_needs_microphone">Wake word dimatikan karena izin mikrofon tidak tersedia. Aktifkan izin mikrofon lalu nyalakan kembali.</string>
     <string name="settings_wake_word_phrase">Frasa kata kunci</string>
     <string name="settings_data_title">Tampilan &amp; data</string>

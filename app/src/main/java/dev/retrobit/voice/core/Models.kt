@@ -50,9 +50,14 @@ sealed interface AssistantAction {
     /** Insert exact text into the focused field at its active cursor/selection. */
     data class TypeText(val text: String) : AssistantAction
     data object StartDictation : AssistantAction
+    data class OpenWhatsAppChat(val contactName: String, val preparingCall: Boolean = false) : AssistantAction
+    data class ControlMedia(val command: MediaCommand) : AssistantAction
     data object ShowHelp : AssistantAction
     data class Unknown(val rawText: String) : AssistantAction
 }
+
+/** Perintah transport media yang dikirim ke sesi pemutaran Android aktif. */
+enum class MediaCommand { PLAY, PAUSE, STOP, NEXT, PREVIOUS }
 
 /** Satu giliran percakapan dengan asisten. */
 data class AssistantTurn(

@@ -34,14 +34,16 @@ Dirancang **offline-first**: dikte dan puluhan perintah tetap jalan tanpa intern
 - Pemicu tile **Pengaturan Cepat** Android.
 
 ### Asisten (Google Assistant style)
-- **Kaskade cerdas**: aturan lokal → LLM (opsional) → fallback pencarian web. Artinya asisten tetap berguna tanpa API key.
-- Perintah yang dikenali secara offline: buka aplikasi/pengaturan, cari di web, telepon, draf pesan, alarm, timer, catatan, senter, volume, kecerahan, Jangan Ganggu, Bluetooth, waktu/tanggal lokal, dan status baterai. Ucapkan “bantuan” untuk daftar kemampuan. Kecerahan dan Jangan Ganggu memerlukan akses khusus Android; Bluetooth membuka Pengaturan untuk dikonfirmasi pengguna; menjawab panggilan memerlukan izin Telepon.
+- **Pahami konteks dahulu**: aturan lokal → LLM opsional. Asisten tidak membuka browser untuk kalimat yang belum dipahami; pencarian web hanya dijalankan atas perintah eksplisit seperti “cari …”.
+- Perintah yang dikenali secara offline: buka aplikasi/pengaturan, cari di web (atas perintah), telepon biasa, draf pesan, alarm, timer, catatan, senter, volume, kecerahan, Jangan Ganggu, Bluetooth, waktu/tanggal lokal, dan status baterai. Ucapkan “bantuan” untuk daftar kemampuan. Kecerahan dan Jangan Ganggu memerlukan akses khusus Android; Bluetooth membuka Pengaturan untuk dikonfirmasi pengguna; menjawab panggilan memerlukan izin Telepon.
+- **Kontrol media sesuai konteks layar** — saat opt-in konteks layar aktif dan YouTube/pemutar media sedang terbuka, perintah singkat seperti “mainkan”, “jeda”, “berikutnya”, dan “sebelumnya” dikirim ke sesi media Android yang aktif, bukan ke browser.
 - **Cuaca terkini** — ucapkan “cuaca di Jepara” atau sebutkan kota lain. Data Open-Meteo diambil lewat internet; nama kota dikirim ke layanan geocoding cuaca dan Retrobit tidak meminta GPS.
-- **Ketik & dikte ke kolom aktif** — “Ketik halo, apa kabar” menyisipkan teks persis di posisi kursor. “Mulai dikte” memulai perekaman; hasil dikte masuk ke posisi kursor/seleksi aktif (atau ke akhir kolom jika posisi kursor tidak diberikan aplikasi).
-- **Konteks layar opt-in** — snapshot teks layar hanya dipakai saat pengguna meminta membaca/membalas chat. Teks bisa dibacakan langsung offline; permintaan balasan/ringkasan memakai LLM terpilih. Snapshot tidak disimpan di riwayat.
+- **Ketik & dikte ke kolom aktif** — “Ketik halo, apa kabar” menyisipkan teks persis di posisi kursor. Ucapkan “dikte” atau “mulai dikte” untuk merekam ucapan berikutnya; hasil masuk ke posisi kursor/seleksi aktif. Kolom teks perlu tetap fokus.
+- **Konteks layar opt-in** — satu snapshot dibaca untuk memahami permintaan layar/media saat opt-in aktif. Perintah media sederhana diproses lokal; snapshot hanya dikirim ke LLM pilihan jika diperlukan untuk memahami permintaan kontekstual yang lebih rumit. Teks layar tidak disimpan di riwayat.
+- **Kontak WhatsApp** — Retrobit dapat mencari di buku alamat Android setelah izin Kontak diberikan dan membuka chat WhatsApp. Daftar internal WhatsApp tidak bisa dibaca langsung; pesan tetap harus diperiksa dan dikirim oleh pengguna. Panggilan suara WhatsApp harus dimulai dengan menekan tombol telepon di WhatsApp.
 - **Kirim pesan selalu perlu konfirmasi eksplisit** — setelah setuju, Retrobit membuka draf atau pemilih penerima WhatsApp; pengguna memeriksa dan menekan Kirim di WhatsApp.
 - **Bisa dipilih sebagai asisten digital bawaan** (`VoiceInteractionService`) — tekan lama tombol Home langsung mendengarkan dan mengucapkan prompt siap.
-- **Kata kunci panggilan** opsional ("hai retro"), dengan catatan baterai yang jujur di pengaturan.
+- **Kata kunci panggilan** opsional ("hai retro"). Pemantauan mikrofon berlangsung hampir terus-menerus dengan SpeechRecognizer Android dan dapat mengecilkan/menjeda media; nonaktifkan jika mengganggu pemutaran atau gunakan tahan Volume Atas. Model wake-word lokal hemat daya belum tersedia.
 - **TTS bawaan Android** — pilih dan pratinjau suara yang tersedia dari mesin sistem, lalu atur pitch dan kecepatan (default mengikuti suara sistem, nilai 1,0; rentang 0,6–1,6).
 - Saat sesi suara dimulai, asisten mengucapkan “Saya siap.” sebelum mendengar. Jika prompt TTS gagal, sesi mendengar dibatalkan. Jeda hening perintah asisten dapat diatur terpisah dari jeda dikte (default 3 detik, rentang 0,5–5 detik).
 
@@ -49,7 +51,7 @@ Dirancang **offline-first**: dikte dan puluhan perintah tetap jalan tanpa intern
 - API key disimpan **terenkripsi** dengan Android Keystore.
 - Audio **dihapus segera** setelah transkripsi.
 - Riwayat hanya tersimpan di perangkat, bisa dimatikan sekali sentuh — tidak ada server milik proyek ini.
-- Akses konteks layar **mati secara bawaan**; bila diaktifkan, snapshot hanya diteruskan ke LLM pilihan saat perintah meminta membaca/membalas layar, dan tidak disimpan di riwayat.
+- Akses konteks layar **mati secara bawaan**; bila diaktifkan, snapshot hanya diteruskan ke LLM pilihan jika diperlukan untuk memahami permintaan layar/kontekstual, dan tidak disimpan di riwayat. Aksi media yang dikenali diproses lokal.
 - Cuaca hanya dicari setelah diminta; hanya nama kota yang diucapkan dikirim ke Open-Meteo. Retrobit tidak mengakses lokasi GPS untuk cuaca.
 - Filter speaker bersifat opt-in. Template terenkripsi tetap di perangkat, dikecualikan dari backup Android dan ekspor setelan, serta tidak dikirim ke STT. Sampel enrolmen mentah dihapus setelah diproses. Audio dikirim ke STT yang dipilih hanya setelah lolos pemeriksaan; STT cloud tetap menerima audio yang lolos.
 - Tidak ada analytics, tidak ada iklan, tidak ada pengiriman data diam-diam. Pesan tidak pernah dikirim tanpa konfirmasi dan tap Kirim di aplikasi tujuan.

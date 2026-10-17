@@ -2,6 +2,7 @@ package dev.retrobit.voice
 
 import dev.retrobit.voice.assistant.IntentMapper
 import dev.retrobit.voice.core.AssistantAction
+import dev.retrobit.voice.core.MediaCommand
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
@@ -44,6 +45,14 @@ class IntentMapperTest {
         assertEquals(
             AssistantAction.StartDictation,
             IntentMapper.map("""{"intent":"start_dictation","slots":{},"reply":"Dikte siap."}""").action,
+        )
+        assertEquals(
+            AssistantAction.OpenWhatsAppChat("Budi"),
+            IntentMapper.map("""{"intent":"open_whatsapp_chat","slots":{"contact":"Budi"},"reply":"Membuka chat."}""").action,
+        )
+        assertEquals(
+            AssistantAction.ControlMedia(MediaCommand.PLAY),
+            IntentMapper.map("""{"intent":"media_control","slots":{"command":"PLAY"},"reply":"Memutar."}""").action,
         )
     }
 }

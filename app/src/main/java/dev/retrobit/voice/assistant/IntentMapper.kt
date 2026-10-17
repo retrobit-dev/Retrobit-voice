@@ -2,6 +2,7 @@ package dev.retrobit.voice.assistant
 
 import dev.retrobit.voice.ai.Http
 import dev.retrobit.voice.core.AssistantAction
+import dev.retrobit.voice.core.MediaCommand
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.jsonObject
@@ -59,6 +60,12 @@ object IntentMapper {
             "weather", "current_weather" -> AssistantAction.GetWeather(slots.str("location"))
             "type_text" -> slots.str("text")?.let { AssistantAction.TypeText(it) }
             "start_dictation" -> AssistantAction.StartDictation
+            "open_whatsapp_chat", "whatsapp_chat" -> slots.str("contact")?.let {
+                AssistantAction.OpenWhatsAppChat(it, preparingCall = slots.bool("for_call") == true)
+            }
+            "media_control" -> slots.str("command")?.uppercase()?.let { command ->
+                runCatching { MediaCommand.valueOf(command) }.getOrNull()?.let { AssistantAction.ControlMedia(it) }
+            }
             "help" -> AssistantAction.ShowHelp
             else -> null
         }
@@ -140,6 +147,18 @@ object ActionText {
             ?: "Sebutkan nama kota agar saya bisa memeriksa cuacanya."
         is AssistantAction.TypeText -> "Mengetik teks pada posisi kursor yang aktif."
         AssistantAction.StartDictation -> "Memulai dikte."
+        is AssistantAction.OpenWhatsAppChat -> if (action.preparingCall) {
+            "Membuka chat WhatsApp dengan ${action.contactName}; panggilan perlu dimulai dari WhatsApp."
+        } else {
+            "Membuka chat WhatsApp dengan ${action.contactName}."
+        }
+        is AssistantAction.ControlMedia -> when (action.command) {
+            MediaCommand.PLAY -> "Mengirim perintah putar ke media aktif."
+            MediaCommand.PAUSE -> "Mengirim perintah jeda ke media aktif."
+            MediaCommand.STOP -> "Mengirim perintah berhenti ke media aktif."
+            MediaCommand.NEXT -> "Melewati media aktif ke berikutnya."
+            MediaCommand.PREVIOUS -> "Kembali ke media sebelumnya."
+        }
         AssistantAction.ShowHelp -> "Menampilkan perintah yang bisa digunakan."
         is AssistantAction.Unknown -> "Maaf, saya belum paham perintah itu."
     }
@@ -165,6 +184,8 @@ object ActionText {
         "weather", "current_weather" -> "Memeriksa cuaca terkini."
         "type_text" -> "Mengetik teks pada posisi kursor yang aktif."
         "start_dictation" -> "Memulai dikte."
+        "open_whatsapp_chat", "whatsapp_chat" -> "Membuka chat WhatsApp."
+        "media_control" -> "Mengontrol pemutar media yang aktif."
         "help" -> "Menampilkan perintah yang bisa digunakan."
         "open_settings" -> "Membuka pengaturan."
         else -> "Baik."

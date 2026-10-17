@@ -111,7 +111,14 @@ class AssistantSession(
             currentReply = "",
         )
 
-        val screenContextRequested = ScreenContextRequest.isRequested(cleanText)
+        val capabilityQuestion = CapabilityQuestionParser.parse(cleanText)
+        val whatsappCapabilityQuestion = capabilityQuestion?.topic?.let { topic ->
+            topic == CapabilityQuestionParser.Topic.WHATSAPP_OVERVIEW ||
+                topic == CapabilityQuestionParser.Topic.WHATSAPP_CONTACTS ||
+                topic == CapabilityQuestionParser.Topic.WHATSAPP_CHAT ||
+                topic == CapabilityQuestionParser.Topic.WHATSAPP_CALL
+        } == true
+        val screenContextRequested = !whatsappCapabilityQuestion && ScreenContextRequest.isRequested(cleanText)
         val screenContext = try {
             readScreenContextIfAllowed(settings, screenContextRequested)
         } catch (t: Throwable) {
@@ -163,7 +170,9 @@ class AssistantSession(
             }
         } else if (understanding.action != null) {
             if (understanding.action == AssistantAction.StartDictation) {
+                val hasTextTarget = graph.textInserter.imeReady() || TextInsertAccessibilityService.hasFocusedTextField()
                 val canStart = graph.dictation.hasMicrophonePermission() &&
+                    hasTextTarget &&
                     !graph.dictation.state.value.isBusy &&
                     !graph.speakerVerification.state.value.enrollmentActive
                 if (!canStart) {
@@ -174,6 +183,11 @@ class AssistantSession(
                             "Microphone permission is required to start dictation."
                         } else {
                             "Izin mikrofon diperlukan untuk memulai dikte."
+                        }
+                        !hasTextTarget -> if (english) {
+                            "Focus a text field first. Dictation will be inserted at its active cursor."
+                        } else {
+                            "Fokuskan kolom teks terlebih dahulu. Hasil dikte akan masuk di posisi kursor aktif."
                         }
                         graph.speakerVerification.state.value.enrollmentActive -> if (english) {
                             "Voice enrollment is in progress. Finish or cancel it before starting dictation."

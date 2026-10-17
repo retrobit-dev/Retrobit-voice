@@ -13,7 +13,8 @@ import dev.retrobit.voice.text.Tokenizer
  *   "nyalakan senter", "volume 70 persen", "kirim pesan ke budi aku otw"
  *
  * Kalau tidak ada pola yang cocok, kembalikan null sehingga pemanggil bisa
- * meneruskan ke LLM (kalau dikonfigurasi) atau menawarkan pencarian web.
+ * meneruskan ke LLM (kalau dikonfigurasi) atau meminta klarifikasi. Pencarian web
+ * hanya dijalankan oleh verba pencarian eksplisit.
  *
  * Murni Kotlin → bisa diuji di JVM (lihat CommandParserTest).
  */
@@ -45,7 +46,7 @@ object CommandParser {
     private val bluetoothOff = listOf("matikan bluetooth", "nonaktifkan bluetooth", "bluetooth off", "turn off bluetooth")
     private val bluetoothOn = listOf("aktifkan bluetooth", "nyalakan bluetooth", "hidupkan bluetooth", "bluetooth on", "turn on bluetooth")
     private val answerCallPhrases = listOf("jawab telepon", "jawab telfon", "angkat telepon", "terima telepon", "jawab panggilan", "angkat panggilan", "terima panggilan", "answer call", "answer the call", "answer incoming call", "accept call", "pick up the phone")
-    private val startDictationPhrases = listOf("mulai dikte", "mulai mendikte", "mulai mengetik", "start dictation", "begin dictation", "start typing")
+    private val startDictationPhrases = listOf("mulai dikte", "mulai mendikte", "mulai mengetik", "start dictation", "begin dictation", "start typing", "dikte")
     private val helpPhrases = listOf(
         "apa yang bisa kamu lakukan", "apa saja yang bisa kamu lakukan", "fitur apa saja", "perintah apa saja",
         "what can you do", "what commands can i say", "show commands", "bantuan", "help",
@@ -98,8 +99,9 @@ object CommandParser {
         helpPhrases.firstOrNull { text.contains(it, ignoreCase = true) }?.let {
             return Result(AssistantAction.ShowHelp, 0.99f, "help")
         }
-        startDictationPhrases.firstOrNull {
-            text.equals(it, ignoreCase = true) || text.startsWith("$it ", ignoreCase = true)
+        startDictationPhrases.firstOrNull { phrase ->
+            if (phrase == "dikte") text.equals(phrase, ignoreCase = true)
+            else text.equals(phrase, ignoreCase = true) || text.startsWith("$phrase ", ignoreCase = true)
         }?.let {
             return Result(AssistantAction.StartDictation, 0.99f, "start-dictation")
         }
@@ -183,6 +185,16 @@ object CommandParser {
             }
         }
 
+        // Buka chat WhatsApp bila nama dan kanal disebut; jangan mengartikan
+        // panggilan WhatsApp sebagai panggilan seluler tanpa sengaja.
+        parseWhatsAppChatContact(text)?.let { contact ->
+            return Result(
+                AssistantAction.OpenWhatsAppChat(contact, preparingCall = isWhatsAppCallRequest(text)),
+                0.9f,
+                "open-whatsapp-chat",
+            )
+        }
+
         // 5. Telepon
         callVerbs.firstOrNull { text.contains(it) }?.let { verb ->
             val target = text.substringAfter(verb, "").trim().trimEnd('.', '!', '?')
@@ -220,13 +232,16 @@ object CommandParser {
         }
 
         // 8. Pencarian web
-        searchVerbs.firstOrNull { text.contains(it) }?.let { verb ->
-            var query = text.substringAfter(verb, "").trim().trimEnd('.', '!', '?')
+        searchVerbs.firstOrNull { text.equals(it, ignoreCase = true) || text.startsWith("$it ", ignoreCase = true) }?.let { verb ->
+            var query = text.drop(verb.length).trim().trimEnd('.', '!', '?')
             var site: String? = null
             for ((key, url) in webSites) {
-                if (query.startsWith("di $key") || query.startsWith("$key")) {
+                val prefix = listOf("di $key", key).firstOrNull {
+                    query.equals(it, ignoreCase = true) || query.startsWith("$it ", ignoreCase = true)
+                }
+                if (prefix != null) {
                     site = url
-                    query = query.removePrefix("di $key").removePrefix(key).trim()
+                    query = query.drop(prefix.length).trim()
                     break
                 }
             }
@@ -236,9 +251,35 @@ object CommandParser {
         return null
     }
 
-    /** Pencarian web dipakai sebagai fallback terakhir kalau tidak ada aturan yang cocok. */
-    fun asWebSearchFallback(rawText: String): AssistantAction.WebSearch =
-        AssistantAction.WebSearch(stripLeadIns(rawText).trim())
+    /** Hanya perintah pencarian eksplisit yang boleh membuka browser. */
+    fun isExplicitSearchRequest(rawText: String): Boolean {
+        val text = stripLeadIns(rawText).lowercase().trim()
+        return searchVerbs.any { text == it || text.startsWith("$it ") }
+    }
+
+    /** Bedakan panggilan WhatsApp dari panggilan seluler jika model memahami kalimatnya berbeda. */
+    fun isWhatsAppCallRequest(rawText: String): Boolean {
+        val text = stripLeadIns(rawText).lowercase().trim()
+        return Regex("\\b(?:whatsapp|wa)\\b").containsMatchIn(text) &&
+            Regex("\\b(?:telepon|telpon|panggil|hubungi|call|phone|dial|panggilan)\\b").containsMatchIn(text)
+    }
+
+    private fun parseWhatsAppChatContact(text: String): String? {
+        val patterns = listOf(
+            Regex("^(?:(?:buka|open|launch)\\s+)?(?:chat|obrolan)\\s+(?:di\\s+)?(?:whatsapp|wa)\\s+(?:dengan|ke|untuk|with|for)\\s+(.+)$", RegexOption.IGNORE_CASE),
+            Regex("^(?:(?:buka|open|launch)\\s+)?(?:chat|obrolan)\\s+(?:dengan|ke|untuk|with|for)\\s+(.+?)\\s+(?:di|lewat|via|through|on)\\s+(?:whatsapp|wa)$", RegexOption.IGNORE_CASE),
+            Regex("^(?:(?:buka|open|launch)\\s+)?(?:chat|obrolan)\\s+(.+?)\\s+(?:di|lewat|via|through|on)\\s+(?:whatsapp|wa)$", RegexOption.IGNORE_CASE),
+            Regex("^(?:telepon|telpon|panggil|hubungi|call|phone)\\s+(?:(?:kontak|contact)\\s+)?(.+?)\\s+(?:di|lewat|via|through|on)\\s+(?:whatsapp|wa)$", RegexOption.IGNORE_CASE),
+            Regex("^(?:whatsapp|wa)\\s+(?:voice\\s+)?(?:call|telepon|telpon|panggilan)\\s+(?:(?:to|for|ke|dengan|with)\\s+)?(.+)$", RegexOption.IGNORE_CASE),
+            Regex("^(?:(?:buka|open|launch)\\s+)?(?:whatsapp|wa)\\s+(?:chat|obrolan)\\s+(?:dengan|ke|untuk|with|for)\\s+(.+)$", RegexOption.IGNORE_CASE),
+        )
+        val contact = patterns.firstNotNullOfOrNull { it.find(text)?.groupValues?.getOrNull(1) }
+            ?.replace(Regex("(?i)^(?:kontak|contact)\\s+"), "")
+            ?.trim()
+            ?.trimEnd('.', '!', '?', ',')
+            ?.takeIf { it.isNotBlank() && it.lowercase() !in setOf("ini", "itu", "terakhir", "terbaru", "kontak") }
+        return contact
+    }
 
     private fun parseTypeText(rawText: String): Result? {
         val command = stripLeadInsPreservingText(rawText)

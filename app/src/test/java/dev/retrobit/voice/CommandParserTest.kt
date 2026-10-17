@@ -3,7 +3,6 @@ package dev.retrobit.voice
 import dev.retrobit.voice.assistant.CommandParser
 import dev.retrobit.voice.core.AssistantAction
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -55,6 +54,13 @@ class CommandParserTest {
         val a = action("cari resep rendang")
         assertTrue(a is AssistantAction.WebSearch)
         assertTrue((a as AssistantAction.WebSearch).query.contains("resep rendang"))
+    }
+
+    @Test
+    fun `pencarian web hanya dikenali dari perintah eksplisit`() {
+        assertEquals(true, CommandParser.isExplicitSearchRequest("tolong cari resep rendang"))
+        assertEquals(false, CommandParser.isExplicitSearchRequest("jelaskan resep rendang"))
+        assertEquals(null, action("jelaskan resep rendang"))
     }
 
     @Test
@@ -214,6 +220,12 @@ class CommandParserTest {
     fun `ketik menyisipkan teks persis dan perintah dikte harus eksplisit`() {
         assertEquals(AssistantAction.TypeText("Halo, apa kabar."), action("tolong ketik Halo, apa kabar."))
         assertEquals(AssistantAction.StartDictation, action("mulai dikte"))
+        assertEquals(AssistantAction.StartDictation, action("dikte"))
+        assertEquals(AssistantAction.OpenWhatsAppChat("Budi"), action("chat WhatsApp dengan Budi"))
+        assertEquals(AssistantAction.OpenWhatsAppChat("Budi"), action("open WhatsApp chat with Budi"))
+        assertEquals(AssistantAction.OpenWhatsAppChat("Ibu", preparingCall = true), action("telepon Ibu di WhatsApp"))
+        assertEquals(AssistantAction.OpenWhatsAppChat("Ibu", preparingCall = true), action("WhatsApp call with Ibu"))
+        assertEquals(true, CommandParser.isWhatsAppCallRequest("call Ibu through WhatsApp"))
         assertEquals(null, action("how do I start dictation"))
         assertEquals(AssistantAction.ShowHelp, action("apa saja yang bisa kamu lakukan"))
     }
@@ -221,13 +233,6 @@ class CommandParserTest {
     @Test
     fun `kalimat bebas tidak diklaim sebagai perintah`() {
         assertEquals(null, action("apa kabar hari ini bagaimana"))
-    }
-
-    @Test
-    fun `fallback pencarian web tersedia`() {
-        val fallback = CommandParser.asWebSearchFallback("tolong jelaskan fenomena el nino")
-        assertNotNull(fallback.query)
-        assertTrue(fallback.query.isNotBlank())
     }
 
     @Test

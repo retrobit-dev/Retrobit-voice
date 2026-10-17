@@ -51,13 +51,33 @@ class ContactsResolver(private val context: Context) {
         return results
     }
 
-    /** Ambil kandidat terbaik untuk sebuah nama. */
-    fun best(query: String): Contact? {
-        val candidates = search(query)
-        if (candidates.isEmpty()) return null
-        val needle = query.lowercase().trim()
-        return candidates.firstOrNull { it.displayName.lowercase() == needle }
-            ?: candidates.firstOrNull { it.displayName.lowercase().startsWith(needle) }
-            ?: candidates.first()
+    sealed interface Lookup {
+        data class Found(val contact: Contact) : Lookup
+        data class Ambiguous(val names: List<String>) : Lookup
+        data object NotFound : Lookup
+        data object PermissionRequired : Lookup
     }
+
+    /** Resolusi unik; jangan menelepon/membuka chat ke salah satu hasil secara acak. */
+    fun lookup(query: String): Lookup {
+        if (!hasPermission()) return Lookup.PermissionRequired
+        val candidates = search(query).distinctBy { it.displayName.lowercase() to it.number }
+        if (candidates.isEmpty()) return Lookup.NotFound
+        val needle = query.lowercase().trim()
+        val exact = candidates.filter { it.displayName.lowercase() == needle }
+        val prefix = candidates.filter { it.displayName.lowercase().startsWith(needle) }
+        val selected = when {
+            exact.isNotEmpty() -> exact
+            prefix.isNotEmpty() -> prefix
+            else -> candidates
+        }.distinctBy { it.number }
+        return when (selected.size) {
+            0 -> Lookup.NotFound
+            1 -> Lookup.Found(selected.single())
+            else -> Lookup.Ambiguous(selected.map { it.displayName }.distinct().take(5))
+        }
+    }
+
+    /** Ambil kandidat terbaik hanya jika nama/nomor cukup unik. */
+    fun best(query: String): Contact? = (lookup(query) as? Lookup.Found)?.contact
 }

@@ -167,7 +167,6 @@ class TextInsertAccessibilityService : AccessibilityService() {
         }
 
         visit(root, 0)
-        if (visibleText.isEmpty()) return null
         return buildString {
             append("Aplikasi: ").append(sourcePackage).append('\n')
             visibleText.forEach { append("- ").append(it).append('\n') }

@@ -103,7 +103,7 @@
     <string name="assistant_ready_phrase">Saya siap.</string>
     <string name="assistant_ready_speech_unavailable">Speech output is not ready; the assistant did not start listening.</string>
     <string name="assistant_thinking">Thinking…</string>
-    <string name="assistant_examples">Examples: \"what time is it\", \"what is my battery level\", \"weather in London\", \"start dictation\", \"type Hello there.\" Say \"help\" for more commands.</string>
+    <string name="assistant_examples">Examples: \"what time is it\", \"what is my battery level\", \"weather in London\", \"start dictation\", \"play\" while media is open, \"type hello\", \"search for a recipe\". Say \"help\" for more commands.</string>
     <string name="assistant_settings_title">Quick assistant settings</string>
     <string name="assistant_clear_history">Clear conversation history</string>
     <string name="assistant_confirmation_title">Confirm message draft</string>
@@ -185,11 +185,11 @@
     <string name="settings_tts_pitch">Pitch</string>
     <string name="settings_tts_rate">Speech rate</string>
     <string name="settings_screen_context">Allow screen context (opt in)</string>
-    <string name="settings_screen_context_note">Off by default. When enabled, a snapshot is captured as an assistant session starts, but sent to your selected LLM only if your command asks to read or reply to screen content; it is not saved in history.</string>
-    <string name="settings_screen_context_needs_a11y">Enable the accessibility service to read a screen snapshot on request. Passwords and text being edited are excluded.</string>
-    <string name="settings_screen_context_enabled_note">Opt-in is on: one snapshot is captured when an assistant session starts and forwarded to your selected LLM only for screen-related requests. Passwords/editable fields are excluded; it is not saved in history.</string>
+    <string name="settings_screen_context_note">Off by default. When enabled, one snapshot is captured as an assistant session starts so contextual commands such as “play” can follow the app on screen. The snapshot is sent to your selected LLM only when needed to interpret a screen-related request; it is not saved in history.</string>
+    <string name="settings_screen_context_needs_a11y">Enable the accessibility service to capture a screen snapshot. Passwords and text being edited are excluded.</string>
+    <string name="settings_screen_context_enabled_note">Opt-in is on: one snapshot is captured when a session starts; simple media commands are handled locally, and the snapshot is forwarded to your selected LLM only for more complex contextual requests. Passwords/editable fields are excluded; it is not saved in history.</string>
     <string name="settings_wake_word">Wake word</string>
-    <string name="settings_wake_word_note">Microphone permission is required. When detected, the wake word opens the assistant ready for a command, even while a text field is focused; it never switches to dictation. On-device recognition is preferred; if unavailable, the Android speech service may use the internet. Background monitoring shows an ongoing notification and uses extra battery.</string>
+    <string name="settings_wake_word_note">Microphone permission is required. The wake word opens the assistant ready for a command; it never starts dictation. Android SpeechRecognizer monitors the microphone nearly continuously and may duck or pause media because of audio focus. If that is disruptive, turn wake word off and use the Volume Up hold trigger. On-device recognition is preferred; the fallback Android speech service may use the internet.</string>
     <string name="settings_wake_word_needs_microphone">Wake word was turned off because microphone permission is missing. Grant microphone permission and enable it again.</string>
     <string name="settings_wake_word_phrase">Wake phrase</string>
     <string name="settings_data_title">Appearance &amp; data</string>

@@ -29,8 +29,21 @@ class ScreenContextRequestTest {
     }
 
     @Test
+    fun `captures media context for short playback commands`() {
+        listOf("Mainkan", "Jeda", "Lagu berikutnya", "Play", "Pause")
+            .forEach { assertTrue(it, ScreenContextRequest.isRequested(it)) }
+    }
+
+    @Test
     fun `does not capture screen for unrelated assistant commands`() {
-        listOf("Pasang alarm jam tujuh", "Nyalakan senter", "Kirim pesan ke Adi isinya aku otw")
+        listOf(
+            "Pasang alarm jam tujuh",
+            "Nyalakan senter",
+            "Kirim pesan ke Adi isinya aku otw",
+            "Open display settings",
+            "I want to play football",
+            "Chat WhatsApp dengan Budi",
+        )
             .forEach { assertFalse(it, ScreenContextRequest.isRequested(it)) }
     }
 }
