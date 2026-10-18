@@ -7,6 +7,7 @@ import android.content.pm.PackageManager
 import android.media.AudioFormat
 import android.media.AudioRecord
 import android.media.MediaRecorder
+import android.os.SystemClock
 import androidx.core.content.ContextCompat
 import dev.retrobit.voice.R
 import dev.retrobit.voice.core.VoiceLog
@@ -157,7 +158,7 @@ class WakeWordListener(
         val pcm = ShortArray(READ_BUFFER_SAMPLES)
         var samplesUntilInference = STEP_SAMPLES
         var matchingWindows = 0
-        var lastMatchAtMs = 0L
+        var lastCountedMatchAtMs = 0L
         var detected = false
         try {
             recorder.startRecording()
@@ -185,23 +186,32 @@ class WakeWordListener(
                     null
                 }
                 if (!running || !currentCoroutineContext().isActive) break
-                val now = System.currentTimeMillis()
+                val now = SystemClock.elapsedRealtime()
                 if (distance != null && distance <= MATCH_THRESHOLD) {
-                    if (now - lastMatchAtMs <= MAX_CONFIRMATION_GAP_MS) {
-                        matchingWindows += 1
-                    } else {
-                        matchingWindows = 1
+                    val gapSinceCountedMatch = now - lastCountedMatchAtMs
+                    when {
+                        matchingWindows == 0 || gapSinceCountedMatch > MAX_CONFIRMATION_GAP_MS -> {
+                            matchingWindows = 1
+                            lastCountedMatchAtMs = now
+                        }
+                        gapSinceCountedMatch >= MIN_CONFIRMATION_SPACING_MS -> {
+                            matchingWindows += 1
+                            lastCountedMatchAtMs = now
+                        }
+                        // Ignore near-duplicate, highly overlapping sliding windows.
                     }
-                    lastMatchAtMs = now
                     if (matchingWindows >= REQUIRED_MATCHING_WINDOWS) {
                         detected = true
-                        VoiceLog.i("Wake word lokal cocok dengan profil (jarak=${"%.3f".format(distance)})")
+                        VoiceLog.i(
+                            "Wake word lokal cocok dengan profil " +
+                                "(jarak=${"%.3f".format(distance)}, konfirmasi=$matchingWindows)",
+                        )
                         running = false
                         break
                     }
                 } else {
                     matchingWindows = 0
-                    lastMatchAtMs = 0L
+                    lastCountedMatchAtMs = 0L
                 }
             }
         } finally {
@@ -260,8 +270,9 @@ class WakeWordListener(
         const val STEP_SAMPLES = WakeWordAudioFeatures.SAMPLE_RATE_HZ / 4 // 250 ms.
         const val MIN_WINDOW_RMS = 0.0025f
         const val MATCH_THRESHOLD = 0.14f
-        const val REQUIRED_MATCHING_WINDOWS = 2
-        const val MAX_CONFIRMATION_GAP_MS = 900L
+        const val REQUIRED_MATCHING_WINDOWS = 3
+        const val MIN_CONFIRMATION_SPACING_MS = 500L
+        const val MAX_CONFIRMATION_GAP_MS = 1_500L
         const val RESTART_DELAY_MS = 250L
         const val ERROR_RETRY_DELAY_MS = 2_000L
         const val YIELD_POLL_MS = 500L

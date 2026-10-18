@@ -36,15 +36,16 @@ class LocalWakeWordKws(context: Context) {
     suspend fun createTemplate(samples: FloatArray): WakeWordEmbeddingSequence =
         embeddingModel.extractSpeech(samples)
 
-    /** Best distance to any of the enrolled samples, following the local-wake template method. */
+    /** Median distance across the enrolled samples; a single accidental close match is not enough. */
     suspend fun distanceToProfile(
         audioWindow: FloatArray,
         profile: WakeWordProfile,
     ): Float {
         val actual = embeddingModel.extractSpeech(audioWindow)
-        return profile.templates.minOf { reference ->
+        val distances = profile.templates.map { reference ->
             WakeWordAudioFeatures.dtwCosineNormalizedDistance(actual, reference)
         }
+        return WakeWordAudioFeatures.medianDistance(distances)
     }
 }
 

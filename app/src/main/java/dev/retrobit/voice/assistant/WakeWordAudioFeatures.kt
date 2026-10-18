@@ -140,6 +140,13 @@ object WakeWordAudioFeatures {
         return totalCost / (leftFrames + rightFrames)
     }
 
+    /**
+     * Robust profile score: the middle enrolled-template distance prevents one unusually close
+     * sample from triggering a match on its own.
+     */
+    fun medianDistance(distances: List<Float>): Float =
+        distances.sorted().getOrNull(distances.size / 2) ?: Float.POSITIVE_INFINITY
+
     /** RMS for a full sample array. */
     fun rms(samples: FloatArray): Float = rms(samples, 0, samples.size)
 

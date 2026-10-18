@@ -43,6 +43,12 @@ class WakeWordAudioFeaturesTest {
     }
 
     @Test
+    fun `profile score requires a majority rather than one close template`() {
+        assertEquals(0.13f, WakeWordAudioFeatures.medianDistance(listOf(0.01f, 0.13f, 0.28f)), 0f)
+        assertEquals(Float.POSITIVE_INFINITY, WakeWordAudioFeatures.medianDistance(emptyList()), 0f)
+    }
+
+    @Test
     fun `profile codec round trips exactly three embedding templates`() {
         val templates = listOf(oneHotSequence(2, 0), oneHotSequence(3, 4), oneHotSequence(2, 8))
 
