@@ -56,6 +56,10 @@ private class WakeWordEmbeddingModel(private val context: Context) {
     @Volatile
     private var session: OrtSession? = null
 
+    // ONNX Runtime requires SessionOptions to outlive every session created from it.
+    @Volatile
+    private var sessionOptions: OrtSession.SessionOptions? = null
+
     suspend fun prepare() {
         ensureSession()
     }
@@ -125,12 +129,15 @@ private class WakeWordEmbeddingModel(private val context: Context) {
 
     private fun createSession(file: File): OrtSession {
         val options = OrtSession.SessionOptions()
-        options.setIntraOpNumThreads(1)
-        options.setInterOpNumThreads(1)
         return try {
-            environment.createSession(file.absolutePath, options)
-        } finally {
+            options.setIntraOpNumThreads(1)
+            options.setInterOpNumThreads(1)
+            environment.createSession(file.absolutePath, options).also {
+                sessionOptions = options
+            }
+        } catch (error: Throwable) {
             options.close()
+            throw error
         }
     }
 

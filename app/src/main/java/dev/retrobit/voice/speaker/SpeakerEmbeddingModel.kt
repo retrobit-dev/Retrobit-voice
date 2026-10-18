@@ -30,6 +30,8 @@ class SpeakerEmbeddingModel(context: Context) : AutoCloseable {
     private val sessionMutex = Mutex()
     private var modelVerified = false
     private var session: OrtSession? = null
+    // ONNX Runtime requires SessionOptions to outlive every session created from it.
+    private var sessionOptions: OrtSession.SessionOptions? = null
     private val environment: OrtEnvironment by lazy { OrtEnvironment.getEnvironment() }
 
     fun isModelDownloaded(): Boolean = modelFile.exists() && modelFile.length() > 0L
@@ -126,12 +128,15 @@ class SpeakerEmbeddingModel(context: Context) : AutoCloseable {
 
     private fun createSession(file: File): OrtSession {
         val options = OrtSession.SessionOptions()
-        options.setIntraOpNumThreads(2)
-        options.setInterOpNumThreads(1)
         return try {
-            environment.createSession(file.absolutePath, options)
-        } finally {
+            options.setIntraOpNumThreads(2)
+            options.setInterOpNumThreads(1)
+            environment.createSession(file.absolutePath, options).also {
+                sessionOptions = options
+            }
+        } catch (error: Throwable) {
             options.close()
+            throw error
         }
     }
 
@@ -196,8 +201,16 @@ class SpeakerEmbeddingModel(context: Context) : AutoCloseable {
         sessionMutex.tryLock().let { locked ->
             if (locked) {
                 try {
-                    session?.close()
-                    session = null
+                    try {
+                        session?.close()
+                    } finally {
+                        session = null
+                        try {
+                            sessionOptions?.close()
+                        } finally {
+                            sessionOptions = null
+                        }
+                    }
                 } finally {
                     sessionMutex.unlock()
                 }
