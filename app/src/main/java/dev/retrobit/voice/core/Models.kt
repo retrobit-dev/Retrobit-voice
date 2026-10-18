@@ -39,8 +39,25 @@ sealed interface AssistantAction {
     data class SetTorch(val on: Boolean) : AssistantAction
     /** [relative] = true berarti [percent] sebagai langkah (+1 / -1), bukan persentase. */
     data class SetVolume(val percent: Int, val relative: Boolean = false) : AssistantAction
+    data class SetBrightness(val percent: Int, val relative: Boolean = false) : AssistantAction
+    data class SetDnd(val enabled: Boolean) : AssistantAction
+    data class SetBluetooth(val enabled: Boolean) : AssistantAction
+    data object AnswerCall : AssistantAction
+    data object GetCurrentTime : AssistantAction
+    data object GetCurrentDate : AssistantAction
+    data object GetBatteryStatus : AssistantAction
+    data class GetWeather(val location: String?) : AssistantAction
+    /** Insert exact text into the focused field at its active cursor/selection. */
+    data class TypeText(val text: String) : AssistantAction
+    data object StartDictation : AssistantAction
+    data class OpenWhatsAppChat(val contactName: String, val preparingCall: Boolean = false) : AssistantAction
+    data class ControlMedia(val command: MediaCommand) : AssistantAction
+    data object ShowHelp : AssistantAction
     data class Unknown(val rawText: String) : AssistantAction
 }
+
+/** Perintah transport media yang dikirim ke sesi pemutaran Android aktif. */
+enum class MediaCommand { PLAY, PAUSE, STOP, NEXT, PREVIOUS }
 
 /** Satu giliran percakapan dengan asisten. */
 data class AssistantTurn(

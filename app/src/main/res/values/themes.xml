@@ -7,6 +7,5 @@
         <item name="android:navigationBarColor">@android:color/transparent</item>
         <item name="android:colorControlNormal">#E9E9E4</item>
         <item name="android:colorAccent">@color/accent</item>
-        <item name="android:windowLightStatusBar">false</item>
     </style>
 </resources>

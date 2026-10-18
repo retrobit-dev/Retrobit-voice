@@ -2,17 +2,18 @@ package dev.retrobit.voice
 
 import android.app.Application
 import dev.retrobit.voice.core.AppGraph
+import dev.retrobit.voice.core.EnrollmentCrashCheckpoint
 import dev.retrobit.voice.core.VoiceLog
 import dev.retrobit.voice.dictation.overlay.OverlayBubbleService
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
 
 /**
  * Titik awal aplikasi: menyiapkan service locator, memuat riwayat,
- * dan memulihkan fitur latar belakang yang sebelumnya diaktifkan pengguna
- * (bubble melayang, kata kunci panggilan).
+ * dan memulihkan bubble melayang yang sebelumnya diaktifkan pengguna.
  */
 class RetrobitApp : Application() {
 
@@ -20,6 +21,15 @@ class RetrobitApp : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        EnrollmentCrashCheckpoint.consumePreviousProcessExit(this)?.let { previousExit ->
+            VoiceLog.w("Alasan proses berhenti saat enrolmen: $previousExit")
+        }
+        EnrollmentCrashCheckpoint.consumeFatalException(this)?.let { previousFatal ->
+            VoiceLog.e("Stack trace crash enrolmen sebelumnya (pesan exception tidak disimpan):\n$previousFatal")
+        }
+        EnrollmentCrashCheckpoint.consume(this)?.let { previousStage ->
+            VoiceLog.w("Enrolmen suara sebelumnya berhenti di: $previousStage")
+        }
         val graph = AppGraph.init(this)
         graph.tts.init()
 
@@ -31,8 +41,20 @@ class RetrobitApp : Application() {
                 runCatching { OverlayBubbleService.start(this@RetrobitApp) }
                     .onFailure { VoiceLog.e("Gagal memulihkan bubble", it) }
             }
-            if (settings.wakeWordEnabled) {
-                graph.assistant.startWakeWordIfEnabled()
+        }
+
+        appScope.launch {
+            var assistantWasActive = false
+            graph.assistant.state.collect { state ->
+                val assistantActive = state.listening || state.thinking
+                if (
+                    assistantActive && !assistantWasActive &&
+                    OverlayBubbleService.hasPermission(this@RetrobitApp) &&
+                    graph.dictation.hasMicrophonePermission()
+                ) {
+                    OverlayBubbleService.showAssistantPopup(this@RetrobitApp)
+                }
+                assistantWasActive = assistantActive
             }
         }
 
@@ -43,7 +65,8 @@ class RetrobitApp : Application() {
     private fun installCrashLogger() {
         val previous = Thread.getDefaultUncaughtExceptionHandler()
         Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
-            VoiceLog.e("Crash di thread ${thread.name}", throwable)
+            runCatching { EnrollmentCrashCheckpoint.saveFatalException(this, thread.name, throwable) }
+            runCatching { VoiceLog.e("Crash di thread ${thread.name}", throwable) }
             previous?.uncaughtException(thread, throwable)
         }
     }

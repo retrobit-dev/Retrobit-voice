@@ -87,6 +87,7 @@ fun GuideScreen(vm: AppViewModel, modifier: Modifier = Modifier) {
             Text("· " + str(R.string.guide_tip_offline), style = MaterialTheme.typography.bodySmall)
             Text("· " + str(R.string.guide_tip_privacy), style = MaterialTheme.typography.bodySmall)
             Text("· " + str(R.string.guide_tip_llm), style = MaterialTheme.typography.bodySmall)
+            Text("· " + str(R.string.guide_tip_screen_context), style = MaterialTheme.typography.bodySmall)
         }
 
         Panel(title = str(R.string.settings_diagnostics), code = "DIAG") {

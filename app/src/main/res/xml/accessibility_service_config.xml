@@ -1,14 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  Layanan aksesibilitas Retrobit punya dua tugas:
-    1. menempelkan hasil dikte ke kolom yang sedang difokuskan (ACTION_PASTE),
-    2. menerima peristiwa tombol volume supaya dikte bisa dipicu dari aplikasi
-       mana pun (butuh canRequestFilterKeyEvents + flagRequestFilterKeyEvents).
-
-  Layanan ini tidak membaca isi layar dan tidak mengirim data ke mana pun.
+  Aksesibilitas hanya membaca fokus input untuk menampilkan bubble dan menempelkan
+  teks saat diminta. Isi teks layar hanya dipindai satu kali bila pengguna
+  mengaktifkan opt-in konteks layar di Pengaturan lalu menjalankan asisten.
 -->
 <accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
-    android:accessibilityEventTypes="typeViewFocused|typeWindowStateChanged"
+    android:accessibilityEventTypes="typeViewFocused|typeViewClicked|typeViewTextSelectionChanged|typeWindowStateChanged|typeWindowContentChanged"
     android:accessibilityFeedbackType="feedbackGeneric"
     android:accessibilityFlags="flagDefault|flagIncludeNotImportantViews|flagRequestFilterKeyEvents"
     android:canRequestFilterKeyEvents="true"

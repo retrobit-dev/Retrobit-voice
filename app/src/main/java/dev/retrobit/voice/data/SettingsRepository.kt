@@ -5,6 +5,7 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.floatPreferencesKey
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
@@ -28,7 +29,7 @@ enum class LlmProvider { OFF, OPENAI, GEMINI, OLLAMA }
 enum class CleanupMode { OFF, LOCAL, AI }
 
 /** Cara menempelkan teks ke aplikasi tujuan. */
-enum class InsertMethod { AUTO, IME, ACCESSIBILITY, CLIPBOARD }
+enum class InsertMethod { AUTO, IME, ACCESSIBILITY }
 
 /** Cara memicu dikte. */
 enum class DictationTrigger { HOLD_TO_TALK, HANDS_FREE, HYBRID }
@@ -52,8 +53,12 @@ data class AppSettings(
      * karena hanya jalur itu yang bisa membaca peristiwa tombol volume.
      */
     val volumeKeyTriggerEnabled: Boolean = false,
+    /** Tombol volume ditahan untuk membuka sesi perintah suara asisten. */
+    val volumeKeyAssistantEnabled: Boolean = false,
     val silenceTimeoutMs: Int = 1600,
     val keepScreenOnWhileDictating: Boolean = false,
+    /** Filter speaker lokal; hanya aktif setelah pengguna menyelesaikan enrolmen secara opt-in. */
+    val speakerVerificationEnabled: Boolean = false,
 
     // --- Asisten ---
     val llmProvider: LlmProvider = LlmProvider.OFF,
@@ -62,8 +67,16 @@ data class AppSettings(
     val llmModel: String = "",
     val wakeWordEnabled: Boolean = false,
     val wakeWordPhrase: String = "hai retro",
+    /** Jeda hening sebelum perintah suara asisten dikirim untuk diproses (bawaan 3 detik). */
+    val assistantSilenceTimeoutMs: Int = 3000,
     val confirmBeforeActions: Boolean = true,
+    /** Baca teks layar satu kali saat pengguna meminta asisten (bawaan: mati). */
+    val screenContextEnabled: Boolean = false,
     val speakReplies: Boolean = true,
+    /** Nama voice dari mesin TTS Android; kosong memakai suara bawaan untuk bahasa. */
+    val ttsVoiceName: String = "",
+    val ttsPitch: Float = 1f,
+    val ttsSpeechRate: Float = 1f,
     val assistantLanguage: String = "id-ID",
 
     // --- Tampilan & data ---
@@ -98,8 +111,10 @@ class SettingsRepository(private val context: Context) {
         val insertMethod = stringPreferencesKey("insert_method")
         val dictationTrigger = stringPreferencesKey("dictation_trigger")
         val volumeKeyTrigger = booleanPreferencesKey("volume_key_trigger")
+        val volumeKeyAssistant = booleanPreferencesKey("volume_key_assistant")
         val silenceTimeoutMs = intPreferencesKey("silence_timeout_ms")
         val keepScreenOn = booleanPreferencesKey("keep_screen_on")
+        val speakerVerificationEnabled = booleanPreferencesKey("speaker_verification_enabled")
 
         val llmProvider = stringPreferencesKey("llm_provider")
         val llmApiKey = stringPreferencesKey("llm_api_key")
@@ -107,8 +122,13 @@ class SettingsRepository(private val context: Context) {
         val llmModel = stringPreferencesKey("llm_model")
         val wakeWordEnabled = booleanPreferencesKey("wake_word_enabled")
         val wakeWordPhrase = stringPreferencesKey("wake_word_phrase")
+        val assistantSilenceTimeoutMs = intPreferencesKey("assistant_silence_timeout_ms")
         val confirmBeforeActions = booleanPreferencesKey("confirm_actions")
+        val screenContext = booleanPreferencesKey("screen_context_enabled")
         val speakReplies = booleanPreferencesKey("speak_replies")
+        val ttsVoiceName = stringPreferencesKey("tts_voice_name")
+        val ttsPitch = floatPreferencesKey("tts_pitch")
+        val ttsSpeechRate = floatPreferencesKey("tts_speech_rate")
         val assistantLanguage = stringPreferencesKey("assistant_language")
 
         val overlayBubble = booleanPreferencesKey("overlay_bubble")
@@ -126,7 +146,7 @@ class SettingsRepository(private val context: Context) {
             val updated = transform(prefs.toSettings())
             prefs[K.sttEngine] = updated.sttEngine.name
             prefs[K.cloudSttProvider] = updated.cloudSttProvider.name
-            prefs[K.cloudSttApiKey] = SecretStore.encrypt(updated.cloudSttApiKey)
+            prefs[K.cloudSttApiKey] = SecretStore.encrypt(ApiKeys.sanitize(updated.cloudSttApiKey))
             prefs[K.cloudSttBaseUrl] = updated.cloudSttBaseUrl
             prefs[K.cloudSttModel] = updated.cloudSttModel
             prefs[K.dictationLanguage] = updated.dictationLanguage
@@ -136,17 +156,24 @@ class SettingsRepository(private val context: Context) {
             prefs[K.insertMethod] = updated.insertMethod.name
             prefs[K.dictationTrigger] = updated.dictationTrigger.name
             prefs[K.volumeKeyTrigger] = updated.volumeKeyTriggerEnabled
+            prefs[K.volumeKeyAssistant] = updated.volumeKeyAssistantEnabled
             prefs[K.silenceTimeoutMs] = updated.silenceTimeoutMs
             prefs[K.keepScreenOn] = updated.keepScreenOnWhileDictating
+            prefs[K.speakerVerificationEnabled] = updated.speakerVerificationEnabled
 
             prefs[K.llmProvider] = updated.llmProvider.name
-            prefs[K.llmApiKey] = SecretStore.encrypt(updated.llmApiKey)
+            prefs[K.llmApiKey] = SecretStore.encrypt(ApiKeys.sanitize(updated.llmApiKey))
             prefs[K.llmBaseUrl] = updated.llmBaseUrl
             prefs[K.llmModel] = updated.llmModel
             prefs[K.wakeWordEnabled] = updated.wakeWordEnabled
             prefs[K.wakeWordPhrase] = updated.wakeWordPhrase
+            prefs[K.assistantSilenceTimeoutMs] = updated.assistantSilenceTimeoutMs.coerceIn(500, 5_000)
             prefs[K.confirmBeforeActions] = updated.confirmBeforeActions
+            prefs[K.screenContext] = updated.screenContextEnabled
             prefs[K.speakReplies] = updated.speakReplies
+            prefs[K.ttsVoiceName] = updated.ttsVoiceName
+            prefs[K.ttsPitch] = updated.ttsPitch.coerceIn(0.6f, 1.6f)
+            prefs[K.ttsSpeechRate] = updated.ttsSpeechRate.coerceIn(0.6f, 1.6f)
             prefs[K.assistantLanguage] = updated.assistantLanguage
 
             prefs[K.overlayBubble] = updated.overlayBubbleEnabled
@@ -165,7 +192,7 @@ class SettingsRepository(private val context: Context) {
         return AppSettings(
             sttEngine = enumOr(this[K.sttEngine], defaults.sttEngine),
             cloudSttProvider = enumOr(this[K.cloudSttProvider], defaults.cloudSttProvider),
-            cloudSttApiKey = SecretStore.decrypt(this[K.cloudSttApiKey]),
+            cloudSttApiKey = ApiKeys.sanitize(SecretStore.decrypt(this[K.cloudSttApiKey])),
             cloudSttBaseUrl = this[K.cloudSttBaseUrl] ?: defaults.cloudSttBaseUrl,
             cloudSttModel = this[K.cloudSttModel] ?: defaults.cloudSttModel,
             dictationLanguage = this[K.dictationLanguage] ?: defaults.dictationLanguage,
@@ -175,16 +202,24 @@ class SettingsRepository(private val context: Context) {
             insertMethod = enumOr(this[K.insertMethod], defaults.insertMethod),
             dictationTrigger = enumOr(this[K.dictationTrigger], defaults.dictationTrigger),
             volumeKeyTriggerEnabled = this[K.volumeKeyTrigger] ?: defaults.volumeKeyTriggerEnabled,
+            volumeKeyAssistantEnabled = this[K.volumeKeyAssistant] ?: defaults.volumeKeyAssistantEnabled,
             silenceTimeoutMs = this[K.silenceTimeoutMs] ?: defaults.silenceTimeoutMs,
             keepScreenOnWhileDictating = this[K.keepScreenOn] ?: defaults.keepScreenOnWhileDictating,
+            speakerVerificationEnabled = this[K.speakerVerificationEnabled] ?: defaults.speakerVerificationEnabled,
             llmProvider = enumOr(this[K.llmProvider], defaults.llmProvider),
-            llmApiKey = SecretStore.decrypt(this[K.llmApiKey]),
+            llmApiKey = ApiKeys.sanitize(SecretStore.decrypt(this[K.llmApiKey])),
             llmBaseUrl = this[K.llmBaseUrl] ?: defaults.llmBaseUrl,
             llmModel = this[K.llmModel] ?: defaults.llmModel,
             wakeWordEnabled = this[K.wakeWordEnabled] ?: defaults.wakeWordEnabled,
             wakeWordPhrase = this[K.wakeWordPhrase] ?: defaults.wakeWordPhrase,
+            assistantSilenceTimeoutMs = (this[K.assistantSilenceTimeoutMs] ?: defaults.assistantSilenceTimeoutMs)
+                .coerceIn(500, 5_000),
             confirmBeforeActions = this[K.confirmBeforeActions] ?: defaults.confirmBeforeActions,
+            screenContextEnabled = this[K.screenContext] ?: defaults.screenContextEnabled,
             speakReplies = this[K.speakReplies] ?: defaults.speakReplies,
+            ttsVoiceName = this[K.ttsVoiceName] ?: defaults.ttsVoiceName,
+            ttsPitch = (this[K.ttsPitch] ?: defaults.ttsPitch).coerceIn(0.6f, 1.6f),
+            ttsSpeechRate = (this[K.ttsSpeechRate] ?: defaults.ttsSpeechRate).coerceIn(0.6f, 1.6f),
             assistantLanguage = this[K.assistantLanguage] ?: defaults.assistantLanguage,
             overlayBubbleEnabled = this[K.overlayBubble] ?: defaults.overlayBubbleEnabled,
             saveHistory = this[K.saveHistory] ?: defaults.saveHistory,
@@ -219,7 +254,7 @@ class SettingsRepository(private val context: Context) {
 
         fun defaultLlmModel(provider: LlmProvider): String = when (provider) {
             LlmProvider.OPENAI -> "gpt-4o-mini"
-            LlmProvider.GEMINI -> "gemini-2.0-flash"
+            LlmProvider.GEMINI -> "gemini-3.8-flash"
             LlmProvider.OLLAMA -> "llama3.1"
             LlmProvider.OFF -> ""
         }

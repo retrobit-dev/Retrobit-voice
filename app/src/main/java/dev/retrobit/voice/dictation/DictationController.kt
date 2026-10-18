@@ -3,7 +3,9 @@ package dev.retrobit.voice.dictation
 import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
+import android.os.Build
 import androidx.core.content.ContextCompat
+import dev.retrobit.voice.R
 import dev.retrobit.voice.audio.PcmRecorder
 import dev.retrobit.voice.core.AppGraph
 import dev.retrobit.voice.core.PcmRecording
@@ -13,6 +15,7 @@ import dev.retrobit.voice.data.CleanupMode
 import dev.retrobit.voice.data.DictationTrigger
 import dev.retrobit.voice.data.SttEngineChoice
 import dev.retrobit.voice.text.LocalTextCleaner
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -30,7 +33,7 @@ import java.io.File
  * keyboard Retrobit, bubble melayang, tile Pengaturan Cepat, layar utama,
  * dan sesi asisten.
  *
- * Alur: rekam → transkripsi (hybrid) → rapikan (lokal/LLM) → tempel → riwayat.
+ * Alur: rekam → transkripsi (hybrid) → rapikan (lokal/LLM) → sisipkan langsung → riwayat.
  */
 class DictationController(
     private val context: Context,
@@ -39,7 +42,7 @@ class DictationController(
 
     enum class Phase { IDLE, LISTENING, TRANSCRIBING, CLEANING, INSERTING, DONE, ERROR }
 
-    enum class Source { MANUAL, IME, OVERLAY, TILE, ASSISTANT, VOLUME }
+    enum class Source { MANUAL, IME, OVERLAY, OVERLAY_PREVIEW, WAKE_WORD, TILE, ASSISTANT, VOLUME }
 
     data class UiState(
         val phase: Phase = Phase.IDLE,
@@ -92,17 +95,49 @@ class DictationController(
             )
             return false
         }
+        if (graph.speakerVerification.state.value.enrollmentActive) {
+            _state.value = UiState(
+                phase = Phase.ERROR,
+                source = source,
+                error = context.getString(R.string.dictation_speaker_enrollment_active),
+            )
+            return false
+        }
+        if (graph.wakeWordEnrollment.state.value.enrollmentActive) {
+            _state.value = UiState(
+                phase = Phase.ERROR,
+                source = source,
+                error = context.getString(R.string.dictation_wake_word_enrollment_active),
+            )
+            return false
+        }
 
         _state.value = UiState(phase = Phase.LISTENING, source = source, stage = "Mendengarkan…")
 
         captureJob = scope.launch {
-            val settings = graph.settings.current()
+            var wakeWordPaused = false
             try {
-                if (settings.sttEngine == SttEngineChoice.SYSTEM_LIVE) {
+                // Lepas AudioRecord KWS pasif sebelum perekam dikte mengambil mikrofon.
+                // Menunggu cleanup selesai mencegah dua klien audio berjalan bersamaan.
+                wakeWordPaused = true
+                graph.assistant.pauseWakeWordForDictation()
+                val settings = graph.settings.current()
+                if (settings.speakerVerificationEnabled) {
+                    // Speaker check must see the original WAV before any recognizer or cloud STT.
+                    // SYSTEM_LIVE cannot expose its microphone audio to the local verifier, so use
+                    // a local recording path; older Android falls back to AUTO's file-capable STT.
+                    val fileSettings = if (
+                        settings.sttEngine == SttEngineChoice.SYSTEM_LIVE &&
+                        Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU
+                    ) settings.copy(sttEngine = SttEngineChoice.AUTO) else settings
+                    runRecorderSession(fileSettings)
+                } else if (settings.sttEngine == SttEngineChoice.SYSTEM_LIVE) {
                     runLiveSystemSession(settings)
                 } else {
                     runRecorderSession(settings)
                 }
+            } catch (cancelled: CancellationException) {
+                throw cancelled
             } catch (t: Throwable) {
                 VoiceLog.e("Dikte gagal", t)
                 _state.value = _state.value.copy(
@@ -110,6 +145,8 @@ class DictationController(
                     error = t.message ?: t.javaClass.simpleName,
                     stage = "",
                 )
+            } finally {
+                if (wakeWordPaused) graph.assistant.resumeWakeWordAfterDictation()
             }
         }
         return true
@@ -157,7 +194,11 @@ class DictationController(
             }
         }
 
-        val autoStop = settings.dictationTrigger != DictationTrigger.HOLD_TO_TALK
+        // Bubble/wake-word tetap hands-free; pemicu tombol volume harus bertahan
+        // sampai Volume Bawah dilepas, apa pun mode dikte umum yang dipilih.
+        val source = _state.value.source
+        val autoStop = source == Source.OVERLAY || source == Source.OVERLAY_PREVIEW || source == Source.WAKE_WORD ||
+            (source != Source.VOLUME && settings.dictationTrigger != DictationTrigger.HOLD_TO_TALK)
         val timeout = settings.silenceTimeoutMs.toLong()
 
         while (!finishRequested && !cancelled) {
@@ -199,6 +240,7 @@ class DictationController(
                 onPartial = { partial -> _state.value = _state.value.copy(partial = partial) },
                 onLevel = { level -> _state.value = _state.value.copy(amplitude = level) },
                 timeoutMs = 20_000L,
+                silenceTimeoutMs = settings.silenceTimeoutMs.toLong(),
             )
             deliver(transcript.text, settings, engineLabel = transcript.engine, transcript = null)
         } catch (t: Throwable) {
@@ -214,6 +256,36 @@ class DictationController(
             stage = "Mengubah suara menjadi teks…",
             amplitude = 0f,
         )
+
+        if (settings.speakerVerificationEnabled) {
+            _state.value = _state.value.copy(stage = context.getString(R.string.dictation_speaker_checking))
+            val check = try {
+                graph.speakerVerification.verifyWav(recording.wavFile)
+            } catch (cancelled: CancellationException) {
+                recording.wavFile.delete()
+                throw cancelled
+            } catch (t: Throwable) {
+                VoiceLog.w("Pemeriksaan speaker lokal gagal: ${t.message}")
+                recording.wavFile.delete()
+                _state.value = _state.value.copy(
+                    phase = Phase.ERROR,
+                    error = context.getString(R.string.dictation_speaker_check_failed),
+                    stage = "",
+                    amplitude = 0f,
+                )
+                return
+            }
+            if (check is dev.retrobit.voice.speaker.SpeakerVerificationManager.CheckResult.Rejected) {
+                recording.wavFile.delete()
+                _state.value = _state.value.copy(
+                    phase = Phase.ERROR,
+                    error = context.getString(R.string.dictation_speaker_rejected),
+                    stage = "",
+                    amplitude = 0f,
+                )
+                return
+            }
+        }
 
         val transcript = try {
             graph.stt.transcribe(
@@ -261,19 +333,32 @@ class DictationController(
         // 3. Tempel (kecuali kalau sumbernya asisten — asisten memakai teksnya sendiri)
         _state.value = _state.value.copy(
             phase = Phase.INSERTING,
-            stage = "Menempelkan teks…",
+            stage = "Menyisipkan teks…",
             finalText = cleaned,
             engine = engineLabel,
         )
 
-        if (_state.value.source != Source.ASSISTANT) {
+        val source = _state.value.source
+        if (source != Source.ASSISTANT && source != Source.MANUAL && source != Source.OVERLAY_PREVIEW) {
             val result = graph.textInserter.insert(cleaned)
+            if (!result.success) {
+                _state.value = _state.value.copy(
+                    phase = Phase.ERROR,
+                    error = result.message,
+                    insertChannel = result.channel.label,
+                    stage = "",
+                    amplitude = 0f,
+                )
+                return
+            }
             _state.value = _state.value.copy(
                 insertChannel = result.channel.label,
                 stage = result.message,
             )
         }
 
+        // Mode manual menampilkan hasil di Retrobit; tombol Salin di layar hasil
+        // tetap tersedia sebagai tindakan eksplisit, bukan fallback penempelan.
         _state.value = _state.value.copy(phase = Phase.DONE, stage = "", amplitude = 0f)
     }
 
@@ -327,21 +412,35 @@ class DictationController(
     }
 
     /** Dengarkan sekali lalu kembalikan teks (dipakai asisten & wake word). */
-    suspend fun listenForText(settings: AppSettings): Result<String> {
+    suspend fun listenForText(
+        settings: AppSettings,
+        silenceTimeoutMs: Long = settings.silenceTimeoutMs.toLong(),
+        onPartial: (String) -> Unit = {},
+    ): Result<String> {
         if (!hasMicrophonePermission()) return Result.failure(IllegalStateException("Izin mikrofon belum diberikan"))
         if (_state.value.isBusy) return Result.failure(IllegalStateException("Dikte sedang berjalan"))
 
+        val silenceWindowMs = silenceTimeoutMs.coerceIn(400L, 5_000L)
         var heard = ""
         val job = scope.launch {
             if (settings.sttEngine == SttEngineChoice.SYSTEM_LIVE) {
-                val t = graph.stt.listenLive(settings, { p -> heard = p }, { })
-                heard = t.text
+                val transcript = graph.stt.listenLive(
+                    settings = settings,
+                    onPartial = { partial ->
+                        heard = partial
+                        onPartial(partial)
+                    },
+                    onLevel = {},
+                    silenceTimeoutMs = silenceWindowMs,
+                )
+                heard = transcript.text
+                onPartial(heard)
             } else {
                 if (!recorder.start(recordingsDir, prefix = "asisten")) return@launch
                 while (recorder.isRunning) {
                     delay(100)
                     if (recorder.vad.hasSpeech &&
-                        recorder.vad.silenceDurationMs(System.currentTimeMillis()) > settings.silenceTimeoutMs
+                        recorder.vad.silenceDurationMs(System.currentTimeMillis()) > silenceWindowMs
                     ) {
                         break
                     }
@@ -353,8 +452,9 @@ class DictationController(
                     return@launch
                 }
                 try {
-                    val transcript = graph.stt.transcribe(rec, settings)
+                    val transcript = graph.stt.transcribe(rec, settings, onPartial = onPartial)
                     heard = transcript.text
+                    onPartial(heard)
                 } finally {
                     rec.wavFile.delete()
                 }

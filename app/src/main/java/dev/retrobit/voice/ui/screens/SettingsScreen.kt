@@ -1,26 +1,41 @@
 package dev.retrobit.voice.ui.screens
 
+import android.Manifest
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.retrobit.voice.R
+import dev.retrobit.voice.assistant.TtsSpeaker
 import dev.retrobit.voice.data.AppSettings
 import dev.retrobit.voice.data.CleanupMode
 import dev.retrobit.voice.data.CloudSttProvider
@@ -28,12 +43,14 @@ import dev.retrobit.voice.data.DictationTrigger
 import dev.retrobit.voice.data.InsertMethod
 import dev.retrobit.voice.data.LlmProvider
 import dev.retrobit.voice.data.SettingsRepository
+import dev.retrobit.voice.data.SettingsSnapshotFormat
 import dev.retrobit.voice.data.SttEngineChoice
 import dev.retrobit.voice.dictation.a11y.TextInsertAccessibilityService
 import dev.retrobit.voice.dictation.insert.ClipboardHelper
 import dev.retrobit.voice.ui.AppViewModel
 import dev.retrobit.voice.ui.DeviceState
 import dev.retrobit.voice.ui.components.BracketButton
+import dev.retrobit.voice.ui.components.Divider8
 import dev.retrobit.voice.ui.components.LabeledValue
 import dev.retrobit.voice.ui.components.Panel
 import dev.retrobit.voice.ui.components.PillsColumn
@@ -41,15 +58,94 @@ import dev.retrobit.voice.ui.components.SettingTextField
 import dev.retrobit.voice.ui.components.SwitchRow
 import dev.retrobit.voice.ui.components.TerminalHeader
 import dev.retrobit.voice.ui.components.str
+import kotlin.math.roundToInt
 
 /** Pengaturan: kumpulan panel konfigurasi bernomor, gaya menu servis perangkat. */
 @Composable
 fun SettingsScreen(vm: AppViewModel, modifier: Modifier = Modifier) {
     val settings by vm.settings.collectAsStateWithLifecycle()
+    val speakerState by vm.speakerVerification.collectAsStateWithLifecycle()
+    val wakeWordState by vm.wakeWordEnrollment.collectAsStateWithLifecycle()
     val current = settings ?: AppSettings()
     val context = LocalContext.current
+    var showSpeakerConsent by remember { mutableStateOf(false) }
+    var speakerConsentChecked by remember { mutableStateOf(false) }
+    var showWakeWordConsent by remember { mutableStateOf(false) }
+    var enableWakeWordAfterEnrollment by remember { mutableStateOf(false) }
+    var beginWakeWordEnrollmentAfterPermission by remember { mutableStateOf(false) }
+    var enableWakeWordAfterPermission by remember { mutableStateOf(false) }
+    var showWakeWordDeleteConfirmation by remember { mutableStateOf(false) }
+    var previousWakeWordPhrase by remember { mutableStateOf(current.wakeWordPhrase) }
+    val accessibilityActive = DeviceState.isAccessibilityEnabled(context) || TextInsertAccessibilityService.isConnected()
     var log by remember { mutableStateOf("") }
     var deviceCheck by remember { mutableStateOf("") }
+    var ttsVoices by remember { mutableStateOf(emptyList<TtsSpeaker.VoiceOption>()) }
+    var ttsVoiceMenuExpanded by remember { mutableStateOf(false) }
+    var ttsPreviewStatus by remember { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(current.assistantLanguage) {
+        ttsVoices = runCatching {
+            vm.appGraph().tts.availableVoices(current.assistantLanguage)
+        }.getOrDefault(emptyList())
+    }
+
+    // Pemilih berkas sistem (SAF): aplikasi tidak perlu izin penyimpanan.
+    val exportLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("application/json"),
+    ) { uri -> if (uri != null) vm.exportSettingsTo(uri) }
+
+    // Sengaja menerima semua tipe berkas: sebagian pengelola berkas melaporkan
+    // .json sebagai application/octet-stream sehingga berkasnya jadi tak terlihat.
+    // Isi berkas tetap divalidasi saat dibaca.
+    val importLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument(),
+    ) { uri -> if (uri != null) vm.importSettingsFrom(uri) }
+
+    val wakeWordMicrophonePermission = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission(),
+    ) { granted ->
+        if (granted) {
+            when {
+                beginWakeWordEnrollmentAfterPermission -> {
+                    beginWakeWordEnrollmentAfterPermission = false
+                    vm.beginWakeWordEnrollment(current.wakeWordPhrase)
+                }
+                enableWakeWordAfterPermission -> {
+                    enableWakeWordAfterPermission = false
+                    vm.update { it.copy(wakeWordEnabled = true) }
+                }
+            }
+        } else {
+            beginWakeWordEnrollmentAfterPermission = false
+            enableWakeWordAfterPermission = false
+            enableWakeWordAfterEnrollment = false
+            vm.wakeWordMicrophonePermissionDenied()
+        }
+    }
+    val speakerMicrophonePermission = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission(),
+    ) { granted ->
+        if (granted) vm.beginSpeakerEnrollment()
+        else vm.speakerMicrophonePermissionDenied()
+    }
+
+    LaunchedEffect(current.wakeWordPhrase) {
+        if (previousWakeWordPhrase != current.wakeWordPhrase) {
+            enableWakeWordAfterEnrollment = false
+            previousWakeWordPhrase = current.wakeWordPhrase
+        }
+    }
+
+    LaunchedEffect(wakeWordState.profileReady, wakeWordState.enrollmentActive, wakeWordState.error) {
+        if (wakeWordState.error != null && !wakeWordState.enrollmentActive) {
+            enableWakeWordAfterEnrollment = false
+        } else if (
+            enableWakeWordAfterEnrollment && wakeWordState.profileReady && !wakeWordState.enrollmentActive
+        ) {
+            enableWakeWordAfterEnrollment = false
+            vm.update { it.copy(wakeWordEnabled = true) }
+        }
+    }
 
     Column(
         modifier
@@ -175,10 +271,14 @@ fun SettingsScreen(vm: AppViewModel, modifier: Modifier = Modifier) {
                     InsertMethod.AUTO to str(R.string.insert_auto),
                     InsertMethod.IME to str(R.string.insert_ime),
                     InsertMethod.ACCESSIBILITY to str(R.string.insert_a11y),
-                    InsertMethod.CLIPBOARD to str(R.string.insert_clipboard),
                 ),
                 selected = current.insertMethod,
                 onSelect = { value -> vm.update { it.copy(insertMethod = value) } },
+            )
+            Text(
+                text = str(R.string.settings_insert_direct_note),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             Text(str(R.string.settings_trigger), style = MaterialTheme.typography.bodyMedium)
             PillsColumn(
@@ -192,18 +292,27 @@ fun SettingsScreen(vm: AppViewModel, modifier: Modifier = Modifier) {
             )
             // Pemicu lewat tombol volume: hanya bisa dibaca dari layanan aksesibilitas,
             // jadi status layanan itu ditampilkan apa adanya di sini.
-            val accessibilityActive = DeviceState.isAccessibilityEnabled(context) || TextInsertAccessibilityService.isConnected()
             SwitchRow(
                 title = str(R.string.settings_volume_trigger),
                 subtitle = when {
                     !current.volumeKeyTriggerEnabled -> str(R.string.settings_volume_trigger_note)
                     !accessibilityActive -> str(R.string.settings_volume_trigger_needs_a11y)
-                    current.dictationTrigger == DictationTrigger.HOLD_TO_TALK ->
-                        str(R.string.settings_volume_trigger_ready_hold)
-                    else -> str(R.string.settings_volume_trigger_ready_toggle)
+                    current.volumeKeyAssistantEnabled -> str(R.string.settings_volume_trigger_split)
+                    else -> str(R.string.settings_volume_trigger_ready_hold)
                 },
                 checked = current.volumeKeyTriggerEnabled,
                 onChange = { value -> vm.update { it.copy(volumeKeyTriggerEnabled = value) } },
+            )
+            SwitchRow(
+                title = str(R.string.settings_volume_assistant),
+                subtitle = when {
+                    !current.volumeKeyAssistantEnabled -> str(R.string.settings_volume_assistant_note)
+                    !accessibilityActive -> str(R.string.settings_volume_trigger_needs_a11y)
+                    current.volumeKeyTriggerEnabled -> str(R.string.settings_volume_assistant_ready_split)
+                    else -> str(R.string.settings_volume_assistant_ready)
+                },
+                checked = current.volumeKeyAssistantEnabled,
+                onChange = { value -> vm.update { it.copy(volumeKeyAssistantEnabled = value) } },
             )
             Text(
                 text = str(R.string.settings_silence_timeout) + ": " + current.silenceTimeoutMs + " MS",
@@ -266,21 +375,421 @@ fun SettingsScreen(vm: AppViewModel, modifier: Modifier = Modifier) {
                 checked = current.speakReplies,
                 onChange = { value -> vm.update { it.copy(speakReplies = value) } },
             )
+            Text(
+                text = str(R.string.settings_assistant_silence_timeout) + " · %.1f s".format(
+                    current.assistantSilenceTimeoutMs / 1000f,
+                ),
+                style = MaterialTheme.typography.bodySmall,
+            )
+            Text(
+                text = str(R.string.settings_assistant_silence_timeout_note),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Slider(
+                value = current.assistantSilenceTimeoutMs.toFloat(),
+                onValueChange = { value ->
+                    val timeoutMs = ((value / 500f).roundToInt() * 500).coerceIn(500, 5_000)
+                    vm.update { it.copy(assistantSilenceTimeoutMs = timeoutMs) }
+                },
+                valueRange = 500f..5_000f,
+                steps = 8,
+                colors = SliderDefaults.colors(
+                    thumbColor = MaterialTheme.colorScheme.onSurface,
+                    activeTrackColor = MaterialTheme.colorScheme.onSurface,
+                    inactiveTrackColor = MaterialTheme.colorScheme.outline,
+                ),
+            )
+
+            Text(str(R.string.settings_tts_voice), style = MaterialTheme.typography.bodyMedium)
+            Text(
+                str(R.string.settings_tts_voice_note),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            val defaultVoiceLabel = str(R.string.settings_tts_voice_default)
+            val offlineLabel = str(R.string.settings_tts_offline)
+            val networkLabel = str(R.string.settings_tts_network)
+            val selectedVoiceLabel = ttsVoices.firstOrNull { it.name == current.ttsVoiceName }
+                ?.let { voice ->
+                    "${voice.localeTag} · ${voice.name} · ${if (voice.requiresNetwork) networkLabel else offlineLabel}"
+                }
+                ?: current.ttsVoiceName.takeIf { it.isNotBlank() }
+                ?: defaultVoiceLabel
+            Box(Modifier.fillMaxWidth()) {
+                BracketButton(
+                    text = selectedVoiceLabel,
+                    onClick = { ttsVoiceMenuExpanded = true },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                DropdownMenu(
+                    expanded = ttsVoiceMenuExpanded,
+                    onDismissRequest = { ttsVoiceMenuExpanded = false },
+                ) {
+                    DropdownMenuItem(
+                        text = { Text(defaultVoiceLabel) },
+                        onClick = {
+                            vm.update { it.copy(ttsVoiceName = "") }
+                            ttsVoiceMenuExpanded = false
+                        },
+                    )
+                    ttsVoices.forEach { voice ->
+                        DropdownMenuItem(
+                            text = {
+                                Text(
+                                    "${voice.localeTag} · ${voice.name} · ${if (voice.requiresNetwork) networkLabel else offlineLabel}",
+                                    maxLines = 2,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                            },
+                            onClick = {
+                                vm.update { it.copy(ttsVoiceName = voice.name) }
+                                ttsVoiceMenuExpanded = false
+                            },
+                        )
+                    }
+                }
+            }
+            val previewText = if (current.assistantLanguage.startsWith("en", ignoreCase = true)) {
+                "Hello, this is a preview of the selected Retrobit voice."
+            } else {
+                "Halo, ini pratinjau suara Retrobit yang dipilih."
+            }
+            val previewStarted = str(R.string.settings_tts_preview_started)
+            val previewUnavailable = str(R.string.settings_tts_preview_unavailable)
+            BracketButton(
+                text = str(R.string.settings_tts_preview),
+                onClick = {
+                    val accepted = vm.appGraph().tts.speak(
+                        text = previewText,
+                        languageTag = current.assistantLanguage,
+                        voiceName = current.ttsVoiceName,
+                        pitch = current.ttsPitch,
+                        speechRate = current.ttsSpeechRate,
+                    )
+                    ttsPreviewStatus = if (accepted) previewStarted else previewUnavailable
+                },
+                modifier = Modifier.fillMaxWidth(),
+            )
+            ttsPreviewStatus?.let {
+                Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            Text(
+                text = str(R.string.settings_tts_pitch) + " · %.1f".format(current.ttsPitch),
+                style = MaterialTheme.typography.bodySmall,
+            )
+            Slider(
+                value = current.ttsPitch,
+                onValueChange = { value ->
+                    vm.update { it.copy(ttsPitch = ((value * 10).roundToInt() / 10f).coerceIn(0.6f, 1.6f)) }
+                },
+                valueRange = 0.6f..1.6f,
+                steps = 9,
+                colors = SliderDefaults.colors(
+                    thumbColor = MaterialTheme.colorScheme.onSurface,
+                    activeTrackColor = MaterialTheme.colorScheme.onSurface,
+                    inactiveTrackColor = MaterialTheme.colorScheme.outline,
+                ),
+            )
+            Text(
+                text = str(R.string.settings_tts_rate) + " · %.1f".format(current.ttsSpeechRate),
+                style = MaterialTheme.typography.bodySmall,
+            )
+            Slider(
+                value = current.ttsSpeechRate,
+                onValueChange = { value ->
+                    vm.update { it.copy(ttsSpeechRate = ((value * 10).roundToInt() / 10f).coerceIn(0.6f, 1.6f)) }
+                },
+                valueRange = 0.6f..1.6f,
+                steps = 9,
+                colors = SliderDefaults.colors(
+                    thumbColor = MaterialTheme.colorScheme.onSurface,
+                    activeTrackColor = MaterialTheme.colorScheme.onSurface,
+                    inactiveTrackColor = MaterialTheme.colorScheme.outline,
+                ),
+            )
+
+            SwitchRow(
+                title = str(R.string.settings_screen_context),
+                subtitle = when {
+                    !current.screenContextEnabled -> str(R.string.settings_screen_context_note)
+                    !accessibilityActive -> str(R.string.settings_screen_context_needs_a11y)
+                    else -> str(R.string.settings_screen_context_enabled_note)
+                },
+                checked = current.screenContextEnabled,
+                onChange = { value -> vm.update { it.copy(screenContextEnabled = value) } },
+            )
             SwitchRow(
                 title = str(R.string.settings_wake_word),
-                subtitle = str(R.string.settings_wake_word_note),
+                subtitle = when {
+                    wakeWordState.enrollmentActive -> wakeWordState.status
+                    current.wakeWordEnabled -> str(R.string.settings_wake_word_note)
+                    !wakeWordState.profileReady -> str(R.string.wake_word_profile_missing)
+                    else -> str(R.string.wake_word_profile_ready)
+                },
                 checked = current.wakeWordEnabled,
                 onChange = { value ->
-                    vm.update { it.copy(wakeWordEnabled = value) }
-                    if (value) vm.appGraph().assistant.startWakeWordIfEnabled()
-                    else vm.appGraph().assistant.stopWakeWord()
+                    if (!value) {
+                        enableWakeWordAfterEnrollment = false
+                        enableWakeWordAfterPermission = false
+                        vm.update { it.copy(wakeWordEnabled = false) }
+                    } else if (!wakeWordState.profileReady) {
+                        enableWakeWordAfterEnrollment = true
+                        showWakeWordConsent = true
+                    } else if (!DeviceState.hasMicrophone(context)) {
+                        enableWakeWordAfterPermission = true
+                        wakeWordMicrophonePermission.launch(Manifest.permission.RECORD_AUDIO)
+                    } else {
+                        vm.update { it.copy(wakeWordEnabled = true) }
+                    }
                 },
             )
+            if (wakeWordState.modelLoading) {
+                LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+            }
+            if (wakeWordState.status.isNotBlank()) {
+                Text(wakeWordState.status, style = MaterialTheme.typography.bodySmall)
+            }
+            wakeWordState.error?.let { error ->
+                Text(
+                    text = "! $error",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error,
+                )
+            }
+            if (wakeWordState.enrollmentActive) {
+                Text(
+                    text = context.getString(R.string.wake_word_enrollment_instructions, current.wakeWordPhrase),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                BracketButton(
+                    text = if (wakeWordState.capturingSample) {
+                        str(R.string.wake_word_recording_now)
+                    } else {
+                        str(R.string.wake_word_record_sample)
+                    },
+                    onClick = { vm.captureWakeWordSample() },
+                    enabled = !wakeWordState.capturingSample && !wakeWordState.modelLoading,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                BracketButton(
+                    text = str(R.string.wake_word_cancel_enrollment),
+                    onClick = {
+                        enableWakeWordAfterEnrollment = false
+                        vm.cancelWakeWordEnrollment()
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            } else {
+                BracketButton(
+                    text = if (wakeWordState.profileReady) {
+                        str(R.string.wake_word_reenroll)
+                    } else {
+                        str(R.string.wake_word_enroll)
+                    },
+                    onClick = {
+                        enableWakeWordAfterEnrollment = false
+                        showWakeWordConsent = true
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                if (wakeWordState.profileReady) {
+                    BracketButton(
+                        text = str(R.string.wake_word_delete_profile),
+                        onClick = { showWakeWordDeleteConfirmation = true },
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+            }
             SettingTextField(
                 label = str(R.string.settings_wake_word_phrase),
                 value = current.wakeWordPhrase,
                 onChange = { value -> vm.update { it.copy(wakeWordPhrase = value) } },
                 placeholder = "hai retro",
+            )
+        }
+
+        // ---------- Filter speaker lokal (opt-in) ----------
+        Panel(
+            title = str(R.string.settings_speaker_title),
+            code = "SPK",
+            subtitle = str(R.string.settings_speaker_subtitle),
+        ) {
+            Text(
+                text = str(R.string.settings_speaker_privacy_note),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            if (speakerState.modelDownloading) {
+                LinearProgressIndicator(
+                    progress = speakerState.modelProgress ?: 0f,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+            if (speakerState.status.isNotBlank()) {
+                Text(speakerState.status, style = MaterialTheme.typography.bodySmall)
+            }
+            speakerState.error?.let { error ->
+                Text(
+                    text = "! $error",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error,
+                )
+            }
+            if (speakerState.enrollmentActive) {
+                if (!speakerState.modelDownloading) {
+                    Text(
+                        text = str(R.string.speaker_enrollment_instructions),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    BracketButton(
+                        text = if (speakerState.capturingSample) {
+                            str(R.string.speaker_recording_now)
+                        } else {
+                            str(R.string.speaker_record_sample)
+                        },
+                        onClick = { vm.captureSpeakerEnrollmentSample() },
+                        enabled = !speakerState.capturingSample,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+                BracketButton(
+                    text = str(R.string.speaker_cancel_enrollment),
+                    onClick = { vm.cancelSpeakerEnrollment() },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            } else if (!speakerState.enrolled) {
+                BracketButton(
+                    text = str(R.string.speaker_enroll_voice),
+                    onClick = {
+                        speakerConsentChecked = false
+                        showSpeakerConsent = true
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+            SwitchRow(
+                title = str(R.string.settings_speaker_filter),
+                subtitle = when {
+                    !speakerState.enrolled -> str(R.string.settings_speaker_not_enrolled)
+                    current.speakerVerificationEnabled -> str(R.string.settings_speaker_filter_enabled_note)
+                    else -> str(R.string.settings_speaker_enrolled_note)
+                },
+                checked = current.speakerVerificationEnabled && speakerState.enrolled,
+                enabled = speakerState.enrolled && !speakerState.enrollmentActive,
+                onChange = vm::setSpeakerVerificationEnabled,
+            )
+            if (speakerState.enrolled && !speakerState.enrollmentActive) {
+                BracketButton(
+                    text = str(R.string.speaker_delete_profile),
+                    onClick = { vm.deleteSpeakerEnrollment() },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+        }
+
+        if (showWakeWordConsent) {
+            AlertDialog(
+                onDismissRequest = {
+                    showWakeWordConsent = false
+                    enableWakeWordAfterEnrollment = false
+                },
+                title = { Text(str(R.string.wake_word_consent_title)) },
+                text = {
+                    Text(
+                        context.getString(R.string.wake_word_consent_body, current.wakeWordPhrase),
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            showWakeWordConsent = false
+                            if (DeviceState.hasMicrophone(context)) {
+                                beginWakeWordEnrollmentAfterPermission = false
+                                vm.beginWakeWordEnrollment(current.wakeWordPhrase)
+                            } else {
+                                beginWakeWordEnrollmentAfterPermission = true
+                                wakeWordMicrophonePermission.launch(Manifest.permission.RECORD_AUDIO)
+                            }
+                        },
+                    ) { Text(str(R.string.wake_word_consent_accept)) }
+                },
+                dismissButton = {
+                    TextButton(
+                        onClick = {
+                            showWakeWordConsent = false
+                            enableWakeWordAfterEnrollment = false
+                        },
+                    ) { Text(str(R.string.action_cancel)) }
+                },
+            )
+        }
+
+        if (showWakeWordDeleteConfirmation) {
+            AlertDialog(
+                onDismissRequest = { showWakeWordDeleteConfirmation = false },
+                title = { Text(str(R.string.wake_word_delete_title)) },
+                text = { Text(str(R.string.wake_word_delete_body), style = MaterialTheme.typography.bodySmall) },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            showWakeWordDeleteConfirmation = false
+                            vm.deleteWakeWordProfile()
+                        },
+                    ) { Text(str(R.string.wake_word_delete_profile)) }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showWakeWordDeleteConfirmation = false }) {
+                        Text(str(R.string.action_cancel))
+                    }
+                },
+            )
+        }
+
+        if (showSpeakerConsent) {
+            AlertDialog(
+                onDismissRequest = { showSpeakerConsent = false },
+                title = { Text(str(R.string.speaker_consent_title)) },
+                text = {
+                    Column(
+                        modifier = Modifier.heightIn(max = 420.dp).verticalScroll(rememberScrollState()),
+                        verticalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
+                        Text(str(R.string.speaker_consent_body), style = MaterialTheme.typography.bodySmall)
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Checkbox(
+                                checked = speakerConsentChecked,
+                                onCheckedChange = { speakerConsentChecked = it },
+                            )
+                            Text(
+                                text = str(R.string.speaker_consent_checkbox),
+                                modifier = Modifier.weight(1f),
+                                style = MaterialTheme.typography.bodySmall,
+                            )
+                        }
+                    }
+                },
+                confirmButton = {
+                    TextButton(
+                        enabled = speakerConsentChecked,
+                        onClick = {
+                            showSpeakerConsent = false
+                            if (DeviceState.hasMicrophone(context)) {
+                                vm.beginSpeakerEnrollment()
+                            } else {
+                                speakerMicrophonePermission.launch(Manifest.permission.RECORD_AUDIO)
+                            }
+                        },
+                    ) { Text(str(R.string.speaker_consent_accept)) }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showSpeakerConsent = false }) {
+                        Text(str(R.string.action_cancel))
+                    }
+                },
             )
         }
 
@@ -304,6 +813,28 @@ fun SettingsScreen(vm: AppViewModel, modifier: Modifier = Modifier) {
                     onClick = { context.startActivity(DeviceState.batterySettingsIntent()) },
                 )
             }
+
+            Divider8()
+            Text(
+                text = str(R.string.settings_backup_title),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                BracketButton(
+                    text = str(R.string.settings_export),
+                    onClick = { exportLauncher.launch(SettingsSnapshotFormat.SUGGESTED_FILE_NAME) },
+                )
+                BracketButton(
+                    text = str(R.string.settings_import),
+                    onClick = { importLauncher.launch(arrayOf("*/*")) },
+                )
+            }
+            Text(
+                text = str(R.string.settings_backup_note),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
 
         // ---------- Diagnostik ----------

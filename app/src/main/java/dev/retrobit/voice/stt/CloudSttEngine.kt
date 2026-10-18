@@ -4,6 +4,7 @@ import dev.retrobit.voice.ai.Http
 import dev.retrobit.voice.core.PcmRecording
 import dev.retrobit.voice.core.Transcript
 import dev.retrobit.voice.core.VoiceLog
+import dev.retrobit.voice.data.ApiKeys
 import dev.retrobit.voice.data.CloudSttProvider
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -66,6 +67,7 @@ class CloudSttEngine(
         val effectiveModel = model.ifBlank {
             if (provider == CloudSttProvider.GROQ) "whisper-large-v3-turbo" else "gpt-4o-mini-transcribe"
         }
+        val key = ApiKeys.sanitize(apiKey)
         val body = MultipartBody.Builder().setType(MultipartBody.FORM)
             .addFormDataPart(
                 "file",
@@ -79,7 +81,7 @@ class CloudSttEngine(
 
         val request = Request.Builder()
             .url("${normalizedBase()}/v1/audio/transcriptions")
-            .addHeader("Authorization", "Bearer $apiKey")
+            .addHeader("Authorization", "Bearer $key")
             .post(body)
             .build()
 
@@ -95,6 +97,7 @@ class CloudSttEngine(
 
     private fun deepgram(recording: PcmRecording, language: String): String {
         val effectiveModel = model.ifBlank { "nova-2" }
+        val key = ApiKeys.sanitize(apiKey)
         val url = "${normalizedBase()}/v1/listen" +
             "?model=$effectiveModel" +
             "&language=${bcp47ToIso639(language)}" +
@@ -102,7 +105,7 @@ class CloudSttEngine(
 
         val request = Request.Builder()
             .url(url)
-            .addHeader("Authorization", "Token $apiKey")
+            .addHeader("Authorization", "Token $key")
             .addHeader("Content-Type", "audio/wav")
             .post(recording.wavFile.readBytes().toRequestBody("audio/wav".toMediaType()))
             .build()
@@ -129,7 +132,8 @@ class CloudSttEngine(
     }.getOrElse { payload.take(500) }
 
     private fun mapCloudError(code: Int, payload: String): String = when (code) {
-        401, 403 -> "API key ditolak ($code). Periksa kembali di Pengaturan."
+        401, 403 -> "API key ditolak ($code). Pastikan key ${provider.name.lowercase()} masih aktif, " +
+            "sesuai penyedia yang dipilih, dan akun punya akses ke model ini. Tempel ulang key di Pengaturan."
         402 -> "Kuota/kredit penyedia habis (402)."
         413 -> "Audio terlalu panjang untuk sekali kirim (413)."
         429 -> "Terlalu banyak permintaan / kuota habis (429). Coba lagi sebentar."

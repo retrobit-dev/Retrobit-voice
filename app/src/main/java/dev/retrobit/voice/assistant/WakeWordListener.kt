@@ -1,158 +1,280 @@
 package dev.retrobit.voice.assistant
 
+import android.Manifest
+import android.annotation.SuppressLint
 import android.content.Context
-import android.content.Intent
-import android.os.Build
-import android.os.Bundle
-import android.speech.RecognitionListener
-import android.speech.RecognizerIntent
-import android.speech.SpeechRecognizer
+import android.content.pm.PackageManager
+import android.media.AudioFormat
+import android.media.AudioRecord
+import android.media.MediaRecorder
+import android.os.SystemClock
+import androidx.core.content.ContextCompat
+import dev.retrobit.voice.R
 import dev.retrobit.voice.core.VoiceLog
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlin.math.sqrt
 
 /**
- * Pemantau kata kunci ("hai retro") berbasis recognizer.
- *
- * PENTING — ini pendekatan hemat biaya pengembangan, bukan sehemat model
- * wake-word khusus seperti Porcupine/snowboy:
- *   - memakai recognizer on-device bila tersedia (Android 12+),
- *   - memakai jeda antar sesi supaya tidak boros baterai,
- *   - mudah dinonaktifkan (bawaan: mati).
- *
- * Untuk produksi disarankan mengganti ke model KWS khusus; seluruh kode lain
- * tidak perlu berubah karena hanya bergantung pada [onWake].
+ * Personalized on-device wake-word monitor. It reads short PCM frames with AudioRecord and
+ * compares local speech embeddings against an enrolled phrase profile; it never starts
+ * SpeechRecognizer or requests audio focus.
  */
 class WakeWordListener(
     private val context: Context,
     private val phrase: String,
+    private val kws: LocalWakeWordKws,
     private val onWake: (String) -> Unit,
     private val onStateChange: (String) -> Unit = {},
+    private val onTerminated: (WakeWordListener) -> Unit = {},
+    /** Stop holding the microphone while dictation, assistant speech input, or enrollment is active. */
+    private val isYielded: () -> Boolean = { false },
 ) {
-
     private var job: Job? = null
-    private var recognizer: SpeechRecognizer? = null
 
     @Volatile
     private var running = false
 
-    private val normalizedPhrase: String = normalize(phrase)
+    @Volatile
+    private var activeRecord: AudioRecord? = null
 
-    fun start(scope: CoroutineScope, language: String, preferOnDevice: Boolean = true) {
+    private val normalizedPhrase = WakeWordAudioFeatures.normalizePhrase(phrase)
+
+    fun start(scope: CoroutineScope) {
         if (running) return
+        if (normalizedPhrase.isBlank()) {
+            onStateChange(context.getString(R.string.wake_word_phrase_empty))
+            onTerminated(this)
+            return
+        }
+        if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+            onStateChange(context.getString(R.string.wake_word_microphone_required))
+            onTerminated(this)
+            return
+        }
+
         running = true
+        val previousJob = job
         job = scope.launch {
-            onStateChange("Menunggu kata kunci \"$phrase\"")
+            previousJob?.cancelAndJoin()
+            onStateChange(context.getString(R.string.wake_word_model_loading))
             while (isActive && running) {
-                val heard = listenOnce(language, preferOnDevice)
-                if (!running) break
-                if (heard != null) {
-                    val normalized = normalize(heard)
-                    if (normalized.contains(normalizedPhrase)) {
-                        VoiceLog.i("Wake word terdeteksi: $heard")
-                        onWake(heard)
-                    }
+                if (isYielded()) {
+                    delay(YIELD_POLL_MS)
+                    continue
                 }
-                // Jeda kecil supaya mikrofot tidak "menempel" terus-menerus.
-                delay(RESTART_DELAY_MS)
+                try {
+                    kws.prepare()
+                    val profile = kws.profileForPhrase(normalizedPhrase)
+                    if (profile == null) {
+                        running = false
+                        onStateChange(context.getString(R.string.wake_word_profile_missing))
+                        onTerminated(this@WakeWordListener)
+                        return@launch
+                    }
+                    if (isYielded()) {
+                        delay(YIELD_POLL_MS)
+                        continue
+                    }
+                    onStateChange(context.getString(R.string.wake_word_listener_active, phrase))
+                    val detected = listenForWake(profile)
+                    if (detected || !running) break
+                    delay(if (isYielded()) YIELD_POLL_MS else RESTART_DELAY_MS)
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (error: Throwable) {
+                    VoiceLog.e("Detektor lokal wake word gagal", error)
+                    if (
+                        ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) !=
+                        PackageManager.PERMISSION_GRANTED
+                    ) {
+                        running = false
+                        onStateChange(context.getString(R.string.wake_word_microphone_required))
+                        onTerminated(this@WakeWordListener)
+                        return@launch
+                    }
+                    onStateChange(context.getString(R.string.wake_word_listener_error))
+                    delay(ERROR_RETRY_DELAY_MS)
+                }
             }
         }
     }
 
     fun stop() {
         running = false
-        job?.cancel()
+        stopActiveRecord()
+        val activeJob = job
         job = null
-        runCatching { recognizer?.cancel() }
-        runCatching { recognizer?.destroy() }
-        recognizer = null
-        onStateChange("Pemantau kata kunci berhenti")
+        activeJob?.cancel()
+        onStateChange(context.getString(R.string.wake_word_listener_stopped))
     }
 
-    private suspend fun listenOnce(language: String, preferOnDevice: Boolean): String? =
-        withContext(Dispatchers.Main) {
-            if (!SpeechRecognizer.isRecognitionAvailable(context)) return@withContext null
-            val useOnDevice = preferOnDevice &&
-                Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
-                SpeechRecognizer.isOnDeviceRecognitionAvailable(context)
+    /** Stop capture and wait until AudioRecord is released on its worker coroutine. */
+    suspend fun stopAndJoin() {
+        running = false
+        stopActiveRecord()
+        val activeJob = job
+        activeJob?.cancelAndJoin()
+        if (job === activeJob) job = null
+        onStateChange(context.getString(R.string.wake_word_listener_stopped))
+    }
 
-            val engine = if (useOnDevice) {
-                SpeechRecognizer.createOnDeviceSpeechRecognizer(context)
-            } else {
-                SpeechRecognizer.createSpeechRecognizer(context)
-            }
-            recognizer = engine
+    @SuppressLint("MissingPermission")
+    private suspend fun listenForWake(profile: WakeWordProfile): Boolean = withContext(Dispatchers.IO) {
+        val minimumBufferBytes = AudioRecord.getMinBufferSize(
+            WakeWordAudioFeatures.SAMPLE_RATE_HZ,
+            AudioFormat.CHANNEL_IN_MONO,
+            AudioFormat.ENCODING_PCM_16BIT,
+        )
+        if (minimumBufferBytes <= 0) throw IllegalStateException("AudioRecord menolak format PCM 16 kHz")
 
-            try {
-                kotlinx.coroutines.suspendCancellableCoroutine<String?> { cont ->
-                    var done = false
-                    fun finish(value: String?) {
-                        if (done) return
-                        done = true
-                        if (cont.isActive) cont.resume(value) {}
-                    }
+        val recorder = AudioRecord.Builder()
+            .setAudioSource(MediaRecorder.AudioSource.VOICE_RECOGNITION)
+            .setAudioFormat(
+                AudioFormat.Builder()
+                    .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
+                    .setSampleRate(WakeWordAudioFeatures.SAMPLE_RATE_HZ)
+                    .setChannelMask(AudioFormat.CHANNEL_IN_MONO)
+                    .build(),
+            )
+            .setBufferSizeInBytes(maxOf(minimumBufferBytes * 2, READ_BUFFER_SAMPLES * 4))
+            .build()
 
-                    engine.setRecognitionListener(object : RecognitionListener {
-                        override fun onReadyForSpeech(params: Bundle?) {}
-                        override fun onBeginningOfSpeech() {}
-                        override fun onRmsChanged(rmsdB: Float) {}
-                        override fun onBufferReceived(buffer: ByteArray?) {}
-                        override fun onEndOfSpeech() {}
-
-                        override fun onPartialResults(partialResults: Bundle?) {
-                            val text = partialResults
-                                ?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
-                                ?.firstOrNull()
-                                .orEmpty()
-                            if (text.isNotBlank() && normalize(text).contains(normalizedPhrase)) {
-                                // Kata kunci muncul di hasil parsial → langsung bangunkan.
-                                onStateChange("Kata kunci terdeteksi")
-                                runCatching { engine.stopListening() }
-                                finish(text)
-                            }
-                        }
-
-                        override fun onResults(results: Bundle?) {
-                            finish(
-                                results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull(),
-                            )
-                        }
-
-                        override fun onError(error: Int) {
-                            finish(null)
-                        }
-
-                        override fun onEvent(eventType: Int, params: Bundle?) {}
-                    })
-
-                    val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-                        putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-                        putExtra(RecognizerIntent.EXTRA_LANGUAGE, language)
-                        putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
-                        putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
-                        putExtra(RecognizerIntent.EXTRA_CALLING_PACKAGE, context.packageName)
-                    }
-                    runCatching { engine.startListening(intent) }.onFailure { finish(null) }
-
-                    cont.invokeOnCancellation { runCatching { engine.cancel() } }
-                }
-            } finally {
-                runCatching { engine.destroy() }
-                recognizer = null
-            }
+        if (recorder.state != AudioRecord.STATE_INITIALIZED) {
+            recorder.release()
+            throw IllegalStateException("AudioRecord wake word tidak dapat diinisialisasi")
         }
 
-    private fun normalize(text: String): String = text.lowercase()
-        .replace(Regex("[^a-z0-9\\s]"), " ")
-        .replace(Regex("\\s+"), " ")
-        .trim()
+        activeRecord = recorder
+        val ring = FloatRingBuffer(WINDOW_SAMPLES)
+        val pcm = ShortArray(READ_BUFFER_SAMPLES)
+        var samplesUntilInference = STEP_SAMPLES
+        var matchingWindows = 0
+        var lastCountedMatchAtMs = 0L
+        var detected = false
+        try {
+            recorder.startRecording()
+            while (running && currentCoroutineContext().isActive) {
+                if (isYielded()) break
+                val read = recorder.read(pcm, 0, pcm.size, AudioRecord.READ_BLOCKING)
+                if (read == AudioRecord.ERROR_DEAD_OBJECT) throw IllegalStateException("AudioRecord wake word terputus")
+                if (read < 0) throw IllegalStateException("AudioRecord read() gagal: $read")
+                if (read == 0) continue
+
+                ring.append(pcm, read)
+                samplesUntilInference -= read
+                if (samplesUntilInference > 0) continue
+                samplesUntilInference += STEP_SAMPLES
+                if (ring.samplesReceived < WakeWordAudioFeatures.MIN_MODEL_SAMPLES) continue
+
+                val window = ring.snapshot()
+                if (WakeWordAudioFeatures.rms(window) < MIN_WINDOW_RMS) {
+                    matchingWindows = 0
+                    continue
+                }
+                val distance = try {
+                    kws.distanceToProfile(window, profile)
+                } catch (_: WakeWordAudioFeatures.InvalidAudioException) {
+                    null
+                }
+                if (!running || !currentCoroutineContext().isActive) break
+                val now = SystemClock.elapsedRealtime()
+                if (distance != null && distance <= MATCH_THRESHOLD) {
+                    val gapSinceCountedMatch = now - lastCountedMatchAtMs
+                    when {
+                        matchingWindows == 0 || gapSinceCountedMatch > MAX_CONFIRMATION_GAP_MS -> {
+                            matchingWindows = 1
+                            lastCountedMatchAtMs = now
+                        }
+                        gapSinceCountedMatch >= MIN_CONFIRMATION_SPACING_MS -> {
+                            matchingWindows += 1
+                            lastCountedMatchAtMs = now
+                        }
+                        // Ignore near-duplicate, highly overlapping sliding windows.
+                    }
+                    if (matchingWindows >= REQUIRED_MATCHING_WINDOWS) {
+                        detected = true
+                        VoiceLog.i(
+                            "Wake word lokal cocok dengan profil " +
+                                "(jarak=${"%.3f".format(distance)}, konfirmasi=$matchingWindows)",
+                        )
+                        running = false
+                        break
+                    }
+                } else {
+                    matchingWindows = 0
+                    lastCountedMatchAtMs = 0L
+                }
+            }
+        } finally {
+            if (activeRecord === recorder) activeRecord = null
+            runCatching {
+                if (recorder.recordingState == AudioRecord.RECORDSTATE_RECORDING) recorder.stop()
+            }
+            recorder.release()
+        }
+
+        if (detected) {
+            withContext(Dispatchers.Main.immediate) {
+                onStateChange(context.getString(R.string.wake_word_detected))
+                onWake(phrase)
+            }
+        }
+        detected
+    }
+
+    private fun stopActiveRecord() {
+        activeRecord?.let { record ->
+            runCatching {
+                if (record.recordingState == AudioRecord.RECORDSTATE_RECORDING) record.stop()
+            }
+        }
+    }
+
+    private class FloatRingBuffer(private val capacity: Int) {
+        private val values = FloatArray(capacity)
+        private var writeIndex = 0
+
+        var samplesReceived: Long = 0
+            private set
+
+        fun append(samples: ShortArray, count: Int) {
+            for (index in 0 until count) {
+                values[writeIndex] = samples[index].toFloat() / 32768f
+                writeIndex = (writeIndex + 1) % capacity
+            }
+            samplesReceived += count
+        }
+
+        fun snapshot(): FloatArray {
+            val result = FloatArray(capacity)
+            val first = writeIndex
+            val firstPart = capacity - first
+            values.copyInto(result, 0, first, capacity)
+            if (first > 0) values.copyInto(result, firstPart, 0, first)
+            return result
+        }
+    }
 
     private companion object {
-        const val RESTART_DELAY_MS = 400L
+        const val READ_BUFFER_SAMPLES = 1_600 // 100 ms.
+        const val WINDOW_SAMPLES = WakeWordAudioFeatures.SAMPLE_RATE_HZ * 2
+        const val STEP_SAMPLES = WakeWordAudioFeatures.SAMPLE_RATE_HZ / 4 // 250 ms.
+        const val MIN_WINDOW_RMS = 0.0025f
+        const val MATCH_THRESHOLD = 0.14f
+        const val REQUIRED_MATCHING_WINDOWS = 3
+        const val MIN_CONFIRMATION_SPACING_MS = 500L
+        const val MAX_CONFIRMATION_GAP_MS = 1_500L
+        const val RESTART_DELAY_MS = 250L
+        const val ERROR_RETRY_DELAY_MS = 2_000L
+        const val YIELD_POLL_MS = 500L
     }
 }

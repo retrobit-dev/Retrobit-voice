@@ -9,7 +9,7 @@ Retrobit Voice menggabungkan dua hal yang biasanya terpisah:
 | Bagian | Meniru | Yang Anda dapat |
 | --- | --- | --- |
 | **Mode Dikte** | Wispr Flow | Ucapan langsung menjadi teks rapi di aplikasi apa pun — WhatsApp, Gmail, Notes, kolom pencarian |
-| **Mode Asisten** | Google Assistant | "Buka WhatsApp", "telepon Ibu", "alarm jam 5 pagi", "timer 10 menit", "nyalakan senter", dan tanya-jawab bebas |
+| **Mode Asisten** | Google Assistant | "Buka WhatsApp", "telepon Ibu", "jam berapa sekarang", "baterai tersisa berapa", "cuaca di Jepara", "mulai dikte", "ketik halo", dan tanya-jawab bebas |
 
 Dirancang **offline-first**: dikte dan puluhan perintah tetap jalan tanpa internet, lalu meningkat otomatis kalau Anda memasukkan API key milik Anda sendiri (BYOK).
 
@@ -18,32 +18,45 @@ Dirancang **offline-first**: dikte dan puluhan perintah tetap jalan tanpa intern
 ## Fitur utama
 
 ### Dikte (Wispr Flow style)
-- **Keyboard Retrobit** — IME khusus dengan tombol mikrofon; hasil bicara langsung masuk ke kolom yang aktif.
-- **Bubble melayang** — tombol mikrofon selalu tersedia di atas aplikasi lain (ketuk = dikte, tekan lama = asisten).
-- **Tempel otomatis lewat aksesibilitas** — teks menempel sendiri tanpa perlu membuka keyboard. Kalau tidak diaktifkan, teks otomatis disalin ke papan klip.
+- **Keyboard Retrobit** — IME khusus dengan tombol mikrofon; hasil bicara langsung masuk di posisi kursor.
+- **Bubble melayang kontekstual** — muncul saat kolom teks fokus (ketuk = dikte hands-free dengan waveform dan auto-stop hening, tekan lama = asisten).
+- **Overlay pratinjau dikte opsional** — dapat mulai tanpa kolom teks fokus, menampilkan teks parsial/hasil, dan menyediakan Salin; hasil tidak ditempel otomatis tanpa target teks.
+- **Sisipkan langsung lewat aksesibilitas** — bubble memasukkan hasil ke kursor tanpa clipboard. Jika jalur langsung tidak tersedia, Retrobit melaporkan kegagalan alih-alih menyalin diam-diam.
+- **Filter speaker lokal opsional** — setelah persetujuan dan enrolmen tiga sampel, model ECAPA memeriksa rekaman sebelum STT. Template disimpan terenkripsi; sampel mentah dihapus. Filter probabilistik ini bukan kunci keamanan: salah tolak/terima dan rekaman ulang/tiruan tetap mungkin.
 - **Mesin STT hybrid** — satu rekaman dicoba berurutan:
   1. **on-device** (Google recognizer, Android 12+, privat & gratis),
   2. **cloud** (OpenAI / Groq / Deepgram) kalau langkah pertama gagal,
   3. pesan diagnostik jelas kalau keduanya gagal.
 - **Pembersihan teks dua tingkat** — aturan lokal (buang "eee/emm/anu", perbaiki tanda baca, huruf besar) atau LLM untuk hasil yang lebih natural.
 - **Auto-stop saat berhenti bicara** — detektor aktivitas suara (VAD) dengan noise floor adaptif.
-- **Pemicu tombol volume** — tahan tombol volume untuk merekam (lepas = selesai, volume tidak ikut berubah)
-  atau, di mode auto-stop, tekan sekali untuk mulai/berhenti. Butuh layanan aksesibilitas karena hanya
-  jalur itu yang bisa membaca peristiwa tombol volume.
+- **Pintasan tombol volume** — tahan Volume Atas sekitar 0,7 detik untuk asisten/voice command; tahan Volume Bawah untuk mulai dikte dan lepas untuk selesai. Ketukan singkat tetap menaikkan/menurunkan volume. Masing-masing pintasan dapat diaktifkan di Pengaturan dan memerlukan aksesibilitas.
+- **Wake word membuka asisten** — setiap kali terdeteksi, overlay/sesi asisten langsung siap mendengar perintah, termasuk saat kolom teks sedang fokus; wake word tidak pernah dialihkan menjadi dikte.
+- **Audio saat popup asisten** — popup meminta fokus audio sementara eksklusif selama tampil agar pemutar lain berhenti; fokus dilepas saat popup ditutup supaya pemutar yang mengikuti Android Audio Focus bisa melanjutkan.
 - Pemicu tile **Pengaturan Cepat** Android.
 
 ### Asisten (Google Assistant style)
-- **Kaskade cerdas**: aturan lokal → LLM (opsional) → fallback pencarian web. Artinya asisten tetap berguna tanpa API key.
-- Perintah yang dikenali secara offline: buka aplikasi, cari di web/YouTube/Maps/Tokopedia, telepon kontak atau nomor, alarm, timer, kirim pesan WhatsApp/SMS, catatan, senter, volume, dan buka panel pengaturan sistem.
-- **Bisa dipilih sebagai asisten digital bawaan** (`VoiceInteractionService`) — tekan lama tombol Home langsung mendengarkan.
-- **Kata kunci panggilan** opsional ("hai retro"), dengan catatan baterai yang jujur di pengaturan.
-- Jawaban dibacakan dengan TTS bawaan Android.
+- **Pahami konteks dahulu**: aturan lokal → LLM opsional. Asisten tidak membuka browser untuk kalimat yang belum dipahami; pencarian web hanya dijalankan atas perintah eksplisit seperti “cari …”.
+- Perintah yang dikenali secara offline: buka aplikasi/pengaturan, cari di web (atas perintah), telepon biasa, draf pesan, alarm, timer, catatan, senter, volume, kecerahan, Jangan Ganggu, Bluetooth, waktu/tanggal lokal, dan status baterai. Ucapkan “bantuan” untuk daftar kemampuan. Kecerahan dan Jangan Ganggu memerlukan akses khusus Android; Bluetooth membuka Pengaturan untuk dikonfirmasi pengguna; menjawab panggilan memerlukan izin Telepon.
+- **Kontrol media sesuai konteks layar** — saat opt-in konteks layar aktif dan YouTube/pemutar media sedang terbuka, perintah singkat seperti “mainkan”, “jeda”, “berikutnya”, dan “sebelumnya” dikirim ke sesi media Android yang aktif, bukan ke browser.
+- **Cuaca terkini** — ucapkan “cuaca di Jepara” atau sebutkan kota lain. Data Open-Meteo diambil lewat internet; nama kota dikirim ke layanan geocoding cuaca dan Retrobit tidak meminta GPS.
+- **Ketik & dikte ke kolom aktif** — “Ketik halo, apa kabar” menyisipkan teks persis di posisi kursor. Ucapkan “dikte” atau “mulai dikte” untuk merekam ucapan berikutnya; hasil masuk ke posisi kursor/seleksi aktif. Kolom teks perlu tetap fokus.
+- **Konteks layar opt-in** — satu snapshot dibaca untuk memahami permintaan layar/media saat opt-in aktif. Perintah media sederhana diproses lokal; snapshot hanya dikirim ke LLM pilihan jika diperlukan untuk memahami permintaan kontekstual yang lebih rumit. Teks layar tidak disimpan di riwayat.
+- **Kontak WhatsApp** — Retrobit dapat mencari di buku alamat Android setelah izin Kontak diberikan dan membuka chat WhatsApp. Daftar internal WhatsApp tidak bisa dibaca langsung; pesan tetap harus diperiksa dan dikirim oleh pengguna. Panggilan suara WhatsApp harus dimulai dengan menekan tombol telepon di WhatsApp.
+- **Aksi telepon dan pesan perlu konfirmasi eksplisit** — panggilan seluler keluar (`CallContact`/`Dial`), menjawab panggilan masuk, dan menyiapkan draf pesan hanya berjalan setelah jawaban “ya” atau persetujuan tombol. “Batal” membatalkan aksi yang menunggu; jawaban yang tidak jelas tidak menjalankan aksi. Pengiriman akhir pesan tetap memerlukan tap Kirim di aplikasi tujuan.
+- **Perintah universal** — “ulangi”/“repeat” membacakan jawaban terakhir tanpa mengulang aksinya; “batal” membatalkan konfirmasi yang menunggu. “Stop”/“berhenti” tetap mengikuti konteks, termasuk menghentikan media.
+- **Bisa dipilih sebagai asisten digital bawaan** (`VoiceInteractionService`) — tekan lama tombol Home langsung mendengarkan dan mengucapkan prompt siap.
+- **Wake word lokal-personal** opsional (default: “hai retro”). Enrolmen satu kali merekam tiga contoh frasa; model embedding + pencocokan urutan berjalan di perangkat, tanpa sesi SpeechRecognizer pasif atau unggahan audio. `AudioRecord` tidak meminta fokus audio, sehingga pemantauan pasif tidak menjeda media. Profil fitur suara dienkripsi dengan Android Keystore; WAV mentah dihapus. Deteksi terutama ditujukan untuk suara yang direkam dan dapat kurang andal di lingkungan bising dibanding asisten sistem. Wake word selalu membuka overlay asisten, bukan dikte; overlay tetap meminta fokus audio eksklusif untuk menjeda media dan melepasnya saat ditutup.
+- **TTS bawaan Android** — pilih dan pratinjau suara yang tersedia dari mesin sistem, lalu atur pitch dan kecepatan (default mengikuti suara sistem, nilai 1,0; rentang 0,6–1,6).
+- Saat sesi suara dimulai, asisten mengucapkan “Saya siap.” sebelum mendengar. Jika prompt TTS gagal, sesi mendengar dibatalkan. Jeda hening perintah asisten dapat diatur terpisah dari jeda dikte (default 3 detik, rentang 0,5–5 detik).
 
 ### Privasi
 - API key disimpan **terenkripsi** dengan Android Keystore.
 - Audio **dihapus segera** setelah transkripsi.
 - Riwayat hanya tersimpan di perangkat, bisa dimatikan sekali sentuh — tidak ada server milik proyek ini.
-- Tidak ada analytics, tidak ada iklan, tidak ada pengiriman data diam-diam.
+- Akses konteks layar **mati secara bawaan**; bila diaktifkan, snapshot hanya diteruskan ke LLM pilihan jika diperlukan untuk memahami permintaan layar/kontekstual, dan tidak disimpan di riwayat. Aksi media yang dikenali diproses lokal.
+- Cuaca hanya dicari setelah diminta; hanya nama kota yang diucapkan dikirim ke Open-Meteo. Retrobit tidak mengakses lokasi GPS untuk cuaca.
+- Filter speaker dan wake word personal bersifat opt-in. Templat fitur dienkripsi dengan Android Keystore, dikecualikan dari backup Android/ekspor setelan, dan tidak dikirim ke STT. Sampel WAV enrolmen mentah dihapus setelah diproses. Audio perintah asisten yang direkam setelah overlay terbuka tetap mengikuti mesin STT yang dipilih.
+- Tidak ada analytics, tidak ada iklan, tidak ada pengiriman data diam-diam. Pesan tidak pernah dikirim tanpa konfirmasi dan tap Kirim di aplikasi tujuan.
 
 ---
 
@@ -82,8 +95,8 @@ Anda ──►│ Keyboard / │ ───────────────�
                                                                                    │ pembersihan
                                             ┌──────────────┐   penempelan   ┌─────▼───────┐
                                             │ WhatsApp,    │ ◄──────────────│ Teks rapi   │
-                                            │ Gmail, dll.  │  IME / a11y /  └─────────────┘
-                                            └──────────────┘  clipboard
+                                            │ Gmail, dll.  │  IME / a11y    └─────────────┘
+                                            └──────────────┘  langsung
 ```
 
 ---
@@ -97,15 +110,23 @@ Anda ──►│ Keyboard / │ ───────────────�
 3. Unduh:
    - **`app-release.apk`** (±1,5 MB) — versi rilis, sudah diminifikasi & ditandatangani. **Pakai ini.**
    - `app-debug.apk` (±10 MB) — versi debug, untuk melaporkan masalah dengan log lengkap.
-4. Buka berkas di ponsel → izinkan "Instal dari sumber tidak dikenal" bila diminta.
+4. **Uninstall versi lama lebih dulu**, lalu buka berkas di ponsel → izinkan "Instal dari sumber tidak dikenal" bila diminta.
 
 Release dibuat otomatis oleh CI setiap kali `main` diperbarui, jadi tidak perlu login untuk mengunduh.
 
-**Alternatif (butuh login GitHub):** tab **Actions** → workflow **Build APK** → **Artifacts**.
+**Alternatif (butuh login GitHub):** tab **Actions** → workflow **Build APK** → pilih run terbaru → **Artifacts**. Pada pull request tersedia juga artifact `retrobit-voice-release` untuk kandidat rilis yang sudah ditandatangani dan diverifikasi.
 
-> APK rilis untuk versi resmi dibuat lewat tag `v*` dan ditandatangani dengan keystore dari
-> GitHub Secrets (`KEYSTORE_PATH`, `KEYSTORE_PASSWORD`, `KEY_ALIAS`, `KEY_PASSWORD`).
-> Kalau secret belum diisi, CI memakai kunci uji — cukup untuk dipasang, tidak untuk Play Store.
+> ⚠️ **Setiap build ditandatangani kunci sekali pakai.** Repositori ini tidak menyimpan keystore
+> permanen, jadi tanda tangan APK berbeda di tiap build dan Android **menolak** pemasangan yang
+> menimpa versi lama (`INSTALL_FAILED_UPDATE_INCOMPATIBLE`) — uninstall selalu diperlukan.
+>
+> Karena uninstall juga menghapus setelan, riwayat, dan API key (kunci penyimpanan ikut terhapus),
+> jalankan **Pengaturan → Cadangan setelan → Ekspor** sebelum mengganti versi, lalu **Impor**
+> setelah versi baru terpasang. Berkas cadangan memuat API key dalam bentuk teks biasa — simpan
+> di tempat aman.
+>
+> Konsekuensi lain dari keputusan ini: jalur **Play Store tertutup** selama tidak ada keystore
+> tetap, karena unggahan ke Play wajib ditandatangani kunci yang Anda simpan sendiri.
 
 ## Cara build
 
@@ -115,11 +136,15 @@ Butuh **Android Studio Ladybug (2024.2)** atau lebih baru, JDK 17, dan Android S
 git clone https://github.com/retrobit-dev/Retrobit-voice.git
 cd Retrobit-voice
 ./gradlew assembleDebug          # APK: app/build/outputs/apk/debug/
-./gradlew testDebugUnitTest      # uji parser & pembersih teks (JVM, tanpa emulator)
+./gradlew testDebugUnitTest      # uji parser, pembersih teks, cadangan setelan (JVM, tanpa emulator)
+./gradlew lintDebug              # temuan bertingkat error menggagalkan build
+./gradlew assembleRelease        # perlu KEYSTORE_PATH + password/alias untuk APK rilis bertanda tangan
+python3 tools/verify_project.py  # pemeriksa konsistensi resource/manifest (tanpa Android SDK)
 ```
 
-CI GitHub Actions (`.github/workflows/build.yml`) otomatis menjalankan unit test dan menghasilkan APK debug setiap push.
-Tag `v*` juga membangun APK rilis dan melampirkannya ke GitHub Release.
+`assembleRelease` lokal tanpa `KEYSTORE_PATH` menghasilkan APK unsigned yang Android biasanya tolak. Gunakan kandidat rilis bertanda tangan dari artifact CI, atau siapkan keystore Anda sendiri untuk build lokal.
+
+CI GitHub Actions (`.github/workflows/build.yml`) menjalankan unit test, **Lint**, APK debug, dan kandidat APK rilis bertanda tangan pada setiap pull request. Artifact rilis diverifikasi dengan `apksigner`; build resmi di `main`/tag juga mengunggah APK rilis. Push feature branch yang sudah punya PR tidak membangun duplikat; build terbaru membatalkan run lama pada PR yang sama.
 
 > **Catatan sandbox pengembangan:** repositori ini bisa saja belum memuat `gradle/wrapper/gradle-wrapper.jar`.
 > Kalau `./gradlew` menolak jalan, jalankan `gradle wrapper --gradle-version 8.9` sekali (atau buka proyek di
@@ -131,8 +156,8 @@ Tag `v*` juga membangun APK rilis dan melampirkannya ke GitHub Release.
 
 1. **Pilih keyboard Retrobit** — Pengaturan → Sistem → Bahasa & masukan → Keyboard → aktifkan & pilih "Retrobit Voice (Dikte)".
    (Tombol keyboard di bar Retrobit membuka pemilih keyboard, bisa balik kapan saja.)
-2. **Aktifkan layanan aksesibilitas** "Retrobit Voice — tempel otomatis" (menu Aksesibilitas). Ini yang membuat teks menempel sendiri, sekaligus membuka opsi pemicu lewat tombol volume di Pengaturan.
-3. **Izinkan bubble melayang** — "Tampil di atas aplikasi lain".
+2. **Aktifkan layanan aksesibilitas** "Retrobit Voice — sisip otomatis" (menu Aksesibilitas). Layanan ini mendeteksi kolom teks fokus, menyisipkan dikte langsung, dan menyediakan pemicu volume. Pembacaan konteks layar tetap opt-in terpisah.
+3. **Izinkan bubble melayang** — "Tampil di atas aplikasi lain". Bubble hanya muncul saat kolom teks mendapat fokus.
 4. **Opsional: jadikan asisten bawaan** — Pengaturan → Aplikasi → Asisten digital → Retrobit Voice.
 5. **Matikan optimasi baterai** untuk Retrobit supaya rekaman & kata kunci tidak terputus.
 
@@ -169,6 +194,8 @@ app/src/main/java/dev/retrobit/voice/
 ```
 
 Detail arsitektur & keputusan desain: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)
+Filter speaker lokal, privasi, dan atribusi model: [`docs/SPEAKER_VERIFICATION.md`](docs/SPEAKER_VERIFICATION.md)
+Detektor wake word lokal, enrolmen personal, dan atribusi model: [`docs/WAKE_WORD.md`](docs/WAKE_WORD.md)
 Peta izin sistem: [`docs/PERMISSIONS.md`](docs/PERMISSIONS.md)
 Rencana pengembangan: [`docs/ROADMAP.md`](docs/ROADMAP.md)
 

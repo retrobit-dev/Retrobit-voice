@@ -2,17 +2,33 @@ package dev.retrobit.voice.ui
 
 import android.app.Application
 import android.content.Intent
+import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import dev.retrobit.voice.BuildConfig
+import dev.retrobit.voice.R
+import dev.retrobit.voice.assistant.WakeWordAudioFeatures
+import dev.retrobit.voice.assistant.WakeWordService
 import dev.retrobit.voice.core.AppGraph
+import dev.retrobit.voice.core.VoiceLog
 import dev.retrobit.voice.data.AppSettings
+import dev.retrobit.voice.data.InvalidSnapshotException
+import dev.retrobit.voice.data.decodeSettingsSnapshot
+import dev.retrobit.voice.data.describe
+import dev.retrobit.voice.data.encode
+import dev.retrobit.voice.data.toSettings
+import dev.retrobit.voice.data.toSnapshot
 import dev.retrobit.voice.dictation.DictationController
 import dev.retrobit.voice.dictation.DictationService
 import dev.retrobit.voice.dictation.overlay.OverlayBubbleService
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * Satu ViewModel untuk seluruh aplikasi. Aplikasi ini cukup kecil sehingga
@@ -30,6 +46,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     val dictation: StateFlow<DictationController.UiState> = graph.dictation.state
     val assistant: StateFlow<dev.retrobit.voice.assistant.AssistantSession.UiState> = graph.assistant.state
+    val speakerVerification = graph.speakerVerification.state
+    val wakeWordEnrollment = graph.wakeWordEnrollment.state
     val assistantHistory = graph.assistant.history
     val dictationHistory = graph.history.dictation
     val log = MutableStateFlow("")
@@ -39,10 +57,78 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     init {
         viewModelScope.launch { graph.history.load() }
+        viewModelScope.launch { graph.speakerVerification.refresh() }
+        viewModelScope.launch {
+            graph.settings.flow
+                .map { it.wakeWordPhrase }
+                .distinctUntilChanged()
+                .collect { phrase -> graph.wakeWordEnrollment.refresh(phrase) }
+        }
     }
 
     fun update(transform: (AppSettings) -> AppSettings) {
-        viewModelScope.launch { graph.settings.update(transform) }
+        viewModelScope.launch {
+            var wakeWordShouldSync = false
+            var phraseChangedWhileEnabled = false
+            graph.settings.update { current ->
+                val candidate = transform(current)
+                val phraseChanged = WakeWordAudioFeatures.normalizePhrase(current.wakeWordPhrase) !=
+                    WakeWordAudioFeatures.normalizePhrase(candidate.wakeWordPhrase)
+                phraseChangedWhileEnabled = current.wakeWordEnabled && phraseChanged
+                val updated = if (phraseChangedWhileEnabled) candidate.copy(wakeWordEnabled = false) else candidate
+                wakeWordShouldSync = current.wakeWordEnabled != updated.wakeWordEnabled ||
+                    (updated.wakeWordEnabled && phraseChanged)
+                updated
+            }
+            if (phraseChangedWhileEnabled) {
+                _toast.value = getApplication<Application>().getString(R.string.wake_word_phrase_changed)
+                graph.wakeWordEnrollment.cancelEnrollment()
+            }
+            if (wakeWordShouldSync) {
+                graph.assistant.stopWakeWord()
+                synchronizeWakeWordService()
+            }
+        }
+    }
+
+    /** Sinkronkan layanan foreground setelah activity kembali ke depan. */
+    fun syncWakeWordService() {
+        viewModelScope.launch { synchronizeWakeWordService() }
+    }
+
+    private suspend fun synchronizeWakeWordService() {
+        val app = getApplication<Application>()
+        val current = graph.settings.current()
+        if (graph.wakeWordEnrollment.state.value.enrollmentActive) {
+            graph.assistant.stopWakeWord()
+            WakeWordService.stop(app)
+            return
+        }
+        if (!current.wakeWordEnabled) {
+            graph.assistant.stopWakeWord()
+            WakeWordService.stop(app)
+            return
+        }
+        if (!graph.dictation.hasMicrophonePermission()) {
+            graph.settings.update { it.copy(wakeWordEnabled = false) }
+            graph.assistant.stopWakeWord()
+            WakeWordService.stop(app)
+            _toast.value = app.getString(R.string.settings_wake_word_needs_microphone)
+            return
+        }
+        val profileReady = runCatching {
+            graph.wakeWordEnrollment.hasProfileForPhrase(current.wakeWordPhrase)
+        }.onFailure { VoiceLog.e("Profil wake word lokal gagal dibaca", it) }.getOrDefault(false)
+        if (!profileReady) {
+            graph.settings.update { it.copy(wakeWordEnabled = false) }
+            graph.assistant.stopWakeWord()
+            WakeWordService.stop(app)
+            _toast.value = app.getString(R.string.wake_word_profile_required)
+            return
+        }
+        if (!WakeWordService.start(app)) {
+            _toast.value = app.getString(R.string.toast_wake_word_start_failed)
+        }
     }
 
     // ---------------- Dikte ----------------
@@ -57,6 +143,76 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     fun cancelDictation() {
         graph.dictation.cancel()
         DictationService.stop(getApplication())
+    }
+
+    fun beginSpeakerEnrollment() {
+        viewModelScope.launch { graph.speakerVerification.beginEnrollment(consentConfirmed = true) }
+    }
+
+    fun speakerMicrophonePermissionDenied() {
+        graph.speakerVerification.reportMicrophonePermissionRequired()
+    }
+
+    fun captureSpeakerEnrollmentSample() {
+        viewModelScope.launch { graph.speakerVerification.captureEnrollmentSample() }
+    }
+
+    fun cancelSpeakerEnrollment() {
+        viewModelScope.launch(Dispatchers.IO) { graph.speakerVerification.cancelEnrollment() }
+    }
+
+    fun deleteSpeakerEnrollment() {
+        viewModelScope.launch { graph.speakerVerification.deleteEnrollment() }
+    }
+
+    fun beginWakeWordEnrollment(phrase: String) {
+        viewModelScope.launch {
+            graph.wakeWordEnrollment.beginEnrollment(phrase)
+            if (!graph.wakeWordEnrollment.state.value.enrollmentActive) {
+                if (graph.settings.current().wakeWordEnabled) synchronizeWakeWordService()
+            }
+        }
+    }
+
+    fun captureWakeWordSample() {
+        viewModelScope.launch {
+            graph.wakeWordEnrollment.captureEnrollmentSample()
+            if (
+                !graph.wakeWordEnrollment.state.value.enrollmentActive &&
+                graph.settings.current().wakeWordEnabled
+            ) {
+                synchronizeWakeWordService()
+            }
+        }
+    }
+
+    fun cancelWakeWordEnrollment() {
+        viewModelScope.launch {
+            graph.wakeWordEnrollment.cancelEnrollment()
+            if (graph.settings.current().wakeWordEnabled) synchronizeWakeWordService()
+        }
+    }
+
+    fun deleteWakeWordProfile() {
+        viewModelScope.launch {
+            graph.wakeWordEnrollment.deleteProfile()
+            if (graph.settings.current().wakeWordEnabled) {
+                graph.settings.update { it.copy(wakeWordEnabled = false) }
+            }
+            WakeWordService.stop(getApplication())
+        }
+    }
+
+    fun wakeWordMicrophonePermissionDenied() {
+        graph.wakeWordEnrollment.reportMicrophonePermissionRequired()
+    }
+
+    fun setSpeakerVerificationEnabled(enabled: Boolean) {
+        if (enabled && !graph.speakerVerification.state.value.enrolled) {
+            _toast.value = getApplication<Application>().getString(R.string.speaker_profile_missing)
+            return
+        }
+        update { it.copy(speakerVerificationEnabled = enabled) }
     }
 
     fun copyLastResult() {
@@ -88,7 +244,23 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun listenToAssistant() {
-        viewModelScope.launch { graph.assistant.listenAndHandle() }
+        viewModelScope.launch { graph.assistant.listenAndHandle(announceReady = true) }
+    }
+
+    fun confirmPendingAssistantMessage() {
+        viewModelScope.launch { graph.assistant.confirmPendingMessage() }
+    }
+
+    fun cancelPendingAssistantMessage() {
+        viewModelScope.launch { graph.assistant.cancelPendingMessage() }
+    }
+
+    fun confirmPendingPhoneAction() {
+        viewModelScope.launch { graph.assistant.confirmPendingPhoneAction() }
+    }
+
+    fun cancelPendingPhoneAction() {
+        viewModelScope.launch { graph.assistant.cancelPendingPhoneAction() }
     }
 
     fun clearAssistantHistory() {
@@ -110,6 +282,63 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     fun stopOverlayBubble() {
         OverlayBubbleService.stop(getApplication())
         update { it.copy(overlayBubbleEnabled = false) }
+    }
+
+    // ---------------- Cadangan setelan ----------------
+
+    /**
+     * Tulis setelan aktif ke berkas yang dipilih pengguna (lewat SAF).
+     *
+     * Terutama berguna untuk memindahkan API key: kunci Android Keystore ikut
+     * terhapus saat aplikasi di-uninstall, jadi berkas inilah satu-satunya cara
+     * memulihkan setelan tanpa mengetik ulang dari awal.
+     */
+    fun exportSettingsTo(uri: Uri) {
+        viewModelScope.launch {
+            val app = getApplication<Application>()
+            val hasil = runCatching {
+                val current = graph.settings.current()
+                withContext(Dispatchers.IO) {
+                    val text = current.toSnapshot(versionName = BuildConfig.VERSION_NAME).encode()
+                    val out = app.contentResolver.openOutputStream(uri, "wt")
+                        ?: error("Tidak bisa membuka berkas tujuan")
+                    out.use { it.write(text.toByteArray(Charsets.UTF_8)) }
+                }
+            }
+            hasil.exceptionOrNull()?.let { VoiceLog.e("Ekspor setelan gagal", it) }
+            _toast.value = app.getString(
+                if (hasil.isSuccess) R.string.toast_export_done else R.string.toast_export_failed,
+            )
+        }
+    }
+
+    /** Baca berkas cadangan lalu terapkan isinya ke setelan aktif. */
+    fun importSettingsFrom(uri: Uri) {
+        viewModelScope.launch {
+            val app = getApplication<Application>()
+            val hasil = runCatching {
+                val text = withContext(Dispatchers.IO) {
+                    val input = app.contentResolver.openInputStream(uri)
+                        ?: error("Tidak bisa membuka berkas cadangan")
+                    input.use { String(it.readBytes(), Charsets.UTF_8) }
+                }
+                val snapshot = decodeSettingsSnapshot(text)
+                // update() menulis ulang lewat SecretStore, jadi API key dari berkas
+                // otomatis dienkripsi lagi — bukan disimpan mentah.
+                graph.settings.update { current -> snapshot.toSettings(current) }
+                graph.assistant.stopWakeWord()
+                synchronizeWakeWordService()
+                app.getString(R.string.toast_import_done, snapshot.describe())
+            }
+            hasil.exceptionOrNull()?.let { VoiceLog.e("Impor setelan gagal", it) }
+            _toast.value = hasil.getOrElse { t ->
+                if (t is InvalidSnapshotException) {
+                    t.message ?: app.getString(R.string.toast_import_invalid)
+                } else {
+                    app.getString(R.string.toast_import_failed)
+                }
+            }
+        }
     }
 
     // ---------------- Diagnostik ----------------
