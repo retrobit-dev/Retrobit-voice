@@ -147,6 +147,7 @@ private class WakeWordEmbeddingModel(private val context: Context) {
         }
         val inputName = activeSession.inputNames.firstOrNull()
             ?: throw IllegalStateException("Model wake word tidak memiliki input audio")
+        checkNotNull(sessionOptions) { "Opsi sesi ONNX wake word sudah dilepas" }
         EnrollmentCrashCheckpoint.mark(context, "wake-word-example", "creating-onnx-input-tensor")
         val input = OnnxTensor.createTensor(
             environment,

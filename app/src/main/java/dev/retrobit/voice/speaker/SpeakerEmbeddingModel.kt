@@ -145,6 +145,7 @@ class SpeakerEmbeddingModel(context: Context) : AutoCloseable {
             throw SpeakerAudioFeatures.InvalidAudioException("Fitur audio untuk speaker tidak valid")
         }
         val frames = features.size / SpeakerAudioFeatures.FEATURE_BINS
+        checkNotNull(sessionOptions) { "Opsi sesi ONNX speaker sudah dilepas" }
         EnrollmentCrashCheckpoint.mark(appContext, "speaker-profile", "creating-onnx-input-tensor")
         val input = OnnxTensor.createTensor(
             environment,
