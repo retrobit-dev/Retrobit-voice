@@ -1,14 +1,20 @@
 package dev.retrobit.voice.core
 
+import android.app.ActivityManager
+import android.app.ApplicationExitInfo
 import android.content.Context
+import android.os.Build
 import android.util.AtomicFile
 import android.util.Log
+import androidx.annotation.RequiresApi
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.withContext
+import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.FileNotFoundException
 import java.io.FileOutputStream
+import java.io.InputStream
 import java.util.Locale
 
 /**
@@ -20,6 +26,9 @@ object EnrollmentCrashCheckpoint {
     private const val CHECKPOINT_FILE = "voice-enrollment-checkpoint.txt"
     private const val FATAL_FILE = "voice-enrollment-fatal.txt"
     private const val MAX_FATAL_TRACE_CHARS = 8_192
+    private const val MAX_NATIVE_TRACE_BYTES = 64 * 1_024
+    private const val MAX_NATIVE_TRACE_SUMMARY_CHARS = 1_600
+    private const val MAX_CHECKPOINT_AGE_MS = 7L * 24L * 60L * 60L * 1_000L
     private val lock = Any()
 
     suspend fun mark(context: Context, feature: String, stage: String) {
@@ -71,6 +80,110 @@ object EnrollmentCrashCheckpoint {
     }
 
     fun consumeFatalException(context: Context): String? = consumeRecord(context, FATAL_FILE)
+
+    /** Read Android's exit record before consuming the enrollment checkpoint. */
+    fun consumePreviousProcessExit(context: Context): String? {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return null
+        val checkpointTimestamp = readCheckpointTimestamp(context) ?: return null
+        if (System.currentTimeMillis() - checkpointTimestamp > MAX_CHECKPOINT_AGE_MS) return null
+
+        return runCatching {
+            val activityManager = context.getSystemService(Context.ACTIVITY_SERVICE) as? ActivityManager
+                ?: return@runCatching null
+            val exit = activityManager.getHistoricalProcessExitReasons(context.packageName, 0, 10)
+                .filter { it.processName == context.packageName && it.timestamp >= checkpointTimestamp }
+                .maxByOrNull { it.timestamp }
+                ?: return@runCatching null
+            val reason = exitReasonName(exit.reason)
+            val signal = if (
+                exit.reason == ApplicationExitInfo.REASON_CRASH_NATIVE ||
+                exit.reason == ApplicationExitInfo.REASON_SIGNALED
+            ) signalName(exit.status) else null
+            val trace = if (
+                Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
+                exit.reason == ApplicationExitInfo.REASON_CRASH_NATIVE
+            ) {
+                runCatching { exit.traceInputStream?.use(::summarizeNativeTrace) }.getOrNull()
+            } else {
+                null
+            }
+            buildString {
+                append("reason=").append(reason)
+                append(" status=").append(exit.status)
+                if (signal != null) append(" signal=").append(signal)
+                append(" pssKb=").append(exit.pss)
+                append(" rssKb=").append(exit.rss)
+                if (trace != null) append(' ').append(trace)
+            }
+        }.onFailure { Log.w(VoiceLog.TAG, "Tidak dapat membaca alasan proses enrolmen berhenti", it) }
+            .getOrNull()
+    }
+
+    private fun readCheckpointTimestamp(context: Context): Long? = runCatching {
+        synchronized(lock) {
+            try {
+                atomicFile(context, CHECKPOINT_FILE).openRead().bufferedReader(Charsets.UTF_8).use { reader ->
+                    reader.readLine()?.substringBefore('|')?.toLongOrNull()
+                }
+            } catch (_: FileNotFoundException) {
+                null
+            }
+        }
+    }.onFailure { Log.w(VoiceLog.TAG, "Tidak dapat membaca waktu checkpoint enrolmen", it) }
+        .getOrNull()
+
+    @RequiresApi(Build.VERSION_CODES.R)
+    private fun exitReasonName(reason: Int): String = when (reason) {
+        ApplicationExitInfo.REASON_CRASH_NATIVE -> "CRASH_NATIVE"
+        ApplicationExitInfo.REASON_CRASH -> "CRASH"
+        ApplicationExitInfo.REASON_ANR -> "ANR"
+        ApplicationExitInfo.REASON_LOW_MEMORY -> "LOW_MEMORY"
+        ApplicationExitInfo.REASON_USER_REQUESTED -> "USER_REQUESTED"
+        ApplicationExitInfo.REASON_SIGNALED -> "SIGNALED"
+        else -> "REASON_$reason"
+    }
+
+    private fun signalName(signal: Int): String = when (signal) {
+        4 -> "SIGILL"
+        6 -> "SIGABRT"
+        7 -> "SIGBUS"
+        9 -> "SIGKILL"
+        11 -> "SIGSEGV"
+        else -> "SIGNAL_$signal"
+    }
+
+    private fun summarizeNativeTrace(input: InputStream): String {
+        val output = ByteArrayOutputStream()
+        val buffer = ByteArray(2_048)
+        while (output.size() < MAX_NATIVE_TRACE_BYTES) {
+            val count = input.read(buffer, 0, minOf(buffer.size, MAX_NATIVE_TRACE_BYTES - output.size()))
+            if (count <= 0) break
+            output.write(buffer, 0, count)
+        }
+        val trace = output.toByteArray()
+        val fragments = mutableListOf<String>()
+        val current = StringBuilder()
+        fun flushFragment() {
+            if (current.length >= 4) fragments += current.toString()
+            current.setLength(0)
+        }
+        trace.forEach { byte ->
+            val value = byte.toInt() and 0xff
+            if (value in 32..126) current.append(value.toChar()) else flushFragment()
+        }
+        flushFragment()
+        val usefulFragments = fragments
+            .filter { fragment ->
+                val lower = fragment.lowercase(Locale.ROOT)
+                listOf("onnx", "mlas", "sig", "libc", "libart", "arm", "fault", "abort", "retrobit")
+                    .any { lower.contains(it) }
+            }
+            .distinct()
+            .take(24)
+            .joinToString(" | ")
+            .take(MAX_NATIVE_TRACE_SUMMARY_CHARS)
+        return "tombstoneBytes=${trace.size}" + usefulFragments.takeIf { it.isNotBlank() }?.let { " trace=$it" }.orEmpty()
+    }
 
     private fun consumeRecord(context: Context, fileName: String): String? = runCatching {
         synchronized(lock) {

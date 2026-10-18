@@ -7,6 +7,7 @@ import android.content.Context
 import dev.retrobit.voice.core.EnrollmentCrashCheckpoint
 import dev.retrobit.voice.core.VoiceLog
 import dev.retrobit.voice.core.toDirectNativeFloatBuffer
+import dev.retrobit.voice.core.useConservativeCpuMode
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -130,10 +131,10 @@ private class WakeWordEmbeddingModel(private val context: Context) {
     private fun createSession(file: File): OrtSession {
         val options = OrtSession.SessionOptions()
         return try {
-            options.setIntraOpNumThreads(1)
-            options.setInterOpNumThreads(1)
+            options.useConservativeCpuMode()
             environment.createSession(file.absolutePath, options).also {
                 sessionOptions = options
+                VoiceLog.i("Sesi wake-word memakai ONNX Runtime ${environment.version} dengan mode CPU kompatibel")
             }
         } catch (error: Throwable) {
             options.close()

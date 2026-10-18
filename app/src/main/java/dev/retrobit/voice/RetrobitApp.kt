@@ -21,6 +21,9 @@ class RetrobitApp : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        EnrollmentCrashCheckpoint.consumePreviousProcessExit(this)?.let { previousExit ->
+            VoiceLog.w("Alasan proses berhenti saat enrolmen: $previousExit")
+        }
         EnrollmentCrashCheckpoint.consumeFatalException(this)?.let { previousFatal ->
             VoiceLog.e("Stack trace crash enrolmen sebelumnya (pesan exception tidak disimpan):\n$previousFatal")
         }
