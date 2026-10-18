@@ -4,7 +4,9 @@ import ai.onnxruntime.OnnxTensor
 import ai.onnxruntime.OrtEnvironment
 import ai.onnxruntime.OrtSession
 import android.content.Context
+import dev.retrobit.voice.core.EnrollmentCrashCheckpoint
 import dev.retrobit.voice.core.VoiceLog
+import dev.retrobit.voice.core.toDirectNativeFloatBuffer
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -12,7 +14,6 @@ import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
-import java.nio.FloatBuffer
 import java.security.MessageDigest
 
 /** Local personal wake-word matching backed by Google's small speech-embedding ONNX model. */
@@ -60,10 +61,17 @@ private class WakeWordEmbeddingModel(private val context: Context) {
     }
 
     suspend fun extractSpeech(samples: FloatArray): WakeWordEmbeddingSequence {
+        EnrollmentCrashCheckpoint.mark(context, "wake-word-example", "trimming-speech")
         val speech = withContext(Dispatchers.Default) { WakeWordAudioFeatures.trimSpeech(samples) }
+        EnrollmentCrashCheckpoint.mark(context, "wake-word-example", "waiting-for-onnx-session")
         val activeSession = ensureSession()
         return withContext(Dispatchers.Default) {
-            inferenceMutex.withLock { runInference(activeSession, speech) }
+            inferenceMutex.lock()
+            try {
+                runInference(activeSession, speech)
+            } finally {
+                inferenceMutex.unlock()
+            }
         }
     }
 
@@ -126,20 +134,23 @@ private class WakeWordEmbeddingModel(private val context: Context) {
         }
     }
 
-    private fun runInference(activeSession: OrtSession, speech: FloatArray): WakeWordEmbeddingSequence {
+    private suspend fun runInference(activeSession: OrtSession, speech: FloatArray): WakeWordEmbeddingSequence {
         if (speech.size < WakeWordAudioFeatures.MIN_MODEL_SAMPLES || speech.any { !it.isFinite() }) {
             throw WakeWordAudioFeatures.InvalidAudioException("Durasi audio wake word tidak cukup")
         }
         val inputName = activeSession.inputNames.firstOrNull()
             ?: throw IllegalStateException("Model wake word tidak memiliki input audio")
+        EnrollmentCrashCheckpoint.mark(context, "wake-word-example", "creating-onnx-input-tensor")
         val input = OnnxTensor.createTensor(
             environment,
-            FloatBuffer.wrap(speech),
+            speech.toDirectNativeFloatBuffer(),
             longArrayOf(1L, speech.size.toLong()),
         )
         try {
+            EnrollmentCrashCheckpoint.mark(context, "wake-word-example", "running-onnx-session")
             val output = activeSession.run(mapOf(inputName to input))
             try {
+                EnrollmentCrashCheckpoint.mark(context, "wake-word-example", "reading-onnx-output")
                 val flattened = ArrayList<Float>()
                 flatten(output[0].value, flattened)
                 val dimension = WakeWordAudioFeatures.EMBEDDING_DIMENSION
@@ -164,6 +175,7 @@ private class WakeWordEmbeddingModel(private val context: Context) {
                         normalized[offset + feature] = flattened[offset + feature] / magnitude
                     }
                 }
+                EnrollmentCrashCheckpoint.mark(context, "wake-word-example", "onnx-output-normalized")
                 return WakeWordEmbeddingSequence(frameCount, normalized)
             } finally {
                 output.close()

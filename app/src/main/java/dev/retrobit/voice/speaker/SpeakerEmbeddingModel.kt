@@ -4,7 +4,9 @@ import ai.onnxruntime.OnnxTensor
 import ai.onnxruntime.OrtEnvironment
 import ai.onnxruntime.OrtSession
 import android.content.Context
+import dev.retrobit.voice.core.EnrollmentCrashCheckpoint
 import dev.retrobit.voice.core.VoiceLog
+import dev.retrobit.voice.core.toDirectNativeFloatBuffer
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -14,7 +16,6 @@ import java.io.FileInputStream
 import java.io.FileOutputStream
 import java.net.HttpURLConnection
 import java.net.URL
-import java.nio.FloatBuffer
 import java.security.MessageDigest
 
 /**
@@ -47,15 +48,21 @@ class SpeakerEmbeddingModel(context: Context) : AutoCloseable {
         wavFile: File,
         onProgress: (downloadedBytes: Long, totalBytes: Long) -> Unit = { _, _ -> },
     ): FloatArray {
+        EnrollmentCrashCheckpoint.mark(appContext, "speaker-profile", "decoding-wav")
         val normalizedSpeech = withContext(Dispatchers.Default) {
             SpeakerAudioFeatures.trimSpeech(SpeakerAudioFeatures.readPcm16MonoWav(wavFile))
         }
+        EnrollmentCrashCheckpoint.mark(appContext, "speaker-profile", "extracting-audio-features")
         val features = withContext(Dispatchers.Default) { SpeakerAudioFeatures.computeFbank(normalizedSpeech) }
         val model = ensureModelFile(onProgress)
+        EnrollmentCrashCheckpoint.mark(appContext, "speaker-profile", "waiting-for-onnx-session")
         return withContext(Dispatchers.Default) {
-            sessionMutex.withLock {
+            sessionMutex.lock()
+            try {
                 val activeSession = session ?: createSession(model).also { session = it }
                 infer(activeSession, features)
+            } finally {
+                sessionMutex.unlock()
             }
         }
     }
@@ -128,26 +135,31 @@ class SpeakerEmbeddingModel(context: Context) : AutoCloseable {
         }
     }
 
-    private fun infer(activeSession: OrtSession, features: FloatArray): FloatArray {
+    private suspend fun infer(activeSession: OrtSession, features: FloatArray): FloatArray {
         if (features.isEmpty() || features.size % SpeakerAudioFeatures.FEATURE_BINS != 0) {
             throw SpeakerAudioFeatures.InvalidAudioException("Fitur audio untuk speaker tidak valid")
         }
         val frames = features.size / SpeakerAudioFeatures.FEATURE_BINS
+        EnrollmentCrashCheckpoint.mark(appContext, "speaker-profile", "creating-onnx-input-tensor")
         val input = OnnxTensor.createTensor(
             environment,
-            FloatBuffer.wrap(features),
+            features.toDirectNativeFloatBuffer(),
             longArrayOf(1L, frames.toLong(), SpeakerAudioFeatures.FEATURE_BINS.toLong()),
         )
         try {
+            EnrollmentCrashCheckpoint.mark(appContext, "speaker-profile", "running-onnx-session")
             val output = activeSession.run(mapOf(activeSession.inputNames.first() to input))
             try {
+                EnrollmentCrashCheckpoint.mark(appContext, "speaker-profile", "reading-onnx-output")
                 val values = mutableListOf<Float>()
                 flatten(output[0].value, values)
                 if (values.size != EMBEDDING_DIMENSION) {
                     throw IllegalStateException("Dimensi embedding model speaker tidak didukung: ${values.size}")
                 }
-                return SpeakerAudioFeatures.normalize(values.toFloatArray())
+                val embedding = SpeakerAudioFeatures.normalize(values.toFloatArray())
                     ?: throw IllegalStateException("Model speaker menghasilkan embedding tidak valid")
+                EnrollmentCrashCheckpoint.mark(appContext, "speaker-profile", "onnx-output-normalized")
+                return embedding
             } finally {
                 output.close()
             }
