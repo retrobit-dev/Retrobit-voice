@@ -254,7 +254,7 @@ class SettingsRepository(private val context: Context) {
 
         fun defaultLlmModel(provider: LlmProvider): String = when (provider) {
             LlmProvider.OPENAI -> "gpt-4o-mini"
-            LlmProvider.GEMINI -> "gemini-2.0-flash"
+            LlmProvider.GEMINI -> "gemini-3.8-flash"
             LlmProvider.OLLAMA -> "llama3.1"
             LlmProvider.OFF -> ""
         }

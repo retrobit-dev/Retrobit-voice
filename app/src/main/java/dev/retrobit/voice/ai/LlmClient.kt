@@ -49,6 +49,11 @@ class LlmClient {
 
     class LlmException(message: String, cause: Throwable? = null) : Exception(message, cause)
 
+    private class GeminiModelNotFoundException(
+        val model: String,
+        val responseBody: String,
+    ) : Exception("Gemini model '$model' tidak ditemukan")
+
     /** Kirim percakapan ke LLM dan kembalikan teks jawabannya. */
     suspend fun complete(
         settings: AppSettings,
@@ -125,8 +130,39 @@ class LlmClient {
         val base = settings.llmBaseUrl.ifBlank {
             SettingsRepository.defaultLlmBaseUrl(LlmProvider.GEMINI)
         }.trimEnd('/')
-        val model = settings.llmModel.ifBlank { SettingsRepository.defaultLlmModel(LlmProvider.GEMINI) }
+        val configuredModel = settings.llmModel.trim()
+            .ifBlank { SettingsRepository.defaultLlmModel(LlmProvider.GEMINI) }
+        val fallbackModel = SettingsRepository.defaultLlmModel(LlmProvider.GEMINI)
 
+        return try {
+            geminiGenerateContent(base, settings.llmApiKey, configuredModel, systemPrompt, history, userText, temperature)
+        } catch (missing: GeminiModelNotFoundException) {
+            if (configuredModel == fallbackModel) {
+                VoiceLog.e("Gemini gagal (404): ${missing.responseBody.take(300)}")
+                throw LlmException(mapError(404, missing.responseBody), missing)
+            }
+            VoiceLog.w("Model Gemini '$configuredModel' tidak ditemukan; mencoba model bawaan '$fallbackModel'")
+            try {
+                geminiGenerateContent(base, settings.llmApiKey, fallbackModel, systemPrompt, history, userText, temperature)
+            } catch (fallbackMissing: GeminiModelNotFoundException) {
+                VoiceLog.e("Model Gemini bawaan '$fallbackModel' juga tidak ditemukan: ${fallbackMissing.responseBody.take(300)}")
+                throw LlmException(
+                    "Model Gemini '$configuredModel' dan model bawaan '$fallbackModel' tidak tersedia. Periksa nama model atau akses API key.",
+                    fallbackMissing,
+                )
+            }
+        }
+    }
+
+    private fun geminiGenerateContent(
+        base: String,
+        apiKey: String,
+        model: String,
+        systemPrompt: String,
+        history: List<Pair<String, String>>,
+        userText: String,
+        temperature: Double,
+    ): String {
         fun content(role: String?, text: String): JsonObject = buildJsonObject {
             putJsonArray("parts") { addJsonObject { put("text", text) } }
             if (role != null) put("role", role)
@@ -147,13 +183,14 @@ class LlmClient {
 
         val request = Request.Builder()
             .url("$base/v1beta/models/$model:generateContent")
-            .addHeader("x-goog-api-key", ApiKeys.sanitize(settings.llmApiKey))
+            .addHeader("x-goog-api-key", ApiKeys.sanitize(apiKey))
             .post(payload.toString().toRequestBody("application/json".toMediaType()))
             .build()
 
         return Http.execute(request) { response ->
             val body = response.body?.string().orEmpty()
             if (!response.isSuccessful) {
+                if (response.code == 404) throw GeminiModelNotFoundException(model, body)
                 VoiceLog.e("Gemini gagal (${response.code}): ${body.take(300)}")
                 throw LlmException(mapError(response.code, body))
             }

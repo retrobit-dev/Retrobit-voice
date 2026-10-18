@@ -4,9 +4,20 @@ import dev.retrobit.voice.assistant.IntentMapper
 import dev.retrobit.voice.core.AssistantAction
 import dev.retrobit.voice.core.MediaCommand
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Test
 
 class IntentMapperTest {
+
+    @Test
+    fun `answer intent becomes a chat reply and never an action`() {
+        val mapped = IntentMapper.map(
+            """{"intent":"answer","slots":{"text":"Langit tampak biru karena hamburan cahaya."},"reply":"Langit tampak biru karena cahaya biru tersebar lebih kuat di atmosfer."}""",
+        )
+
+        assertNull(mapped.action)
+        assertEquals("Langit tampak biru karena cahaya biru tersebar lebih kuat di atmosfer.", mapped.reply)
+    }
 
     @Test
     fun `maps system control intents`() {

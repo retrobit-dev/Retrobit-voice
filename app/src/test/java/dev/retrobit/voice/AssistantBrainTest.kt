@@ -5,6 +5,8 @@ import dev.retrobit.voice.assistant.AssistantBrain
 import dev.retrobit.voice.core.AssistantAction
 import dev.retrobit.voice.core.MediaCommand
 import dev.retrobit.voice.data.AppSettings
+import dev.retrobit.voice.data.LlmProvider
+import dev.retrobit.voice.data.SettingsRepository
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -16,10 +18,16 @@ class AssistantBrainTest {
     private val brain = AssistantBrain(LlmClient()) { emptyList() }
 
     @Test
-    fun `kalimat tak dikenal meminta klarifikasi dan tidak menjadi pencarian`() = runBlocking {
+    fun `Gemini memakai model Flash bawaan yang valid`() {
+        assertEquals("gemini-3.8-flash", SettingsRepository.defaultLlmModel(LlmProvider.GEMINI))
+    }
+
+    @Test
+    fun `kalimat percakapan yang tak dikenal diarahkan ke chatbot dan tidak menjadi pencarian`() = runBlocking {
         val result = brain.understand("jelaskan fenomena el nino", AppSettings())
 
         assertNull(result.action)
+        assertTrue(result.reply.contains("chatbot"))
         assertTrue(result.reply.contains("cari"))
     }
 

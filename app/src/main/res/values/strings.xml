@@ -180,7 +180,7 @@
     <string name="settings_volume_assistant_ready">Siap. Tahan Volume Atas 0,7 detik untuk asisten; ketukan singkat menaikkan volume. Volume Bawah tetap mengatur volume atau memicu dikte.</string>
     <string name="settings_volume_assistant_ready_split">Siap. Tahan Volume Atas untuk asisten dan Volume Bawah untuk dikte; ketukan singkat tetap mengubah volume.</string>
     <string name="settings_assistant_title">Asisten</string>
-    <string name="settings_assistant_subtitle">Tanpa AI daring, asisten tetap menjalankan puluhan perintah lewat aturan lokal.</string>
+    <string name="settings_assistant_subtitle">Perintah perangkat tetap berjalan lewat aturan lokal; obrolan umum dijawab sebagai chatbot jika penyedia LLM diaktifkan.</string>
     <string name="llm_off">Nonaktif</string>
     <string name="settings_speak_replies">Bacakan jawaban</string>
     <string name="settings_assistant_silence_timeout">Jeda hening sebelum perintah diproses</string>

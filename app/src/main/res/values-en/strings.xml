@@ -172,7 +172,7 @@
     <string name="settings_volume_assistant_ready">Ready. Hold Volume Up for 0.7 seconds to start the assistant; a short tap still raises volume. Volume Down still adjusts volume or triggers dictation.</string>
     <string name="settings_volume_assistant_ready_split">Ready. Hold Volume Up for the assistant and Volume Down for dictation; short taps still adjust volume.</string>
     <string name="settings_assistant_title">Assistant</string>
-    <string name="settings_assistant_subtitle">Even without online AI, dozens of commands work through local rules.</string>
+    <string name="settings_assistant_subtitle">Device commands still use local rules; general conversation is answered as chatbot when an LLM provider is enabled.</string>
     <string name="llm_off">Off</string>
     <string name="settings_speak_replies">Speak replies aloud</string>
     <string name="settings_assistant_silence_timeout">Silence before processing a command</string>

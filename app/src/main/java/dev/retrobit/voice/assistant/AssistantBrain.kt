@@ -126,7 +126,7 @@ class AssistantBrain(
             )
         }
 
-        // 2. LLM
+        // 2. LLM: resolve commands the local parser cannot classify and answer general chat.
         if (settings.llmReady) {
             try {
                 val contextualRequest = buildString {
@@ -199,12 +199,15 @@ class AssistantBrain(
                         source = "pencarian eksplisit diperlukan",
                     )
                 }
-                // Aturan lokal masih menang kalau LLM hanya mengembalikan "answer" tanpa slot.
+                // Balasan chatbot tidak pernah dieksekusi sebagai aksi perangkat.
                 val action = mapped.action ?: ruleResult?.action
+                val chatReply = action == null
+                if (chatReply) VoiceLog.i("Ucapan bukan perintah perangkat; dijawab dalam mode chatbot")
                 return Understanding(
                     action = action,
                     reply = mapped.reply,
-                    source = "llm:${settings.llmProvider.name.lowercase()}",
+                    source = if (chatReply) "chatbot:${settings.llmProvider.name.lowercase()}"
+                    else "llm:${settings.llmProvider.name.lowercase()}",
                     confidence = if (mapped.action != null) 0.9f else 0.6f,
                 )
             } catch (t: Throwable) {
@@ -242,8 +245,8 @@ class AssistantBrain(
             } else {
                 "Saya belum bisa memahami aksi pada layar itu secara offline. Isi layar tidak akan saya cari di web."
             }
-            english -> "I don't understand that yet. Say ‘search …’ or ‘cari …’ to open a web search."
-            else -> "Saya belum paham. Ucapkan ‘cari …’ jika Anda ingin membuka pencarian web."
+            english -> "I couldn't match a device command. Enable an LLM provider in Settings to chat; say ‘search …’ only when you want a web search."
+            else -> "Saya tidak menemukan perintah perangkat. Aktifkan penyedia LLM di Pengaturan untuk mengobrol sebagai chatbot; ucapkan ‘cari …’ hanya jika ingin mencari di web."
         }
         return Understanding(action, reply, "aturan lokal (offline)", ruleResult?.confidence ?: 0.3f)
     }
